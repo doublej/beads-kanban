@@ -67,7 +67,28 @@
 	let resizeStart = $state({ x: 0, y: 0, w: 0, h: 0 });
 	let contextMenu = $state<{ x: number; y: number; issue: Issue } | null>(null);
 	let collapsedColumns = $state<Set<string>>(new Set());
+	let columnSortBy = $state<Record<string, 'priority' | 'created' | 'title'>>({});
+	let sortMenuOpen = $state<string | null>(null);
 	let ropeDrag = $state<{ fromId: string; startX: number; startY: number; currentX: number; currentY: number; targetId: string | null } | null>(null);
+
+	function sortIssues(issues: Issue[], sortBy: 'priority' | 'created' | 'title'): Issue[] {
+		return [...issues].sort((a, b) => {
+			if (sortBy === 'priority') return a.priority - b.priority;
+			if (sortBy === 'created') return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+			if (sortBy === 'title') return a.title.localeCompare(b.title);
+			return 0;
+		});
+	}
+
+	function toggleSortMenu(columnKey: string, e: MouseEvent) {
+		e.stopPropagation();
+		sortMenuOpen = sortMenuOpen === columnKey ? null : columnKey;
+	}
+
+	function setColumnSort(columnKey: string, sortBy: 'priority' | 'created' | 'title') {
+		columnSortBy = { ...columnSortBy, [columnKey]: sortBy };
+		sortMenuOpen = null;
+	}
 
 	function toggleColumnCollapse(key: string) {
 		const next = new Set(collapsedColumns);
@@ -285,6 +306,7 @@
 
 	function closeContextMenu() {
 		contextMenu = null;
+		sortMenuOpen = null;
 	}
 
 	async function setIssuePriority(id: string, priority: number) {
@@ -886,9 +908,11 @@
 	<div class="main-content">
 		<main class="board" ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
 			{#each columns as column, i}
-				{@const allColumnIssues = issues.filter((x) => x.status === column.key)}
+				{@const rawColumnIssues = issues.filter((x) => x.status === column.key)}
+				{@const allColumnIssues = columnSortBy[column.key] ? sortIssues(rawColumnIssues, columnSortBy[column.key]) : rawColumnIssues}
 				{@const matchingCount = allColumnIssues.filter(issueMatchesFilters).length}
 				{@const isCollapsed = collapsedColumns.has(column.key)}
+				{@const currentSort = columnSortBy[column.key]}
 				<section
 					class="column"
 					class:mobile-active={activeColumnIndex === i}
@@ -905,7 +929,19 @@
 							<h2>{column.label}</h2>
 						</div>
 						<div class="column-header-actions">
-								<span class="column-count">{#if hasActiveFilters}{matchingCount}/{allColumnIssues.length}{:else}{allColumnIssues.length}{/if}</span>
+							<div class="sort-dropdown">
+								<button class="sort-btn" class:active={currentSort} onclick={(e) => toggleSortMenu(column.key, e)} title="Sort by">
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
+								</button>
+								{#if sortMenuOpen === column.key}
+									<div class="sort-menu">
+										<button class:active={currentSort === 'priority'} onclick={() => setColumnSort(column.key, 'priority')}>Priority</button>
+										<button class:active={currentSort === 'created'} onclick={() => setColumnSort(column.key, 'created')}>Newest</button>
+										<button class:active={currentSort === 'title'} onclick={() => setColumnSort(column.key, 'title')}>Title</button>
+									</div>
+								{/if}
+							</div>
+							<span class="column-count">{#if hasActiveFilters}{matchingCount}/{allColumnIssues.length}{:else}{allColumnIssues.length}{/if}</span>
 							<button class="column-collapse-btn" onclick={(e) => { e.stopPropagation(); toggleColumnCollapse(column.key); }} aria-label={isCollapsed ? 'Expand column' : 'Collapse column'}>
 								{isCollapsed ? '▶' : '◀'}
 							</button>
@@ -1515,6 +1551,50 @@
 		padding-bottom: 48px;
 		background: var(--bg-primary);
 		transition: background var(--transition-smooth);
+		position: relative;
+		overflow: hidden;
+	}
+
+	.app::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background:
+			radial-gradient(ellipse 80% 50% at 20% 40%, rgba(56, 189, 248, 0.08) 0%, transparent 50%),
+			radial-gradient(ellipse 60% 60% at 80% 20%, rgba(167, 139, 250, 0.06) 0%, transparent 50%),
+			radial-gradient(ellipse 50% 80% at 60% 80%, rgba(52, 211, 153, 0.05) 0%, transparent 50%),
+			radial-gradient(ellipse 70% 40% at 10% 90%, rgba(251, 191, 36, 0.04) 0%, transparent 50%);
+		animation: auroraShift 30s ease-in-out infinite alternate;
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	.app > * {
+		position: relative;
+		z-index: 1;
+	}
+
+	@keyframes auroraShift {
+		0% {
+			transform: translate(0, 0) scale(1);
+			opacity: 1;
+		}
+		50% {
+			transform: translate(2%, -1%) scale(1.02);
+			opacity: 0.8;
+		}
+		100% {
+			transform: translate(-1%, 2%) scale(0.98);
+			opacity: 1;
+		}
+	}
+
+	.app.light::before {
+		background:
+			radial-gradient(ellipse 80% 50% at 20% 40%, rgba(56, 189, 248, 0.12) 0%, transparent 50%),
+			radial-gradient(ellipse 60% 60% at 80% 20%, rgba(167, 139, 250, 0.1) 0%, transparent 50%),
+			radial-gradient(ellipse 50% 80% at 60% 80%, rgba(52, 211, 153, 0.08) 0%, transparent 50%),
+			radial-gradient(ellipse 70% 40% at 10% 90%, rgba(251, 191, 36, 0.06) 0%, transparent 50%);
 	}
 
 	/* Light theme */
@@ -1543,17 +1623,10 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 0.875rem 1.5rem;
-		background: rgba(28, 28, 30, 0.72);
-		backdrop-filter: saturate(180%) blur(20px);
-		-webkit-backdrop-filter: saturate(180%) blur(20px);
-		border-bottom: 0.5px solid var(--border-subtle);
+		background: transparent;
 		gap: 1.5rem;
 		z-index: 100;
 		flex-shrink: 0;
-	}
-
-	.app.light .header {
-		background: rgba(255, 255, 255, 0.72);
 	}
 
 	.header-left {
@@ -1887,6 +1960,79 @@
 		gap: 0.5rem;
 	}
 
+	.sort-dropdown {
+		position: relative;
+	}
+
+	.sort-btn {
+		width: 1.25rem;
+		height: 1.25rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: var(--radius-sm);
+		border: none;
+		background: transparent;
+		color: var(--text-tertiary);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		opacity: 0;
+	}
+
+	.sort-btn svg {
+		width: 0.75rem;
+		height: 0.75rem;
+	}
+
+	.column-header:hover .sort-btn {
+		opacity: 0.6;
+	}
+
+	.sort-btn:hover, .sort-btn.active {
+		opacity: 1;
+		color: var(--accent);
+	}
+
+	.sort-menu {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		margin-top: 0.25rem;
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+		padding: 0.25rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+		z-index: 50;
+		min-width: 80px;
+		box-shadow: var(--shadow-md);
+	}
+
+	.sort-menu button {
+		padding: 0.375rem 0.5rem;
+		font-size: 0.625rem;
+		font-weight: 500;
+		text-align: left;
+		border: none;
+		background: transparent;
+		color: var(--text-secondary);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.sort-menu button:hover {
+		background: var(--bg-elevated);
+		color: var(--text-primary);
+	}
+
+	.sort-menu button.active {
+		background: var(--accent-primary);
+		color: white;
+	}
+
 	.column-collapse-btn {
 		width: 1.25rem;
 		height: 1.25rem;
@@ -2009,6 +2155,7 @@
 		display: flex;
 		align-items: flex-start;
 		background: var(--priority-bar-color);
+		border-radius: var(--radius-md) 0 0 var(--radius-md);
 	}
 
 	.priority-label {
