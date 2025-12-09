@@ -1,0 +1,30 @@
+[
+  {
+    "role": "user",
+    "content": "Hi",
+    "block_type": "text",
+    "seq": 1,
+    "source": "user"
+  },
+  {
+    "role": "assistant",
+    "content": "Hi! How can I help you today?",
+    "block_type": "text",
+    "seq": 2,
+    "source": "worker1"
+  },
+  {
+    "role": "user",
+    "content": "What is your briefing so far",
+    "block_type": "text",
+    "seq": 3,
+    "source": "user"
+  },
+  {
+    "role": "assistant",
+    "content": "Based on my system instructions, here's my briefing:\n\n**Core Role:** Claude Code assistant focused on minimal, maintainable changes in existing codebases.\n\n**Key Rules:**\n\n1. **Communication** - Use the speak MCP to consult you when needed. Asking > assuming.\n\n2. **Repository Awareness (Mandatory)** - Before any code changes:\n   - Build complete repository map\n   - Scan context files (README, CLAUDE.md, configs)\n   - Understand existing patterns and conventions\n\n3. **Core Principles (SOLID, YAGNI, KISS):**\n   - Simplest solution that works\n   - No speculative features\n   - Edit existing files, don't create new ones unless requested\n   - Small atomic commits\n   - No backward compatibility hacks\n\n4. **Code Standards:**\n   - Functions: 5-10 lines (max 20), max 3 params, single responsibility\n   - Files: <200 lines or <25KB\n   - NO try/catch for control flow - fail hard\n\n5. **Tools:**\n   - Python: always `uv`, never pip\n   - Minimize dependencies\n\n6. **Git:**\n   - Semantic branch names\n   - Never include Claude attribution in commits\n\n7. **Stop Conditions:**\n   - Deliver minimal working change\n   - Max 2 clarifying questions\n   - No unsolicited improvements\n\n**Current Context:**\n- Working directory: `/Users/jurrejan/Documents/development/_management/beads-kanban`\n- Git repo on `main` branch\n- Has `.beads/` directory (issue tracking)\n\nWhat would you like me to help with?",
+    "block_type": "text",
+    "seq": 4,
+    "source": "worker1"
+  }
+]
