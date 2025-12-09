@@ -18,7 +18,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	if (title !== undefined) cmd += ` --title "${title.replace(/"/g, '\\"')}"`;
 	if (description !== undefined) cmd += ` --description "${description.replace(/"/g, '\\"')}"`;
 	if (priority !== undefined) cmd += ` --priority ${priority}`;
-	if (issue_type !== undefined) cmd += ` --type ${issue_type}`;
+	// Note: bd update does not support --type flag, issue_type cannot be updated
 	if (design !== undefined) cmd += ` --design "${(design || '').replace(/"/g, '\\"')}"`;
 	if (acceptance_criteria !== undefined) cmd += ` --acceptance "${(acceptance_criteria || '').replace(/"/g, '\\"')}"`;
 	if (notes !== undefined) cmd += ` --notes "${(notes || '').replace(/"/g, '\\"')}"`;

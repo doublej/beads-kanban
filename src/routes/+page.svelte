@@ -67,6 +67,7 @@
 	let resizeStart = $state({ x: 0, y: 0, w: 0, h: 0 });
 	let contextMenu = $state<{ x: number; y: number; issue: Issue } | null>(null);
 	let collapsedColumns = $state<Set<string>>(new Set());
+	let ropeDrag = $state<{ fromId: string; startX: number; startY: number; currentX: number; currentY: number; targetId: string | null } | null>(null);
 
 	function toggleColumnCollapse(key: string) {
 		const next = new Set(collapsedColumns);
@@ -137,11 +138,55 @@
 			const h = Math.max(200, Math.min(window.innerHeight - 100, resizeStart.h + dh));
 			paneCustomSizes = { ...paneCustomSizes, [resizingPane]: { w, h } };
 		}
+		if (ropeDrag) {
+			ropeDrag = { ...ropeDrag, currentX: e.clientX, currentY: e.clientY };
+			// Find card under cursor - get all elements at point and find card
+			const elements = document.elementsFromPoint(e.clientX, e.clientY);
+			const card = elements.find(el => el.classList.contains('card')) as HTMLElement | null;
+			const targetId = card?.querySelector('.card-id')?.textContent?.trim() || null;
+			if (targetId && targetId !== ropeDrag.fromId) {
+				ropeDrag = { ...ropeDrag, targetId };
+			} else {
+				ropeDrag = { ...ropeDrag, targetId: null };
+			}
+		}
 	}
 
 	function handleMouseUp() {
+		if (ropeDrag && ropeDrag.targetId) {
+			createDependency(ropeDrag.fromId, ropeDrag.targetId);
+		}
+		ropeDrag = null;
 		draggingPane = null;
 		resizingPane = null;
+	}
+
+	async function createDependency(fromId: string, toId: string) {
+		const res = await fetch(`/api/issues/${fromId}/deps`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ depends_on: toId, dep_type: 'blocks' })
+		});
+		const data = await res.json();
+		if (!res.ok) {
+			console.error('Failed to create dependency:', data.error);
+			return;
+		}
+		closeContextMenu();
+	}
+
+	function startRopeDrag(e: MouseEvent, issueId: string) {
+		e.preventDefault();
+		e.stopPropagation();
+		ropeDrag = {
+			fromId: issueId,
+			startX: e.clientX,
+			startY: e.clientY,
+			currentX: e.clientX,
+			currentY: e.clientY,
+			targetId: null
+		};
+		closeContextMenu();
 	}
 
 	function getPaneStyle(name: string): string {
@@ -175,17 +220,21 @@
 		{ key: 'closed', label: 'Complete', icon: '●', accent: '#10b981' }
 	] as const;
 
+	function issueMatchesFilters(issue: Issue): boolean {
+		const query = searchQuery.toLowerCase();
+		const matchesSearch = !query ||
+			issue.id.toLowerCase().includes(query) ||
+			issue.title.toLowerCase().includes(query) ||
+			issue.description.toLowerCase().includes(query);
+		const matchesPriority = filterPriority === 'all' || issue.priority === filterPriority;
+		const matchesType = filterType === 'all' || issue.issue_type === filterType;
+		return matchesSearch && matchesPriority && matchesType;
+	}
+
+	const hasActiveFilters = $derived(searchQuery !== '' || filterPriority !== 'all' || filterType !== 'all');
+
 	const filteredIssues = $derived(
-		issues.filter((issue) => {
-			const query = searchQuery.toLowerCase();
-			const matchesSearch = !query ||
-				issue.id.toLowerCase().includes(query) ||
-				issue.title.toLowerCase().includes(query) ||
-				issue.description.toLowerCase().includes(query);
-			const matchesPriority = filterPriority === 'all' || issue.priority === filterPriority;
-			const matchesType = filterType === 'all' || issue.issue_type === filterType;
-			return matchesSearch && matchesPriority && matchesType;
-		})
+		issues.filter((issue) => issueMatchesFilters(issue))
 	);
 
 	function connectSSE() {
@@ -243,11 +292,6 @@
 		closeContextMenu();
 	}
 
-	async function setIssueType(id: string, issue_type: string) {
-		await updateIssue(id, { issue_type });
-		closeContextMenu();
-	}
-
 	let copiedId = $state<string | null>(null);
 	async function copyToClipboard(text: string, id?: string) {
 		await navigator.clipboard.writeText(text);
@@ -292,7 +336,11 @@
 	}
 
 	function openEditPanel(issue: Issue, pushState = true) {
+		if (hasUnsavedCreate()) {
+			if (!confirm('You have unsaved changes. Discard them?')) return;
+		}
 		isCreating = false;
+		createForm = { title: '', description: '', priority: 2, issue_type: 'task' };
 		editingIssue = { ...issue };
 		selectedId = issue.id;
 		comments = [];
@@ -304,7 +352,14 @@
 		}
 	}
 
-	function closePanel(pushState = true) {
+	function hasUnsavedCreate(): boolean {
+		return isCreating && (createForm.title.trim() !== '' || createForm.description.trim() !== '');
+	}
+
+	function closePanel(pushState = true, force = false) {
+		if (!force && hasUnsavedCreate()) {
+			if (!confirm('You have unsaved changes. Discard them?')) return;
+		}
 		editingIssue = null;
 		isCreating = false;
 		comments = [];
@@ -597,11 +652,13 @@
 	});
 </script>
 
-<svelte:window onkeydown={handleKeydown} onpopstate={handlePopState} onclick={closeContextMenu} />
+<svelte:window onkeydown={handleKeydown} onpopstate={handlePopState} onclick={closeContextMenu} onmousemove={handleMouseMove} onmouseup={handleMouseUp} />
 
 {#if contextMenu}
+	<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 	<div
 		class="context-menu"
+		role="menu"
 		style="left: {contextMenu.x}px; top: {contextMenu.y}px"
 		onclick={(e) => e.stopPropagation()}
 	>
@@ -624,34 +681,126 @@
 		</div>
 		<div class="context-menu-divider"></div>
 		<div class="context-menu-section">
-			<span class="context-menu-label">Type</span>
-			<div class="context-menu-options">
-				<button class="context-option" class:active={contextMenu.issue.issue_type === 'task'} onclick={() => setIssueType(contextMenu.issue.id, 'task')}>
-					<span class="type-icon">▢</span>Task
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.issue_type === 'bug'} onclick={() => setIssueType(contextMenu.issue.id, 'bug')}>
-					<span class="type-icon">●</span>Bug
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.issue_type === 'feature'} onclick={() => setIssueType(contextMenu.issue.id, 'feature')}>
-					<span class="type-icon">★</span>Feature
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.issue_type === 'chore'} onclick={() => setIssueType(contextMenu.issue.id, 'chore')}>
-					<span class="type-icon">⚙</span>Chore
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.issue_type === 'epic'} onclick={() => setIssueType(contextMenu.issue.id, 'epic')}>
-					<span class="type-icon">◈</span>Epic
-				</button>
+			<span class="context-menu-label">Link</span>
+			<div
+				class="rope-handle"
+				onmousedown={(e) => startRopeDrag(e, contextMenu.issue.id)}
+			>
+				<svg class="rope-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+					<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+				</svg>
+				<span>Drag to link</span>
+				<span class="rope-tip">⟡</span>
 			</div>
 		</div>
 	</div>
+{/if}
+
+{#if ropeDrag}
+	{@const dx = ropeDrag.currentX - ropeDrag.startX}
+	{@const dy = ropeDrag.currentY - ropeDrag.startY}
+	{@const length = Math.sqrt(dx * dx + dy * dy)}
+	{@const hasTarget = !!ropeDrag.targetId}
+	<svg class="link-beam" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;">
+		<defs>
+			<linearGradient id="beamGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+				<stop offset="0%" stop-color={hasTarget ? "#10b981" : "#64748b"} stop-opacity="0.3" />
+				<stop offset="50%" stop-color={hasTarget ? "#10b981" : "#94a3b8"} stop-opacity="0.8" />
+				<stop offset="100%" stop-color={hasTarget ? "#10b981" : "#64748b"} stop-opacity="0.3" />
+			</linearGradient>
+			<filter id="beamGlow" x="-50%" y="-50%" width="200%" height="200%">
+				<feGaussianBlur stdDeviation={hasTarget ? "4" : "2"} result="blur" />
+				<feMerge>
+					<feMergeNode in="blur" />
+					<feMergeNode in="SourceGraphic" />
+				</feMerge>
+			</filter>
+			<filter id="connectorGlow" x="-100%" y="-100%" width="300%" height="300%">
+				<feGaussianBlur stdDeviation="6" result="blur" />
+				<feMerge>
+					<feMergeNode in="blur" />
+					<feMergeNode in="blur" />
+					<feMergeNode in="SourceGraphic" />
+				</feMerge>
+			</filter>
+		</defs>
+
+		<!-- Main beam line -->
+		<line
+			x1={ropeDrag.startX}
+			y1={ropeDrag.startY}
+			x2={ropeDrag.currentX}
+			y2={ropeDrag.currentY}
+			stroke={hasTarget ? "#10b981" : "#64748b"}
+			stroke-width="2"
+			stroke-linecap="round"
+			filter="url(#beamGlow)"
+			opacity="0.9"
+		/>
+
+		<!-- Origin point -->
+		<circle
+			cx={ropeDrag.startX}
+			cy={ropeDrag.startY}
+			r="4"
+			fill={hasTarget ? "#10b981" : "#64748b"}
+			opacity="0.6"
+		/>
+
+		<!-- Cursor connector -->
+		<g filter={hasTarget ? "url(#connectorGlow)" : "none"}>
+			<circle
+				cx={ropeDrag.currentX}
+				cy={ropeDrag.currentY}
+				r={hasTarget ? "10" : "6"}
+				fill="none"
+				stroke={hasTarget ? "#10b981" : "#94a3b8"}
+				stroke-width="2"
+				class="connector-ring"
+				class:has-target={hasTarget}
+			/>
+			<circle
+				cx={ropeDrag.currentX}
+				cy={ropeDrag.currentY}
+				r="3"
+				fill={hasTarget ? "#10b981" : "#94a3b8"}
+			/>
+		</g>
+
+		<!-- Target label -->
+		{#if hasTarget}
+			<g class="target-label">
+				<rect
+					x={ropeDrag.currentX - 40}
+					y={ropeDrag.currentY - 32}
+					width="80"
+					height="18"
+					rx="4"
+					fill="rgba(16, 185, 129, 0.15)"
+					stroke="rgba(16, 185, 129, 0.4)"
+					stroke-width="1"
+				/>
+				<text
+					x={ropeDrag.currentX}
+					y={ropeDrag.currentY - 20}
+					text-anchor="middle"
+					fill="#10b981"
+					font-size="10"
+					font-weight="500"
+					font-family="ui-monospace, monospace"
+				>{ropeDrag.targetId}</text>
+			</g>
+		{/if}
+	</svg>
 {/if}
 
 <div class="app" class:light={!isDarkMode} class:panel-open={panelOpen}>
 	<header class="header">
 		<div class="header-left">
 			<div class="logo">
-				<span class="logo-icon">◆</span>
-				<h1>Beads</h1>
+				<span class="logo-icon">⟡</span>
+				<h1>Strand</h1>
 			</div>
 		</div>
 		<div class="header-center">
@@ -719,6 +868,8 @@
 
 	<nav class="column-nav">
 		{#each columns as column, i}
+			{@const totalInColumn = issues.filter((x) => x.status === column.key).length}
+			{@const matchingInColumn = filteredIssues.filter((x) => x.status === column.key).length}
 			<button
 				class="column-tab"
 				class:active={activeColumnIndex === i}
@@ -727,7 +878,7 @@
 			>
 				<span class="column-tab-icon">{column.icon}</span>
 				<span class="column-tab-label">{column.label}</span>
-				<span class="column-tab-count">{filteredIssues.filter((x) => x.status === column.key).length}</span>
+				<span class="column-tab-count">{#if hasActiveFilters}{matchingInColumn}/{totalInColumn}{:else}{totalInColumn}{/if}</span>
 			</button>
 		{/each}
 	</nav>
@@ -735,7 +886,8 @@
 	<div class="main-content">
 		<main class="board" ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
 			{#each columns as column, i}
-				{@const columnIssues = filteredIssues.filter((x) => x.status === column.key)}
+				{@const allColumnIssues = issues.filter((x) => x.status === column.key)}
+				{@const matchingCount = allColumnIssues.filter(issueMatchesFilters).length}
 				{@const isCollapsed = collapsedColumns.has(column.key)}
 				<section
 					class="column"
@@ -753,7 +905,7 @@
 							<h2>{column.label}</h2>
 						</div>
 						<div class="column-header-actions">
-							<span class="column-count">{columnIssues.length}</span>
+								<span class="column-count">{#if hasActiveFilters}{matchingCount}/{allColumnIssues.length}{:else}{allColumnIssues.length}{/if}</span>
 							<button class="column-collapse-btn" onclick={(e) => { e.stopPropagation(); toggleColumnCollapse(column.key); }} aria-label={isCollapsed ? 'Expand column' : 'Collapse column'}>
 								{isCollapsed ? '▶' : '◀'}
 							</button>
@@ -766,9 +918,10 @@
 							<div class="drop-indicator"></div>
 						{/if}
 
-						{#each columnIssues as issue, idx}
+						{#each allColumnIssues as issue, idx}
 							{@const priorityConfig = getPriorityConfig(issue.priority)}
 							{@const isBlocked = hasOpenBlockers(issue)}
+							{@const matchesFilter = issueMatchesFilters(issue)}
 							<article
 								class="card"
 								class:animating={animatingIds.has(issue.id)}
@@ -776,13 +929,17 @@
 								class:editing={editingIssue?.id === issue.id}
 								class:dragging={draggedId === issue.id}
 								class:has-blockers={isBlocked}
+								class:filter-dimmed={hasActiveFilters && !matchesFilter}
 								draggable="true"
 								ondragstart={(e) => handleDragStart(e, issue.id)}
 								ondragend={handleDragEnd}
 								onclick={() => openEditPanel(issue)}
 								oncontextmenu={(e) => openContextMenu(e, issue)}
 							>
-									<div class="card-priority-bar" style="background: {priorityConfig.color}"></div>
+									<div class="card-priority-bar" style="--priority-bar-color: {priorityConfig.color}">
+									<span class="priority-label">{priorityConfig.label}</span>
+								</div>
+								<span class="type-indicator" title={issue.issue_type}>{getTypeIcon(issue.issue_type)} {issue.issue_type}</span>
 								<div class="card-content">
 									<div class="card-header">
 										<span class="card-id-wrap">
@@ -803,30 +960,21 @@
 										{#if isBlocked}
 											<span class="blocked-indicator" title="Blocked by open dependencies">⊘</span>
 										{/if}
-										<div class="card-actions">
-											{#if issue.updated_at}
-												<span class="card-date">{formatDate(issue.updated_at)}</span>
-											{/if}
-											<button
-												class="btn-delete"
-												onclick={(e) => { e.stopPropagation(); deleteIssue(issue.id); }}
-												aria-label="Delete issue"
-											>
-												<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-													<path d="M18 6L6 18M6 6l12 12"/>
-												</svg>
-											</button>
 										</div>
-									</div>
+									{#if issue.assignee && (issue.assignee.toLowerCase() === 'claude' || issue.assignee.toLowerCase().includes('agent')) && issue.status === 'in_progress'}
+										<div class="agent-chip">
+											<span class="agent-pulse"></span>
+											<svg class="agent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<circle cx="12" cy="12" r="3"/>
+												<path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+											</svg>
+											<span class="agent-name">{issue.assignee}</span>
+											<span class="agent-status">working</span>
+										</div>
+									{/if}
 									<h3 class="card-title">{issue.title}</h3>
 									{#if issue.description}
 										<p class="card-description">{issue.description}</p>
-									{/if}
-									{#if issue.assignee}
-										<div class="card-assignee">
-											<span class="assignee-avatar">{issue.assignee.charAt(0).toUpperCase()}</span>
-											<span class="assignee-name">{issue.assignee}</span>
-										</div>
 									{/if}
 									{#if issue.labels && issue.labels.length > 0}
 										<div class="card-labels">
@@ -838,18 +986,14 @@
 											{/if}
 										</div>
 									{/if}
+									{#if issue.assignee && !(issue.assignee.toLowerCase() === 'claude' || issue.assignee.toLowerCase().includes('agent'))}
 									<div class="card-footer">
-										<span
-											class="badge priority"
-											style="--badge-color: {priorityConfig.color}; --badge-bg: {isDarkMode ? priorityConfig.bg : priorityConfig.lightBg}"
-										>
-											{priorityConfig.label}
+										<span class="badge assignee">
+											<span class="assignee-dot"></span>
+											{issue.assignee}
 										</span>
-										<span class="badge type">
-											<span class="type-icon">{getTypeIcon(issue.issue_type)}</span>
-											{issue.issue_type}
-										</span>
-										</div>
+									</div>
+									{/if}
 									{#if (issue.dependencies && issue.dependencies.length > 0) || (issue.dependents && issue.dependents.length > 0)}
 										<div class="card-links">
 											{#if issue.dependencies && issue.dependencies.length > 0}
@@ -897,7 +1041,7 @@
 							{/if}
 						{/each}
 
-						{#if columnIssues.length === 0}
+						{#if allColumnIssues.length === 0}
 							<div class="empty-state" class:drop-ready={draggedOverColumn === column.key}>
 								<div class="empty-icon">{column.icon}</div>
 								<p>No issues</p>
@@ -1320,27 +1464,31 @@
 {/snippet}
 
 <style>
-	@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap');
+	@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 	:root {
-		--bg-primary: #0a0a0b;
-		--bg-secondary: #111113;
-		--bg-tertiary: #18181b;
-		--bg-elevated: #1f1f23;
-		--border-subtle: rgba(255, 255, 255, 0.06);
-		--border-default: rgba(255, 255, 255, 0.1);
-		--border-strong: rgba(255, 255, 255, 0.15);
-		--text-primary: #fafafa;
-		--text-secondary: #a1a1aa;
-		--text-tertiary: #71717a;
-		--accent-primary: #6366f1;
-		--accent-glow: rgba(99, 102, 241, 0.2);
-		--radius-sm: 6px;
-		--radius-md: 10px;
-		--radius-lg: 14px;
-		--transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
-		--transition-smooth: 250ms cubic-bezier(0.4, 0, 0.2, 1);
-		--transition-bounce: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+		--bg-primary: #000000;
+		--bg-secondary: #1c1c1e;
+		--bg-tertiary: #2c2c2e;
+		--bg-elevated: #3a3a3c;
+		--border-subtle: rgba(255, 255, 255, 0.08);
+		--border-default: rgba(255, 255, 255, 0.12);
+		--border-strong: rgba(255, 255, 255, 0.18);
+		--text-primary: #ffffff;
+		--text-secondary: #98989d;
+		--text-tertiary: #636366;
+		--accent-primary: #0a84ff;
+		--accent-glow: rgba(10, 132, 255, 0.15);
+		--radius-sm: 8px;
+		--radius-md: 12px;
+		--radius-lg: 20px;
+		--radius-xl: 28px;
+		--transition-fast: 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
+		--transition-smooth: 350ms cubic-bezier(0.25, 0.1, 0.25, 1);
+		--transition-bounce: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
+		--shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
+		--shadow-md: 0 4px 24px rgba(0, 0, 0, 0.2);
+		--shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.3);
 	}
 
 	:global(*) {
@@ -1350,11 +1498,13 @@
 	}
 
 	:global(body) {
-		font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+		font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
 		background: var(--bg-primary);
 		color: var(--text-primary);
 		line-height: 1.5;
 		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		text-rendering: optimizeLegibility;
 		overflow: hidden;
 	}
 
@@ -1363,30 +1513,28 @@
 		flex-direction: column;
 		height: 100vh;
 		padding-bottom: 48px;
-		background:
-			radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15), transparent),
-			radial-gradient(ellipse 60% 40% at 100% 0%, rgba(168, 85, 247, 0.1), transparent),
-			var(--bg-primary);
+		background: var(--bg-primary);
 		transition: background var(--transition-smooth);
 	}
 
 	/* Light theme */
 	.app.light {
-		--bg-primary: #f8fafc;
+		--bg-primary: #f2f2f7;
 		--bg-secondary: #ffffff;
-		--bg-tertiary: #f1f5f9;
-		--bg-elevated: #e2e8f0;
-		--border-subtle: rgba(0, 0, 0, 0.06);
-		--border-default: rgba(0, 0, 0, 0.1);
-		--border-strong: rgba(0, 0, 0, 0.15);
-		--text-primary: #0f172a;
-		--text-secondary: #475569;
-		--text-tertiary: #94a3b8;
-		--accent-glow: rgba(99, 102, 241, 0.15);
-		background:
-			radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.08), transparent),
-			radial-gradient(ellipse 60% 40% at 100% 0%, rgba(168, 85, 247, 0.05), transparent),
-			var(--bg-primary);
+		--bg-tertiary: #e5e5ea;
+		--bg-elevated: #d1d1d6;
+		--border-subtle: rgba(0, 0, 0, 0.04);
+		--border-default: rgba(0, 0, 0, 0.08);
+		--border-strong: rgba(0, 0, 0, 0.12);
+		--text-primary: #000000;
+		--text-secondary: #3c3c43;
+		--text-tertiary: #8e8e93;
+		--accent-primary: #007aff;
+		--accent-glow: rgba(0, 122, 255, 0.12);
+		--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+		--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+		--shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.12);
+		background: var(--bg-primary);
 	}
 
 	/* Header */
@@ -1394,17 +1542,18 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.75rem 1.25rem;
-		background: rgba(17, 17, 19, 0.8);
-		backdrop-filter: blur(12px);
-		border-bottom: 1px solid var(--border-subtle);
-		gap: 1.25rem;
+		padding: 0.875rem 1.5rem;
+		background: rgba(28, 28, 30, 0.72);
+		backdrop-filter: saturate(180%) blur(20px);
+		-webkit-backdrop-filter: saturate(180%) blur(20px);
+		border-bottom: 0.5px solid var(--border-subtle);
+		gap: 1.5rem;
 		z-index: 100;
 		flex-shrink: 0;
 	}
 
 	.app.light .header {
-		background: rgba(255, 255, 255, 0.9);
+		background: rgba(255, 255, 255, 0.72);
 	}
 
 	.header-left {
@@ -1414,20 +1563,26 @@
 	.logo {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.625rem;
 	}
 
 	.logo-icon {
 		font-size: 1.375rem;
 		color: var(--accent-primary);
-		filter: drop-shadow(0 0 8px var(--accent-glow));
+		animation: logoPulse 4s ease-in-out infinite;
+	}
+
+	@keyframes logoPulse {
+		0%, 100% { opacity: 0.8; transform: rotate(0deg); }
+		50% { opacity: 1; transform: rotate(180deg); }
 	}
 
 	.logo h1 {
-		font-size: 1.125rem;
+		font-size: 1.0625rem;
 		font-weight: 700;
-		letter-spacing: -0.02em;
-		background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+		letter-spacing: 0.02em;
+		color: var(--text-primary);
+		background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 100%);
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
 		background-clip: text;
@@ -1567,27 +1722,26 @@
 	.btn-create {
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
-		padding: 0.4375rem 0.875rem;
+		gap: 0.5rem;
+		padding: 0.5rem 1rem;
 		background: var(--accent-primary);
 		border: none;
-		border-radius: var(--radius-md);
+		border-radius: var(--radius-lg);
 		color: white;
 		font-family: inherit;
 		font-size: 0.8125rem;
-		font-weight: 600;
+		font-weight: 500;
 		cursor: pointer;
 		transition: all var(--transition-fast);
 	}
 
 	.btn-create:hover {
-		background: #4f46e5;
-		transform: translateY(-1px);
-		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+		filter: brightness(1.1);
 	}
 
 	.btn-create:active {
-		transform: translateY(0);
+		filter: brightness(0.95);
+		transform: scale(0.98);
 	}
 
 	.btn-create-icon {
@@ -1661,64 +1815,61 @@
 	/* Board */
 	.board {
 		display: flex;
-		gap: 0.875rem;
-		padding: 1rem;
-		flex: 1;
+		gap: 1rem;
+		padding: 1.25rem;
+		flex: 1 1 0;
+		min-height: 0;
 		overflow-x: auto;
 		overflow-y: hidden;
-		min-height: 0;
 		transition: margin-right var(--transition-smooth);
 	}
 
 	/* Column */
 	.column {
 		flex: 1 1 0;
-		min-width: 260px;
-		max-height: 100%;
+		min-width: 280px;
+		min-height: 0;
+		align-self: stretch;
 		display: flex;
 		flex-direction: column;
-		background: var(--bg-secondary);
-		border: 1px solid var(--border-subtle);
+		background: transparent;
+		border: none;
 		border-radius: var(--radius-lg);
-		overflow: hidden;
+		overflow: visible;
 		transition: all var(--transition-smooth);
 	}
 
 	.column.drag-over {
-		border-color: var(--accent);
-		box-shadow:
-			0 0 0 1px var(--accent),
-			0 0 24px rgba(99, 102, 241, 0.15),
-			inset 0 0 48px rgba(99, 102, 241, 0.05);
+		background: var(--accent-glow);
 	}
 
 	.column-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.875rem 1rem;
-		border-bottom: 1px solid var(--border-subtle);
-		background: linear-gradient(180deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+		padding: 0.75rem 0.5rem;
+		border-bottom: none;
+		background: transparent;
 		flex-shrink: 0;
 	}
 
 	.column-title {
 		display: flex;
 		align-items: center;
-		gap: 0.4375rem;
+		gap: 0.5rem;
 	}
 
 	.column-icon {
-		font-size: 0.8125rem;
+		font-size: 0.75rem;
 		color: var(--accent);
-		opacity: 0.9;
 	}
 
 	.column-header h2 {
-		font-size: 0.8125rem;
+		font-size: 0.75rem;
 		font-weight: 600;
-		color: var(--text-primary);
-		letter-spacing: -0.01em;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-secondary);
 	}
 
 	.column-count {
@@ -1792,10 +1943,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
-		padding: 0.75rem;
+		padding: 0.75rem 0.75rem 0.75rem 0.5rem;
+		margin: 0 -0.25rem;
 		flex: 1;
 		overflow-y: auto;
-		overflow-x: hidden;
+		overflow-x: visible;
 		min-height: 0;
 	}
 
@@ -1834,23 +1986,70 @@
 	.card {
 		position: relative;
 		display: flex;
-		background: var(--bg-tertiary);
-		border: 1px solid var(--border-subtle);
+		flex-shrink: 0;
+		margin: 2px 4px;
+		background: var(--bg-secondary);
+		border: none;
 		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-sm);
 		cursor: pointer;
 		transition: all var(--transition-smooth);
-		overflow: hidden;
+		overflow: visible;
+	}
+
+	.card:hover {
+		transform: translateY(-1px);
+		box-shadow: var(--shadow-md);
 	}
 
 	.card-priority-bar {
 		width: 3px;
 		flex-shrink: 0;
+		position: relative;
+		display: flex;
+		align-items: flex-start;
+		background: var(--priority-bar-color);
+	}
+
+	.priority-label {
+		position: absolute;
+		left: 6px;
+		top: 4px;
+		writing-mode: vertical-rl;
+		text-orientation: mixed;
+		font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+		font-size: 0.4375rem;
+		font-weight: 500;
+		color: var(--priority-bar-color);
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
+		transform: rotate(180deg);
+		white-space: nowrap;
+	}
+
+	.type-indicator {
+		position: absolute;
+		bottom: 0.5rem;
+		right: 0.625rem;
+		font-size: 0.5625rem;
+		font-family: ui-monospace, 'SF Mono', monospace;
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
+		color: var(--text-tertiary);
+		opacity: 0.5;
+		z-index: 1;
+	}
+
+	.card:hover .type-indicator {
+		opacity: 0.8;
 	}
 
 	.card-content {
 		flex: 1;
-		padding: 0.75rem;
+		padding: 0.875rem;
 		min-width: 0;
+		overflow: hidden;
+		border-radius: 0 var(--radius-md) var(--radius-md) 0;
 	}
 
 	.card::after {
@@ -1863,48 +2062,52 @@
 	}
 
 	.card:hover {
-		border-color: var(--border-default);
-		transform: translateY(-2px);
-		box-shadow:
-			0 4px 12px rgba(0, 0, 0, 0.15),
-			0 0 1px rgba(255, 255, 255, 0.1);
+		transform: translateY(-2px) scale(1.01);
+		box-shadow: var(--shadow-md);
 	}
 
-	.app.light .card:hover {
-		box-shadow:
-			0 4px 12px rgba(0, 0, 0, 0.08),
-			0 0 1px rgba(0, 0, 0, 0.05);
+	.card:active {
+		transform: translateY(0) scale(0.99);
+		transition: transform 100ms ease-out;
 	}
 
 	.card.selected {
-		border-color: var(--accent-primary);
 		box-shadow:
-			0 0 0 2px var(--accent-glow),
-			0 4px 16px rgba(99, 102, 241, 0.2);
+			0 0 0 2px var(--accent-primary),
+			var(--shadow-md);
 	}
 
 	.card.editing {
-		border-color: var(--accent-primary);
-		background: rgba(99, 102, 241, 0.05);
+		box-shadow:
+			0 0 0 1px var(--accent-primary),
+			inset 0 0 0 1px rgba(10, 132, 255, 0.2),
+			var(--shadow-lg);
 		z-index: 5;
 	}
 
-
 	.card.dragging {
-		opacity: 0.5;
-		transform: rotate(2deg) scale(1.02);
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+		opacity: 0.7;
+		transform: rotate(3deg) scale(1.05);
+		box-shadow: var(--shadow-lg);
+		cursor: grabbing;
+	}
+
+	.card.filter-dimmed {
+		opacity: 0.25;
+		pointer-events: none;
+		transform: scale(0.98);
+		filter: grayscale(0.5);
 	}
 
 	.card.animating {
-		animation: cardEnter 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+		animation: cardEnter 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
 		z-index: 10;
 	}
 
 	@keyframes cardEnter {
 		0% {
 			opacity: 0;
-			transform: scale(0.85) translateY(-16px);
+			transform: scale(0.9) translateY(-12px);
 			box-shadow:
 				0 0 0 3px rgba(16, 185, 129, 0.8),
 				0 0 40px rgba(16, 185, 129, 0.6),
@@ -1956,8 +2159,8 @@
 	}
 
 	.btn-copy {
-		width: 1rem;
-		height: 1rem;
+		width: 1.25rem;
+		height: 1.25rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -1972,8 +2175,9 @@
 	}
 
 	.btn-copy svg {
-		width: 0.625rem;
-		height: 0.625rem;
+		width: 0.75rem;
+		height: 0.75rem;
+		transition: transform 150ms ease-out;
 	}
 
 	.card:hover .btn-copy {
@@ -1983,11 +2187,27 @@
 	.btn-copy:hover {
 		opacity: 1 !important;
 		color: var(--text-secondary);
+		background: var(--bg-elevated);
+	}
+
+	.btn-copy:hover svg {
+		transform: scale(1.1);
+	}
+
+	.btn-copy:active svg {
+		transform: scale(0.9);
 	}
 
 	.btn-copy.copied {
 		opacity: 1 !important;
-		color: #10b981;
+		color: #34c759;
+		animation: copySuccess 400ms ease-out;
+	}
+
+	@keyframes copySuccess {
+		0% { transform: scale(1); }
+		50% { transform: scale(1.2); }
+		100% { transform: scale(1); }
 	}
 
 	.blocked-indicator {
@@ -2002,7 +2222,7 @@
 	}
 
 	.card.has-blockers .card-priority-bar {
-		background: linear-gradient(180deg, #ef4444 0%, var(--priority-color, #ef4444) 100%) !important;
+		background: linear-gradient(180deg, #ef4444 0%, var(--priority-bar-color, #ef4444) 100%) !important;
 	}
 
 	.card-actions {
@@ -2070,29 +2290,75 @@
 		overflow: hidden;
 	}
 
-	.card-assignee {
+	.badge.assignee {
+		margin-left: auto;
+		background: rgba(99, 102, 241, 0.12);
+		color: var(--text-secondary);
+	}
+
+	.assignee-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: currentColor;
+	}
+
+	/* Agent Chip - Prominent AI worker indicator */
+	.agent-chip {
 		display: flex;
 		align-items: center;
 		gap: 0.375rem;
+		padding: 0.25rem 0.5rem 0.25rem 0.375rem;
+		background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.12) 100%);
+		border: 1px solid rgba(16, 185, 129, 0.25);
+		border-radius: 1rem;
 		margin-bottom: 0.5rem;
+		position: relative;
+		overflow: hidden;
+		width: fit-content;
 	}
 
-	.assignee-avatar {
-		width: 1.25rem;
-		height: 1.25rem;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: var(--accent-primary);
-		border-radius: 50%;
-		font-size: 0.625rem;
-		font-weight: 600;
-		color: white;
+	.agent-pulse {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(90deg, transparent 0%, rgba(16, 185, 129, 0.1) 50%, transparent 100%);
+		animation: agent-pulse-sweep 2.5s ease-in-out infinite;
 	}
 
-	.assignee-name {
+	@keyframes agent-pulse-sweep {
+		0%, 100% { transform: translateX(-100%); opacity: 0; }
+		50% { transform: translateX(100%); opacity: 1; }
+	}
+
+	.agent-icon {
+		width: 14px;
+		height: 14px;
+		color: #10b981;
+		animation: agent-icon-spin 8s linear infinite;
+		flex-shrink: 0;
+	}
+
+	@keyframes agent-icon-spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
+	}
+
+	.agent-name {
 		font-size: 0.6875rem;
-		color: var(--text-secondary);
+		font-weight: 600;
+		color: #10b981;
+		text-transform: capitalize;
+		letter-spacing: 0.01em;
+	}
+
+	.agent-status {
+		font-size: 0.5625rem;
+		font-weight: 500;
+		color: rgba(16, 185, 129, 0.7);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		padding-left: 0.25rem;
+		border-left: 1px solid rgba(16, 185, 129, 0.2);
 	}
 
 	.card-labels {
@@ -2274,25 +2540,25 @@
 		min-width: 460px;
 		max-width: 460px;
 		background: var(--bg-secondary);
-		border: 1px solid var(--accent-primary);
-		border-radius: var(--radius-lg);
+		border: none;
+		border-radius: var(--radius-xl);
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
-		box-shadow:
-			0 0 0 1px var(--accent-glow),
-			0 8px 32px rgba(0, 0, 0, 0.3);
-		animation: panelSlideIn 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+		box-shadow: var(--shadow-lg);
+		animation: panelSlideIn 350ms cubic-bezier(0.25, 0.1, 0.25, 1);
 	}
 
 	@keyframes panelSlideIn {
-		from {
+		0% {
 			opacity: 0;
-			transform: scale(0.95) translateX(-20px);
+			transform: scale(0.96) translateX(-16px);
+			filter: blur(4px);
 		}
-		to {
+		100% {
 			opacity: 1;
 			transform: scale(1) translateX(0);
+			filter: blur(0);
 		}
 	}
 
@@ -2304,14 +2570,14 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 1rem 1.25rem;
-		border-bottom: 1px solid var(--border-subtle);
-		background: var(--bg-tertiary);
+		padding: 1.125rem 1.5rem;
+		border-bottom: 0.5px solid var(--border-subtle);
+		background: transparent;
 		flex-shrink: 0;
 	}
 
 	.panel-header h2 {
-		font-size: 1rem;
+		font-size: 1.0625rem;
 		font-weight: 600;
 		color: var(--text-primary);
 	}
@@ -2426,9 +2692,14 @@
 		gap: 0.625rem;
 		justify-content: space-between;
 		padding: 1rem 1.25rem;
-		border-top: 1px solid var(--border-subtle);
-		background: var(--bg-tertiary);
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
+		background: rgba(255, 255, 255, 0.02);
 		flex-shrink: 0;
+	}
+
+	.app.light .panel-footer {
+		border-top-color: rgba(0, 0, 0, 0.04);
+		background: rgba(0, 0, 0, 0.02);
 	}
 
 	/* Form Groups */
@@ -2454,13 +2725,19 @@
 	.form-group textarea {
 		width: 100%;
 		padding: 0.625rem 0.875rem;
-		background: var(--bg-tertiary);
-		border: 1px solid var(--border-subtle);
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: var(--radius-md);
 		color: var(--text-primary);
 		font-family: inherit;
 		font-size: 0.875rem;
 		transition: all var(--transition-fast);
+	}
+
+	.app.light .form-group input,
+	.app.light .form-group textarea {
+		background: rgba(255, 255, 255, 0.8);
+		border-color: rgba(0, 0, 0, 0.08);
 	}
 
 	.form-group input::placeholder,
@@ -2471,8 +2748,16 @@
 	.form-group input:focus,
 	.form-group textarea:focus {
 		outline: none;
-		border-color: var(--accent-primary);
-		box-shadow: 0 0 0 3px var(--accent-glow);
+		background: rgba(255, 255, 255, 0.06);
+		border-color: rgba(10, 132, 255, 0.5);
+		box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
+	}
+
+	.app.light .form-group input:focus,
+	.app.light .form-group textarea:focus {
+		background: rgba(255, 255, 255, 0.95);
+		border-color: rgba(0, 122, 255, 0.5);
+		box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
 	}
 
 	.form-group textarea {
@@ -2788,25 +3073,28 @@
 	.btn-danger {
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
-		padding: 0.5rem 1rem;
+		gap: 0.5rem;
+		padding: 0.625rem 1.25rem;
 		border: none;
-		border-radius: var(--radius-md);
+		border-radius: var(--radius-lg);
 		font-family: inherit;
-		font-size: 0.8125rem;
-		font-weight: 600;
+		font-size: 0.875rem;
+		font-weight: 500;
 		cursor: pointer;
 		transition: all var(--transition-fast);
 	}
 
 	.btn-secondary {
-		background: var(--bg-elevated);
-		color: var(--text-secondary);
+		background: var(--bg-tertiary);
+		color: var(--text-primary);
 	}
 
 	.btn-secondary:hover {
-		background: var(--border-default);
-		color: var(--text-primary);
+		background: var(--bg-elevated);
+	}
+
+	.btn-secondary:active {
+		transform: scale(0.98);
 	}
 
 	.btn-primary {
@@ -2815,22 +3103,25 @@
 	}
 
 	.btn-primary:hover {
-		background: #4f46e5;
-		transform: translateY(-1px);
-		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+		filter: brightness(1.1);
 	}
 
 	.btn-primary:active {
-		transform: translateY(0);
+		filter: brightness(0.95);
+		transform: scale(0.98);
 	}
 
 	.btn-danger {
-		background: rgba(239, 68, 68, 0.1);
-		color: #ef4444;
+		background: rgba(255, 59, 48, 0.12);
+		color: #ff3b30;
 	}
 
 	.btn-danger:hover {
-		background: rgba(239, 68, 68, 0.2);
+		background: rgba(255, 59, 48, 0.18);
+	}
+
+	.btn-danger:active {
+		transform: scale(0.98);
 	}
 
 	.btn-danger svg {
@@ -3895,10 +4186,11 @@
 		max-height: 400px;
 		display: flex;
 		flex-direction: column;
-		background: rgba(15, 15, 20, 0.98);
-		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: rgba(28, 28, 30, 0.95);
+		border: 1px solid rgba(255, 255, 255, 0.12);
 		border-radius: var(--radius-lg);
 		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		backdrop-filter: blur(20px);
 		overflow: hidden;
 		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	}
@@ -4056,8 +4348,8 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 0.625rem 0.75rem;
-		background: rgba(0, 0, 0, 0.3);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+		background: rgba(255, 255, 255, 0.04);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 		cursor: grab;
 	}
 
@@ -4213,8 +4505,8 @@
 		display: flex;
 		gap: 0.5rem;
 		padding: 0.625rem 0.75rem;
-		background: rgba(0, 0, 0, 0.2);
-		border-top: 1px solid rgba(255, 255, 255, 0.04);
+		background: rgba(255, 255, 255, 0.03);
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
 	}
 
 	.app.light .chat-input-form {
@@ -4227,15 +4519,18 @@
 		padding: 0.5rem 0.75rem;
 		font-size: 0.8125rem;
 		font-family: 'JetBrains Mono', monospace;
-		background: rgba(0, 0, 0, 0.3);
-		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.06);
+		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: var(--radius-sm);
 		color: var(--text-primary);
+		transition: all 0.2s ease;
 	}
 
 	.chat-input:focus {
 		outline: none;
-		border-color: rgba(99, 102, 241, 0.5);
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(10, 132, 255, 0.5);
+		box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
 	}
 
 	.chat-input::placeholder {
@@ -4290,11 +4585,26 @@
 		position: fixed;
 		z-index: 1000;
 		background: var(--bg-secondary);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-md);
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		border: none;
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-lg);
 		padding: 0.5rem;
-		min-width: 160px;
+		min-width: 180px;
+		backdrop-filter: saturate(180%) blur(20px);
+		-webkit-backdrop-filter: saturate(180%) blur(20px);
+		animation: contextMenuIn 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
+		transform-origin: top left;
+	}
+
+	@keyframes contextMenuIn {
+		0% {
+			opacity: 0;
+			transform: scale(0.95);
+		}
+		100% {
+			opacity: 1;
+			transform: scale(1);
+		}
 	}
 
 	.context-menu-section {
@@ -4347,6 +4657,90 @@
 		height: 1px;
 		background: var(--border-subtle);
 		margin: 0.375rem 0;
+	}
+
+	.app.light .context-menu {
+		background: rgba(255, 255, 255, 0.92);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+	}
+
+	.app.light .context-option:hover {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	.app.light .context-option.active {
+		background: rgba(0, 122, 255, 0.12);
+	}
+
+	.rope-handle {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.625rem;
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%);
+		border: 1px dashed rgba(99, 102, 241, 0.3);
+		border-radius: var(--radius-md);
+		cursor: grab;
+		transition: all 0.2s ease;
+		color: var(--text-secondary);
+		font-size: 0.75rem;
+	}
+
+	.rope-handle:hover {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(16, 185, 129, 0.25) 100%);
+		border-color: rgba(99, 102, 241, 0.5);
+		color: var(--text-primary);
+	}
+
+	.rope-handle:active {
+		cursor: grabbing;
+		transform: scale(0.98);
+	}
+
+	.rope-icon {
+		width: 16px;
+		height: 16px;
+		color: #6366f1;
+	}
+
+	.rope-tip {
+		margin-left: auto;
+		font-size: 0.875rem;
+		color: #10b981;
+		animation: ropeTipPulse 1.5s ease-in-out infinite;
+	}
+
+	@keyframes ropeTipPulse {
+		0%, 100% { opacity: 0.6; transform: scale(1); }
+		50% { opacity: 1; transform: scale(1.2); }
+	}
+
+	/* Link beam connector animation */
+	.connector-ring {
+		transition: r 0.15s ease-out, stroke 0.15s ease-out;
+	}
+
+	.connector-ring.has-target {
+		animation: connectorPulse 1s ease-in-out infinite;
+	}
+
+	@keyframes connectorPulse {
+		0%, 100% { stroke-opacity: 1; }
+		50% { stroke-opacity: 0.5; }
+	}
+
+	.target-label {
+		animation: labelFadeIn 0.15s ease-out;
+	}
+
+	@keyframes labelFadeIn {
+		from { opacity: 0; transform: translateY(4px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	.app.light .rope-handle {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+		border-color: rgba(99, 102, 241, 0.2);
 	}
 
 	.priority-dot {
