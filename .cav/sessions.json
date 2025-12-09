@@ -1,0 +1,36 @@
+{
+  "panes": {
+    "meneer": {
+      "session_id": "f529700a-4e90-467a-884b-d3c36935efba",
+      "cwd": "/Users/jurrejan/Documents/development/_management/beads-kanban",
+      "pane_type": "manager",
+      "backend": "claude",
+      "model": "claude-opus-4-5-20251101",
+      "seq": 58
+    },
+    "worker1": {
+      "session_id": "8b6e239b-3209-45c5-a246-c614437c102d",
+      "cwd": "/Users/jurrejan/Documents/development/_management/beads-kanban",
+      "pane_type": "worker",
+      "backend": "claude",
+      "model": "claude-opus-4-5-20251101",
+      "seq": 17
+    },
+    "worker2": {
+      "session_id": "ded065d9-8781-48d9-82af-347ab1b4cdc6",
+      "cwd": "/Users/jurrejan/Documents/development/_management/beads-kanban",
+      "pane_type": "worker",
+      "backend": "claude",
+      "model": "claude-opus-4-5-20251101",
+      "seq": 18
+    },
+    "manager": {
+      "session_id": "73bf660e-2b56-44cf-abf2-e0fcdf8b4686",
+      "cwd": null,
+      "pane_type": "worker",
+      "backend": "claude",
+      "model": "claude-opus-4-5-20251101",
+      "seq": 12
+    }
+  }
+}
