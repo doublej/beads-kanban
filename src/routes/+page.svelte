@@ -841,6 +841,10 @@
 		}
 	}
 
+	function handleWindowBlur() {
+		showHotkeys = false;
+	}
+
 	function toggleTheme() {
 		isDarkMode = !isDarkMode;
 		if (browser) {
@@ -883,7 +887,7 @@
 	});
 </script>
 
-<svelte:window onkeydown={handleKeydown} onkeyup={handleKeyup} onpopstate={handlePopState} onclick={closeContextMenu} onmousemove={handleMouseMove} onmouseup={handleMouseUp} />
+<svelte:window onkeydown={handleKeydown} onkeyup={handleKeyup} onpopstate={handlePopState} onclick={closeContextMenu} onmousemove={handleMouseMove} onmouseup={handleMouseUp} onblur={handleWindowBlur} />
 
 {#if contextMenu}
 	<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
@@ -1385,7 +1389,7 @@
 						{/each}
 
 						{#if allColumnIssues.length === 0}
-							<div class="empty-state" class:drop-ready={draggedOverColumn === column.key}>
+							<div class="empty-state">
 								<div class="empty-icon">{column.icon}</div>
 								<p>No issues</p>
 							</div>
@@ -2012,8 +2016,11 @@
 		font-size: 1.25rem;
 		font-weight: 800;
 		letter-spacing: -0.03em;
-		color: var(--text-primary);
+		color: rgba(255, 255, 255, 0.95);
 		text-transform: lowercase;
+		text-shadow:
+			0 1px 2px rgba(0, 0, 0, 0.3),
+			0 2px 4px rgba(0, 0, 0, 0.15);
 	}
 
 	.header-center {
@@ -2495,7 +2502,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
-		padding: 0.75rem 0.75rem 0.75rem 0.5rem;
+		padding: 0.75rem 1rem 2rem 0.75rem;
 		margin: 0 -0.25rem;
 		flex: 1;
 		overflow-y: auto;
@@ -2544,21 +2551,20 @@
 		border: none;
 		border-radius: var(--radius-md);
 		box-shadow:
-			0 12px 32px -6px rgba(0, 0, 0, 0.35),
-			0 6px 12px -3px rgba(0, 0, 0, 0.18),
+			0 4px 12px -2px rgba(0, 0, 0, 0.08),
+			0 2px 6px -1px rgba(0, 0, 0, 0.04),
 			inset 0 1px 0 rgba(255, 255, 255, 0.12),
 			inset 0 -1px 0 rgba(0, 0, 0, 0.2);
 		cursor: pointer;
 		transition: all var(--transition-smooth);
-		overflow: visible;
-		clip-path: inset(0 round var(--radius-md));
+		overflow: hidden;
 	}
 
 	.card:hover {
 		transform: translateY(-2px);
 		box-shadow:
-			0 16px 40px -6px rgba(0, 0, 0, 0.4),
-			0 8px 16px -4px rgba(0, 0, 0, 0.2),
+			0 6px 16px -4px rgba(0, 0, 0, 0.12),
+			0 3px 8px -2px rgba(0, 0, 0, 0.06),
 			inset 0 1px 0 rgba(255, 255, 255, 0.12),
 			inset 0 -1px 0 rgba(0, 0, 0, 0.2);
 	}
@@ -2777,8 +2783,6 @@
 		overflow: hidden;
 		animation: placeholderExpand 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 		margin-bottom: var(--space-sm);
-		background: rgba(255, 0, 0, 0.3);
-		border-radius: 12px;
 	}
 
 	@keyframes placeholderExpand {
@@ -3170,11 +3174,6 @@
 		border-radius: var(--radius-md);
 		transition: all var(--transition-smooth);
 		flex: 1;
-	}
-
-	.empty-state.drop-ready {
-		border-color: var(--accent-primary);
-		background: rgba(99, 102, 241, 0.05);
 	}
 
 	.empty-icon {
