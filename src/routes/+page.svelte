@@ -72,6 +72,72 @@
 	let ropeDrag = $state<{ fromId: string; startX: number; startY: number; currentX: number; currentY: number; targetId: string | null } | null>(null);
 	let showKeyboardHelp = $state(false);
 	let showHotkeys = $state(false);
+	let teleports = $state<{id: string; from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; startTime: number}[]>([]);
+	let placeholders = $state<{id: string; targetColumn: string; height: number}[]>([]);
+	let cardRefs = $state<Map<string, HTMLElement>>(new Map());
+	let placeholderRefs = $state<Map<string, HTMLElement>>(new Map());
+	let flyingCards = $state<Map<string, {from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; issue: Issue}>>(new Map());
+
+	function getCardPosition(id: string): {x: number; y: number; w: number; h: number} | null {
+		const el = cardRefs.get(id);
+		if (!el) return null;
+		const rect = el.getBoundingClientRect();
+		return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+	}
+
+	function getPlaceholderPosition(id: string): {x: number; y: number; w: number; h: number} | null {
+		const el = placeholderRefs.get(id);
+		if (!el) return null;
+		const rect = el.getBoundingClientRect();
+		return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+	}
+
+	function triggerTeleport(id: string, fromPos: {x: number; y: number; w: number; h: number}) {
+		// Get placeholder position immediately (before issues update removes it from DOM)
+		const toPos = getPlaceholderPosition(id);
+		if (!toPos) {
+			// Clean up placeholder even if we can't find position
+			placeholders = placeholders.filter(p => p.id !== id);
+			return;
+		}
+		teleports = [...teleports, { id, from: fromPos, to: toPos, startTime: Date.now() }];
+		setTimeout(() => {
+			teleports = teleports.filter(t => t.id !== id);
+			placeholders = placeholders.filter(p => p.id !== id);
+		}, 800);
+	}
+
+	// Debug: expose test function to console
+	if (browser) {
+		(window as any).testTeleport = () => {
+			const firstCard = document.querySelector('.card') as HTMLElement;
+			if (!firstCard) return console.log('No cards found');
+			const rect = firstCard.getBoundingClientRect();
+			const from = { x: rect.left - 300, y: rect.top - 100, w: rect.width, h: rect.height };
+			const to = { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+			teleports = [...teleports, { id: 'test', from, to, startTime: Date.now() }];
+			setTimeout(() => { teleports = teleports.filter(t => t.id !== 'test'); }, 800);
+			console.log('Teleport triggered!');
+		};
+	}
+
+	function registerCard(node: HTMLElement, id: string) {
+		cardRefs.set(id, node);
+		return {
+			destroy() {
+				cardRefs.delete(id);
+			}
+		};
+	}
+
+	function registerPlaceholder(node: HTMLElement, id: string) {
+		placeholderRefs.set(id, node);
+		return {
+			destroy() {
+				placeholderRefs.delete(id);
+			}
+		};
+	}
 
 	function sortIssues(issues: Issue[], sortBy: 'priority' | 'created' | 'title'): Issue[] {
 		return [...issues].sort((a, b) => {
@@ -198,6 +264,27 @@
 		closeContextMenu();
 	}
 
+	async function removeDependency(issueId: string, dependsOnId: string) {
+		const res = await fetch(`/api/issues/${issueId}/deps`, {
+			method: 'DELETE',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ depends_on: dependsOnId })
+		});
+		const data = await res.json();
+		if (!res.ok) {
+			console.error('Failed to remove dependency:', data.error);
+			return;
+		}
+		if (editingIssue) {
+			if (editingIssue.dependencies) {
+				editingIssue.dependencies = editingIssue.dependencies.filter(d => d.id !== dependsOnId);
+			}
+			if (editingIssue.dependents) {
+				editingIssue.dependents = editingIssue.dependents.filter(d => d.id !== issueId);
+			}
+		}
+	}
+
 	function startRopeDrag(e: MouseEvent, issueId: string) {
 		e.preventDefault();
 		e.stopPropagation();
@@ -266,14 +353,61 @@
 		eventSource.onmessage = (event) => {
 			const data = JSON.parse(event.data);
 			const oldIssuesMap = new Map(issues.map(i => [i.id, i]));
-			issues = data.issues;
+
+			// Find status changes and capture positions
+			const statusChanges: {id: string; fromPos: {x: number; y: number; w: number; h: number}; newStatus: string; height: number}[] = [];
 			data.issues.forEach((issue: Issue) => {
 				const oldIssue = oldIssuesMap.get(issue.id);
 				if (oldIssue && oldIssue.status !== issue.status) {
-					animatingIds.add(issue.id);
-					setTimeout(() => animatingIds.delete(issue.id), 1000);
+					const fromPos = getCardPosition(issue.id);
+					if (fromPos) {
+						statusChanges.push({ id: issue.id, fromPos, newStatus: issue.status, height: fromPos.h });
+					}
 				}
 			});
+
+			if (statusChanges.length > 0) {
+				// Create placeholders in target columns first (to make room)
+				// Skip if placeholder already exists for this id
+				const existingPlaceholderIds = new Set(placeholders.map(p => p.id));
+				statusChanges.forEach(({ id, newStatus, height }) => {
+					if (!existingPlaceholderIds.has(id)) {
+						placeholders = [...placeholders, { id, targetColumn: newStatus, height }];
+					}
+				});
+
+				// Wait for placeholders to fully expand (350ms > 300ms animation), then capture positions, update issues, and teleport
+				setTimeout(() => {
+					// Capture placeholder positions BEFORE updating issues (which will remove placeholders from DOM)
+					const teleportTargets = statusChanges.map(({ id, fromPos }) => ({
+						id,
+						fromPos,
+						toPos: getPlaceholderPosition(id),
+						issue: oldIssuesMap.get(id)
+					})).filter(t => t.toPos !== null && t.issue);
+
+					// Start flying cards BEFORE updating issues
+					teleportTargets.forEach(({ id, fromPos, toPos, issue }) => {
+						flyingCards.set(id, { from: fromPos, to: toPos!, issue: issue! });
+						flyingCards = new Map(flyingCards);
+					});
+
+					issues = data.issues;
+
+					// Trigger teleports with pre-captured positions
+					teleportTargets.forEach(({ id, fromPos, toPos }) => {
+						teleports = [...teleports, { id, from: fromPos, to: toPos!, startTime: Date.now() }];
+						setTimeout(() => {
+							teleports = teleports.filter(t => t.id !== id);
+							placeholders = placeholders.filter(p => p.id !== id);
+							flyingCards.delete(id);
+							flyingCards = new Map(flyingCards);
+						}, 600);
+					});
+				}, 350);
+			} else {
+				issues = data.issues;
+			}
 		};
 
 		eventSource.onerror = () => {
@@ -338,6 +472,10 @@
 		editingIssue = null;
 		isCreating = true;
 		createForm = { title: '', description: '', priority: 2, issue_type: 'task' };
+		requestAnimationFrame(() => {
+			const titleInput = document.getElementById('create-title') as HTMLInputElement;
+			titleInput?.focus();
+		});
 	}
 
 	async function loadComments(issueId: string) {
@@ -564,6 +702,13 @@
 	function handleKeydown(e: KeyboardEvent) {
 		const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
 
+		// Cmd/Ctrl+Enter to submit create form
+		if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && isCreating) {
+			e.preventDefault();
+			createIssue();
+			return;
+		}
+
 		// Global shortcuts (work even in inputs)
 		if (e.key === 'Escape') {
 			if (showKeyboardHelp) {
@@ -788,22 +933,26 @@
 	{@const dy = ropeDrag.currentY - ropeDrag.startY}
 	{@const length = Math.sqrt(dx * dx + dy * dy)}
 	{@const hasTarget = !!ropeDrag.targetId}
+	{@const midX = ropeDrag.startX + dx * 0.5}
+	{@const midY = ropeDrag.startY + dy * 0.5 - Math.min(length * 0.15, 40)}
+	{@const pathD = `M ${ropeDrag.startX} ${ropeDrag.startY} Q ${midX} ${midY} ${ropeDrag.currentX} ${ropeDrag.currentY}`}
 	<svg class="link-beam" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;">
 		<defs>
-			<linearGradient id="beamGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-				<stop offset="0%" stop-color={hasTarget ? "#10b981" : "#64748b"} stop-opacity="0.3" />
-				<stop offset="50%" stop-color={hasTarget ? "#10b981" : "#94a3b8"} stop-opacity="0.8" />
-				<stop offset="100%" stop-color={hasTarget ? "#10b981" : "#64748b"} stop-opacity="0.3" />
+			<linearGradient id="energyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+				<stop offset="0%" stop-color={hasTarget ? "#22d3ee" : "#64748b"} stop-opacity="0.2" />
+				<stop offset="50%" stop-color={hasTarget ? "#06b6d4" : "#94a3b8"} stop-opacity="1" />
+				<stop offset="100%" stop-color={hasTarget ? "#22d3ee" : "#64748b"} stop-opacity="0.2" />
 			</linearGradient>
-			<filter id="beamGlow" x="-50%" y="-50%" width="200%" height="200%">
-				<feGaussianBlur stdDeviation={hasTarget ? "4" : "2"} result="blur" />
+			<filter id="energyGlow" x="-50%" y="-50%" width="200%" height="200%">
+				<feGaussianBlur stdDeviation="3" result="blur" />
 				<feMerge>
+					<feMergeNode in="blur" />
 					<feMergeNode in="blur" />
 					<feMergeNode in="SourceGraphic" />
 				</feMerge>
 			</filter>
-			<filter id="connectorGlow" x="-100%" y="-100%" width="300%" height="300%">
-				<feGaussianBlur stdDeviation="6" result="blur" />
+			<filter id="nodeGlow" x="-100%" y="-100%" width="300%" height="300%">
+				<feGaussianBlur stdDeviation="8" result="blur" />
 				<feMerge>
 					<feMergeNode in="blur" />
 					<feMergeNode in="blur" />
@@ -812,69 +961,95 @@
 			</filter>
 		</defs>
 
-		<!-- Main beam line -->
-		<line
-			x1={ropeDrag.startX}
-			y1={ropeDrag.startY}
-			x2={ropeDrag.currentX}
-			y2={ropeDrag.currentY}
-			stroke={hasTarget ? "#10b981" : "#64748b"}
+		<!-- Ambient glow path -->
+		<path
+			d={pathD}
+			fill="none"
+			stroke={hasTarget ? "rgba(34, 211, 238, 0.15)" : "rgba(148, 163, 184, 0.1)"}
+			stroke-width="12"
+			stroke-linecap="round"
+		/>
+
+		<!-- Main energy beam -->
+		<path
+			d={pathD}
+			fill="none"
+			stroke={hasTarget ? "#06b6d4" : "#64748b"}
 			stroke-width="2"
 			stroke-linecap="round"
-			filter="url(#beamGlow)"
-			opacity="0.9"
+			filter="url(#energyGlow)"
 		/>
 
-		<!-- Origin point -->
-		<circle
-			cx={ropeDrag.startX}
-			cy={ropeDrag.startY}
-			r="4"
-			fill={hasTarget ? "#10b981" : "#64748b"}
-			opacity="0.6"
+		<!-- Flowing particles -->
+		<path
+			d={pathD}
+			fill="none"
+			stroke={hasTarget ? "#22d3ee" : "#94a3b8"}
+			stroke-width="2"
+			stroke-linecap="round"
+			stroke-dasharray="4 12"
+			class="energy-flow"
 		/>
 
-		<!-- Cursor connector -->
-		<g filter={hasTarget ? "url(#connectorGlow)" : "none"}>
+		<!-- Origin node -->
+		<g filter="url(#energyGlow)">
+			<circle
+				cx={ropeDrag.startX}
+				cy={ropeDrag.startY}
+				r="6"
+				fill={hasTarget ? "#06b6d4" : "#64748b"}
+				opacity="0.8"
+			/>
+			<circle
+				cx={ropeDrag.startX}
+				cy={ropeDrag.startY}
+				r="3"
+				fill="white"
+				opacity="0.9"
+			/>
+		</g>
+
+		<!-- Target node -->
+		<g filter={hasTarget ? "url(#nodeGlow)" : "url(#energyGlow)"}>
 			<circle
 				cx={ropeDrag.currentX}
 				cy={ropeDrag.currentY}
-				r={hasTarget ? "10" : "6"}
+				r={hasTarget ? "14" : "8"}
 				fill="none"
-				stroke={hasTarget ? "#10b981" : "#94a3b8"}
+				stroke={hasTarget ? "#22d3ee" : "#94a3b8"}
 				stroke-width="2"
-				class="connector-ring"
-				class:has-target={hasTarget}
+				class="target-ring"
+				class:locked={hasTarget}
 			/>
 			<circle
 				cx={ropeDrag.currentX}
 				cy={ropeDrag.currentY}
-				r="3"
-				fill={hasTarget ? "#10b981" : "#94a3b8"}
+				r={hasTarget ? "8" : "4"}
+				fill={hasTarget ? "#06b6d4" : "#64748b"}
+				class="target-core"
+				class:locked={hasTarget}
+			/>
+			<circle
+				cx={ropeDrag.currentX}
+				cy={ropeDrag.currentY}
+				r="2"
+				fill="white"
+				opacity="0.9"
 			/>
 		</g>
 
 		<!-- Target label -->
 		{#if hasTarget}
-			<g class="target-label">
-				<rect
-					x={ropeDrag.currentX - 40}
-					y={ropeDrag.currentY - 32}
-					width="80"
-					height="18"
-					rx="4"
-					fill="rgba(16, 185, 129, 0.15)"
-					stroke="rgba(16, 185, 129, 0.4)"
-					stroke-width="1"
-				/>
+			<g class="target-label-energy">
 				<text
 					x={ropeDrag.currentX}
-					y={ropeDrag.currentY - 20}
+					y={ropeDrag.currentY - 26}
 					text-anchor="middle"
-					fill="#10b981"
-					font-size="10"
-					font-weight="500"
-					font-family="ui-monospace, monospace"
+					fill="#22d3ee"
+					font-size="11"
+					font-weight="600"
+					font-family="ui-monospace, 'SF Mono', monospace"
+					filter="url(#energyGlow)"
 				>{ropeDrag.targetId}</text>
 			</g>
 		{/if}
@@ -920,8 +1095,7 @@
 	<header class="header">
 		<div class="header-left">
 			<div class="logo">
-				<span class="logo-icon">⟡</span>
-				<h1>Strand</h1>
+				<h1>StrandKanban</h1>
 			</div>
 		</div>
 		<div class="header-center">
@@ -942,6 +1116,11 @@
 					<kbd class="hotkey-hint">/</kbd>
 				{/if}
 			</div>
+			<button class="btn-create" onclick={openCreatePanel}>
+				<span class="btn-create-icon">+</span>
+				<span class="btn-create-text">New Issue</span>
+				<kbd class="btn-hotkey">N</kbd>
+			</button>
 		</div>
 		<div class="header-right">
 			<div class="filter-group">
@@ -975,7 +1154,6 @@
 						<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
 					</svg>
 				{/if}
-				<kbd class="hotkey-hint hotkey-hint-inline">t</kbd>
 			</button>
 			<button
 				class="pane-toggle"
@@ -985,11 +1163,6 @@
 			>
 				<span class="pane-dot"></span>
 				<span class="pane-count">{wsPanes.size}</span>
-			</button>
-			<button class="btn-create" onclick={openCreatePanel}>
-				<span class="btn-create-icon">+</span>
-				<span class="btn-create-text">New Issue</span>
-				<kbd class="hotkey-hint hotkey-hint-inline">n</kbd>
 			</button>
 		</div>
 	</header>
@@ -1014,6 +1187,9 @@
 	<div class="main-content">
 		<main class="board" ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
 			{#each columns as column, i}
+				{#if i === 0 && isCreating}
+					{@render detailPanel()}
+				{/if}
 				{@const rawColumnIssues = issues.filter((x) => x.status === column.key)}
 				{@const allColumnIssues = columnSortBy[column.key] ? sortIssues(rawColumnIssues, columnSortBy[column.key]) : rawColumnIssues}
 				{@const matchingCount = allColumnIssues.filter(issueMatchesFilters).length}
@@ -1061,10 +1237,20 @@
 							<div class="drop-indicator"></div>
 						{/if}
 
+						<!-- Placeholder slots for incoming cards -->
+						{#each placeholders.filter(p => p.targetColumn === column.key) as placeholder}
+							<div
+								class="placeholder-slot"
+								style="--placeholder-height: {placeholder.height}px"
+								use:registerPlaceholder={placeholder.id}
+							></div>
+						{/each}
+
 						{#each allColumnIssues as issue, idx}
 							{@const priorityConfig = getPriorityConfig(issue.priority)}
 							{@const isBlocked = hasOpenBlockers(issue)}
 							{@const matchesFilter = issueMatchesFilters(issue)}
+							{@const isFlying = flyingCards.has(issue.id)}
 							<article
 								class="card"
 								class:animating={animatingIds.has(issue.id)}
@@ -1073,11 +1259,13 @@
 								class:dragging={draggedId === issue.id}
 								class:has-blockers={isBlocked}
 								class:filter-dimmed={hasActiveFilters && !matchesFilter}
+								class:flying-hidden={isFlying}
 								draggable="true"
 								ondragstart={(e) => handleDragStart(e, issue.id)}
 								ondragend={handleDragEnd}
 								onclick={() => openEditPanel(issue)}
 								oncontextmenu={(e) => openContextMenu(e, issue)}
+								use:registerCard={issue.id}
 							>
 									<div class="card-priority-bar" style="--priority-bar-color: {priorityConfig.color}">
 									<span class="priority-label">{priorityConfig.label}</span>
@@ -1177,6 +1365,18 @@
 										</div>
 									{/if}
 								</div>
+								{#if selectedId === issue.id}
+									<div class="card-hotkeys">
+										<kbd class="hotkey-hint">o</kbd>
+										<kbd class="hotkey-hint">x</kbd>
+										<span class="hotkey-nav">
+											<kbd class="hotkey-hint">h</kbd>
+											<kbd class="hotkey-hint">j</kbd>
+											<kbd class="hotkey-hint">k</kbd>
+											<kbd class="hotkey-hint">l</kbd>
+										</span>
+									</div>
+								{/if}
 							</article>
 
 							{#if draggedOverColumn === column.key && dropTargetColumn === column.key && dropIndicatorIndex === idx + 1}
@@ -1193,7 +1393,7 @@
 					</div>
 					{/if}
 				</section>
-				{#if panelOpen && editingColumnIndex() === i}
+				{#if editingIssue && editingColumnIndex() === i}
 					{@render detailPanel()}
 				{/if}
 			{/each}
@@ -1304,6 +1504,57 @@
 		{/each}
 	</div>
 </div>
+
+<!-- Teleport Ghost Strobe Effects -->
+{#each teleports as teleport}
+	{@const dx = teleport.to.x - teleport.from.x}
+	{@const dy = teleport.to.y - teleport.from.y}
+	{#each [0, 1, 2, 3, 4] as i}
+		<div
+			class="teleport-ghost"
+			style="
+				--from-x: {teleport.from.x}px;
+				--from-y: {teleport.from.y}px;
+				--to-x: {teleport.to.x}px;
+				--to-y: {teleport.to.y}px;
+				--ghost-w: {teleport.from.w}px;
+				--ghost-h: {teleport.from.h}px;
+				--delay: {i * 40}ms;
+				--opacity: {0.6 - i * 0.1};
+			"
+		></div>
+	{/each}
+{/each}
+
+<!-- Flying Cards -->
+{#each [...flyingCards] as [id, { from, to, issue }]}
+	{@const priorityConfig = getPriorityConfig(issue.priority)}
+	<article
+		class="card flying-card"
+		style="
+			--from-x: {from.x}px;
+			--from-y: {from.y}px;
+			--to-x: {to.x}px;
+			--to-y: {to.y}px;
+			--card-w: {from.w}px;
+			--card-h: {from.h}px;
+		"
+	>
+		<div class="card-priority-bar" style="--priority-bar-color: {priorityConfig.color}">
+			<span class="priority-label">{priorityConfig.label}</span>
+		</div>
+		<span class="type-indicator">{getTypeIcon(issue.issue_type)} {issue.issue_type}</span>
+		<div class="card-content">
+			<div class="card-header">
+				<span class="card-id-wrap"><span class="card-id">{issue.id}</span></span>
+			</div>
+			<h3 class="card-title">{issue.title}</h3>
+			{#if issue.description}
+				<p class="card-desc">{issue.description}</p>
+			{/if}
+		</div>
+	</article>
+{/each}
 </div>
 
 {#snippet detailPanel()}
@@ -1315,6 +1566,7 @@
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M18 6L6 18M6 6l12 12"/>
 						</svg>
+						<kbd class="hotkey-hint hotkey-hint-close">esc</kbd>
 					</button>
 				</div>
 				<div class="panel-body">
@@ -1372,8 +1624,12 @@
 					</div>
 				</div>
 				<div class="panel-footer">
-					<button class="btn-secondary" onclick={closePanel}>Cancel</button>
-					<button class="btn-primary" onclick={createIssue}>Create Issue</button>
+					<button class="btn-secondary" onclick={closePanel}>Cancel <kbd class="btn-hotkey-subtle">Esc</kbd></button>
+					<button class="btn-create" onclick={createIssue}>
+						<span class="btn-create-icon">+</span>
+						Create Issue
+						<kbd class="btn-hotkey">⌘↵</kbd>
+					</button>
 				</div>
 			{:else if editingIssue}
 				{@const priorityConfig = getPriorityConfig(editingIssue.priority)}
@@ -1400,6 +1656,7 @@
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M18 6L6 18M6 6l12 12"/>
 						</svg>
+						<kbd class="hotkey-hint hotkey-hint-close">esc</kbd>
 					</button>
 				</div>
 				<div class="panel-body">
@@ -1538,6 +1795,7 @@
 										<span class="dep-status" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:closed={dep.status === 'closed'}></span>
 										<span class="dep-id">{dep.id}</span>
 										<span class="dep-title">{dep.title}</span>
+										<button class="dep-remove" onclick={() => removeDependency(editingIssue.id, dep.id)} title="Remove dependency">×</button>
 									</div>
 								{/each}
 							</div>
@@ -1552,6 +1810,7 @@
 										<span class="dep-status" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:closed={dep.status === 'closed'}></span>
 										<span class="dep-id">{dep.id}</span>
 										<span class="dep-title">{dep.title}</span>
+										<button class="dep-remove" onclick={() => removeDependency(dep.id, editingIssue.id)} title="Remove dependency">×</button>
 									</div>
 								{/each}
 							</div>
@@ -1667,10 +1926,14 @@
 		position: absolute;
 		inset: 0;
 		background:
-			radial-gradient(ellipse 80% 50% at 20% 40%, rgba(56, 189, 248, 0.08) 0%, transparent 50%),
-			radial-gradient(ellipse 60% 60% at 80% 20%, rgba(167, 139, 250, 0.06) 0%, transparent 50%),
-			radial-gradient(ellipse 50% 80% at 60% 80%, rgba(52, 211, 153, 0.05) 0%, transparent 50%),
-			radial-gradient(ellipse 70% 40% at 10% 90%, rgba(251, 191, 36, 0.04) 0%, transparent 50%);
+			/* Core glow - center top concentration */
+			radial-gradient(ellipse 90% 60% at 50% 30%, rgba(99, 102, 241, 0.09) 0%, transparent 60%),
+			radial-gradient(ellipse 70% 50% at 35% 25%, rgba(56, 189, 248, 0.07) 0%, transparent 55%),
+			radial-gradient(ellipse 65% 45% at 65% 35%, rgba(167, 139, 250, 0.06) 0%, transparent 50%),
+			/* Subtle accent in middle */
+			radial-gradient(ellipse 50% 40% at 50% 50%, rgba(52, 211, 153, 0.04) 0%, transparent 50%),
+			/* Edge fade - makes outside lighter */
+			radial-gradient(ellipse 120% 100% at 50% 40%, transparent 40%, rgba(0, 0, 0, 0.02) 100%);
 		animation: auroraShift 30s ease-in-out infinite alternate;
 		pointer-events: none;
 		z-index: 0;
@@ -1698,10 +1961,14 @@
 
 	.app.light::before {
 		background:
-			radial-gradient(ellipse 80% 50% at 20% 40%, rgba(56, 189, 248, 0.12) 0%, transparent 50%),
-			radial-gradient(ellipse 60% 60% at 80% 20%, rgba(167, 139, 250, 0.1) 0%, transparent 50%),
-			radial-gradient(ellipse 50% 80% at 60% 80%, rgba(52, 211, 153, 0.08) 0%, transparent 50%),
-			radial-gradient(ellipse 70% 40% at 10% 90%, rgba(251, 191, 36, 0.06) 0%, transparent 50%);
+			/* Core glow - center top concentration */
+			radial-gradient(ellipse 90% 60% at 50% 30%, rgba(99, 102, 241, 0.12) 0%, transparent 60%),
+			radial-gradient(ellipse 70% 50% at 35% 25%, rgba(56, 189, 248, 0.1) 0%, transparent 55%),
+			radial-gradient(ellipse 65% 45% at 65% 35%, rgba(167, 139, 250, 0.08) 0%, transparent 50%),
+			/* Subtle accent in middle */
+			radial-gradient(ellipse 50% 40% at 50% 50%, rgba(52, 211, 153, 0.06) 0%, transparent 50%),
+			/* Edge fade - makes outside lighter */
+			radial-gradient(ellipse 120% 100% at 50% 40%, transparent 40%, rgba(255, 255, 255, 0.3) 100%);
 	}
 
 	/* Light theme */
@@ -1740,43 +2007,28 @@
 		flex-shrink: 0;
 	}
 
-	.logo {
-		display: flex;
-		align-items: center;
-		gap: 0.625rem;
-	}
-
-	.logo-icon {
-		font-size: 1.375rem;
-		color: var(--accent-primary);
-		animation: logoPulse 4s ease-in-out infinite;
-	}
-
-	@keyframes logoPulse {
-		0%, 100% { opacity: 0.8; transform: rotate(0deg); }
-		50% { opacity: 1; transform: rotate(180deg); }
-	}
-
 	.logo h1 {
-		font-size: 1.0625rem;
-		font-weight: 700;
-		letter-spacing: 0.02em;
+		font-family: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+		font-size: 1.25rem;
+		font-weight: 800;
+		letter-spacing: -0.03em;
 		color: var(--text-primary);
-		background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 100%);
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		background-clip: text;
+		text-transform: lowercase;
 	}
 
 	.header-center {
 		flex: 1;
-		max-width: 400px;
+		max-width: 500px;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
 	}
 
 	.search-container {
 		position: relative;
 		display: flex;
 		align-items: center;
+		flex: 1;
 	}
 
 	.search-icon {
@@ -1790,24 +2042,28 @@
 
 	.search-input {
 		width: 100%;
-		padding: 0.5rem 2rem;
-		background: var(--bg-tertiary);
-		border: 1px solid var(--border-subtle);
+		padding: 0.625rem 2.25rem;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
 		border-radius: var(--radius-lg);
 		color: var(--text-primary);
 		font-family: inherit;
-		font-size: 0.8125rem;
+		font-size: 0.875rem;
 		transition: all var(--transition-fast);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 	}
 
 	.search-input::placeholder {
-		color: var(--text-tertiary);
+		color: var(--text-secondary);
 	}
 
 	.search-input:focus {
 		outline: none;
-		border-color: var(--accent-primary);
-		box-shadow: 0 0 0 3px var(--accent-glow);
+		background: rgba(255, 255, 255, 0.06);
+		border-color: rgba(59, 130, 246, 0.5);
+		box-shadow:
+			0 2px 8px rgba(0, 0, 0, 0.08),
+			0 0 0 3px rgba(59, 130, 246, 0.15);
 	}
 
 	.search-clear {
@@ -1845,29 +2101,31 @@
 	}
 
 	.filter-select {
-		padding: 0.4375rem 0.625rem;
-		background: var(--bg-tertiary);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-md);
-		color: var(--text-secondary);
+		padding: 0.375rem 0.5rem;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--text-tertiary);
 		font-family: inherit;
 		font-size: 0.75rem;
 		cursor: pointer;
 		transition: all var(--transition-fast);
 		appearance: none;
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 24 24' fill='none' stroke='%2365656d' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 		background-repeat: no-repeat;
-		background-position: right 0.375rem center;
-		padding-right: 1.375rem;
+		background-position: right 0.25rem center;
+		padding-right: 1.25rem;
 	}
 
 	.filter-select:hover {
-		border-color: var(--border-default);
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text-secondary);
 	}
 
 	.filter-select:focus {
 		outline: none;
-		border-color: var(--accent-primary);
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text-secondary);
 	}
 
 	.filter-select option {
@@ -1880,10 +2138,10 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--bg-tertiary);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-md);
-		color: var(--text-secondary);
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--text-tertiary);
 		cursor: pointer;
 		transition: all var(--transition-fast);
 	}
@@ -1894,39 +2152,80 @@
 	}
 
 	.theme-toggle:hover {
-		background: var(--bg-elevated);
-		border-color: var(--border-default);
-		color: var(--text-primary);
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text-secondary);
 	}
 
 	.btn-create {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.5rem 1rem;
-		background: var(--accent-primary);
-		border: none;
+		padding: 0.625rem 1.125rem;
+		background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: var(--radius-lg);
 		color: white;
 		font-family: inherit;
-		font-size: 0.8125rem;
+		font-size: 0.875rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: all var(--transition-fast);
+		box-shadow:
+			0 2px 8px rgba(59, 130, 246, 0.3),
+			0 1px 2px rgba(0, 0, 0, 0.1);
 	}
 
 	.btn-create:hover {
-		filter: brightness(1.1);
+		background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+		transform: translateY(-1px);
+		box-shadow:
+			0 4px 12px rgba(59, 130, 246, 0.4),
+			0 2px 4px rgba(0, 0, 0, 0.1);
 	}
 
 	.btn-create:active {
-		filter: brightness(0.95);
+		background: linear-gradient(180deg, var(--accent-primary) 0%, #0066cc 100%);
 		transform: scale(0.98);
+		box-shadow:
+			inset 0 2px 4px rgba(0, 0, 0, 0.2),
+			0 1px 2px rgba(0, 0, 0, 0.15);
 	}
 
 	.btn-create-icon {
 		font-size: 1rem;
 		line-height: 1;
+	}
+
+	.btn-hotkey {
+		font-family: ui-monospace, 'SF Mono', monospace;
+		font-size: 0.625rem;
+		font-weight: 500;
+		padding: 0.125rem 0.375rem;
+		background: rgba(255, 255, 255, 0.15);
+		border-radius: 3px;
+		margin-left: 0.5rem;
+		opacity: 0.8;
+	}
+
+	.btn-hotkey-subtle {
+		font-family: ui-monospace, 'SF Mono', monospace;
+		font-size: 0.625rem;
+		font-weight: 500;
+		padding: 0.125rem 0.25rem;
+		background: rgba(255, 255, 255, 0.08);
+		border-radius: 3px;
+		margin-left: 0.375rem;
+		color: var(--text-tertiary);
+	}
+
+	.btn-hotkey-light {
+		font-family: ui-monospace, 'SF Mono', monospace;
+		font-size: 0.625rem;
+		font-weight: 500;
+		padding: 0.125rem 0.25rem;
+		background: rgba(255, 255, 255, 0.2);
+		border-radius: 3px;
+		margin-left: 0.375rem;
 	}
 
 	/* Column Navigation (Mobile) */
@@ -2244,15 +2543,24 @@
 		background: var(--bg-secondary);
 		border: none;
 		border-radius: var(--radius-md);
-		box-shadow: var(--shadow-sm);
+		box-shadow:
+			0 12px 32px -6px rgba(0, 0, 0, 0.35),
+			0 6px 12px -3px rgba(0, 0, 0, 0.18),
+			inset 0 1px 0 rgba(255, 255, 255, 0.12),
+			inset 0 -1px 0 rgba(0, 0, 0, 0.2);
 		cursor: pointer;
 		transition: all var(--transition-smooth);
 		overflow: visible;
+		clip-path: inset(0 round var(--radius-md));
 	}
 
 	.card:hover {
-		transform: translateY(-1px);
-		box-shadow: var(--shadow-md);
+		transform: translateY(-2px);
+		box-shadow:
+			0 16px 40px -6px rgba(0, 0, 0, 0.4),
+			0 8px 16px -4px rgba(0, 0, 0, 0.2),
+			inset 0 1px 0 rgba(255, 255, 255, 0.12),
+			inset 0 -1px 0 rgba(0, 0, 0, 0.2);
 	}
 
 	.card-priority-bar {
@@ -2262,7 +2570,6 @@
 		display: flex;
 		align-items: flex-start;
 		background: var(--priority-bar-color);
-		border-radius: var(--radius-md) 0 0 var(--radius-md);
 	}
 
 	.priority-label {
@@ -2279,6 +2586,13 @@
 		text-transform: uppercase;
 		transform: rotate(180deg);
 		white-space: nowrap;
+		opacity: 0;
+		transition: opacity var(--transition-fast);
+	}
+
+	.card:hover .priority-label,
+	.card.selected .priority-label {
+		opacity: 1;
 	}
 
 	.type-indicator {
@@ -2315,13 +2629,8 @@
 		pointer-events: none;
 	}
 
-	.card:hover {
-		transform: translateY(-2px) scale(1.01);
-		box-shadow: var(--shadow-md);
-	}
-
 	.card:active {
-		transform: translateY(0) scale(0.99);
+		transform: translateY(0);
 		transition: transform 100ms ease-out;
 	}
 
@@ -2358,6 +2667,36 @@
 		z-index: 10;
 	}
 
+	.card.flying-hidden {
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	.card.flying-card {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: var(--card-w);
+		z-index: 10000;
+		pointer-events: none;
+		animation: flyCard 500ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	}
+
+	@keyframes flyCard {
+		0% {
+			transform: translate(var(--from-x), var(--from-y));
+			box-shadow:
+				0 0 0 3px rgba(59, 130, 246, 0.6),
+				0 12px 32px -6px rgba(0, 0, 0, 0.4);
+		}
+		100% {
+			transform: translate(var(--to-x), var(--to-y));
+			box-shadow:
+				0 12px 32px -6px rgba(0, 0, 0, 0.35),
+				0 6px 12px -3px rgba(0, 0, 0, 0.18);
+		}
+	}
+
 	@keyframes cardEnter {
 		0% {
 			opacity: 0;
@@ -2387,6 +2726,67 @@
 			transform: scale(1) translateY(0);
 			box-shadow: none;
 			background: var(--bg-tertiary);
+		}
+	}
+
+	/* Teleport Ghost Strobe Effect */
+	.teleport-ghost {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: var(--ghost-w);
+		height: var(--ghost-h);
+		background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(99, 102, 241, 0.2) 100%);
+		border: 2px solid rgba(59, 130, 246, 0.6);
+		border-radius: var(--radius-md);
+		pointer-events: none;
+		z-index: 9999;
+		opacity: var(--opacity);
+		animation: teleportStrobe 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+		animation-delay: var(--delay);
+		box-shadow:
+			0 0 20px rgba(59, 130, 246, 0.4),
+			0 0 40px rgba(99, 102, 241, 0.2),
+			inset 0 0 20px rgba(59, 130, 246, 0.1);
+	}
+
+	@keyframes teleportStrobe {
+		0% {
+			transform: translate(var(--from-x), var(--from-y));
+			opacity: var(--opacity);
+			filter: blur(0px);
+		}
+		20% {
+			opacity: calc(var(--opacity) * 1.2);
+			filter: blur(1px);
+		}
+		80% {
+			opacity: calc(var(--opacity) * 0.8);
+			filter: blur(2px);
+		}
+		100% {
+			transform: translate(var(--to-x), var(--to-y));
+			opacity: 0;
+			filter: blur(4px);
+		}
+	}
+
+	/* Placeholder slot that makes room for incoming teleported card */
+	.placeholder-slot {
+		height: 0;
+		overflow: hidden;
+		animation: placeholderExpand 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+		margin-bottom: var(--space-sm);
+		background: rgba(255, 0, 0, 0.3);
+		border-radius: 12px;
+	}
+
+	@keyframes placeholderExpand {
+		from {
+			height: 0;
+		}
+		to {
+			height: var(--placeholder-height);
 		}
 	}
 
@@ -2526,7 +2926,7 @@
 	}
 
 	.card-title {
-		font-size: 0.8125rem;
+		font-size: 0.875rem;
 		font-weight: 500;
 		color: var(--text-primary);
 		line-height: 1.35;
@@ -2534,9 +2934,9 @@
 	}
 
 	.card-description {
-		font-size: 0.75rem;
-		color: var(--text-secondary);
-		line-height: 1.45;
+		font-size: 0.6875rem;
+		color: var(--text-tertiary);
+		line-height: 1.4;
 		margin-bottom: 0.5rem;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
@@ -3078,6 +3478,27 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		flex: 1;
+	}
+
+	.dep-remove {
+		background: none;
+		border: none;
+		color: var(--text-tertiary);
+		cursor: pointer;
+		padding: 0;
+		font-size: 0.875rem;
+		line-height: 1;
+		opacity: 0;
+		transition: opacity 0.15s;
+	}
+
+	.dep-item:hover .dep-remove {
+		opacity: 1;
+	}
+
+	.dep-remove:hover {
+		color: #ef4444;
 	}
 
 	/* Comments */
@@ -3526,11 +3947,11 @@
 		}
 
 		.card-title {
-			font-size: 0.875rem;
+			font-size: 0.9375rem;
 		}
 
 		.card-description {
-			font-size: 0.8125rem;
+			font-size: 0.75rem;
 		}
 	}
 
@@ -3538,12 +3959,12 @@
 	.pane-toggle {
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
-		padding: 0.4375rem 0.625rem;
-		background: var(--bg-tertiary);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-md);
-		color: var(--text-secondary);
+		gap: 0.25rem;
+		padding: 0.375rem 0.5rem;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--text-tertiary);
 		font-family: 'JetBrains Mono', monospace;
 		font-size: 0.6875rem;
 		cursor: pointer;
@@ -3551,8 +3972,8 @@
 	}
 
 	.pane-toggle:hover {
-		border-color: var(--border-default);
-		background: var(--bg-elevated);
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text-secondary);
 	}
 
 	.pane-dot {
@@ -4969,27 +5390,45 @@
 		50% { opacity: 1; transform: scale(1.2); }
 	}
 
-	/* Link beam connector animation */
-	.connector-ring {
-		transition: r 0.15s ease-out, stroke 0.15s ease-out;
+	/* Energy beam link animation */
+	.energy-flow {
+		animation: energyFlow 0.8s linear infinite;
 	}
 
-	.connector-ring.has-target {
-		animation: connectorPulse 1s ease-in-out infinite;
+	@keyframes energyFlow {
+		from { stroke-dashoffset: 0; }
+		to { stroke-dashoffset: -16; }
 	}
 
-	@keyframes connectorPulse {
-		0%, 100% { stroke-opacity: 1; }
-		50% { stroke-opacity: 0.5; }
+	.target-ring {
+		transition: r 0.2s ease-out, stroke 0.2s ease-out;
 	}
 
-	.target-label {
-		animation: labelFadeIn 0.15s ease-out;
+	.target-ring.locked {
+		animation: ringPulse 1.2s ease-in-out infinite;
 	}
 
-	@keyframes labelFadeIn {
-		from { opacity: 0; transform: translateY(4px); }
-		to { opacity: 1; transform: translateY(0); }
+	.target-core.locked {
+		animation: corePulse 1.2s ease-in-out infinite;
+	}
+
+	@keyframes ringPulse {
+		0%, 100% { stroke-opacity: 0.8; }
+		50% { stroke-opacity: 1; }
+	}
+
+	@keyframes corePulse {
+		0%, 100% { transform: scale(1); }
+		50% { transform: scale(1.1); }
+	}
+
+	.target-label-energy {
+		animation: labelGlow 0.2s ease-out;
+	}
+
+	@keyframes labelGlow {
+		from { opacity: 0; }
+		to { opacity: 1; }
 	}
 
 	.app.light .rope-handle {
@@ -5155,6 +5594,51 @@
 		opacity: 0.7;
 	}
 
+	.hotkey-hint-close {
+		position: absolute;
+		bottom: -0.375rem;
+		right: -0.375rem;
+		font-size: 0.4375rem;
+		opacity: 0;
+	}
+
+	.show-hotkeys .hotkey-hint-close,
+	.panel-close:hover .hotkey-hint-close {
+		opacity: 0.8;
+	}
+
+	/* Card contextual hotkeys */
+	.card-hotkeys {
+		position: absolute;
+		bottom: 0.375rem;
+		left: 1rem;
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		opacity: 0;
+		transition: opacity 200ms ease;
+		pointer-events: none;
+	}
+
+	.card.selected .card-hotkeys,
+	.show-hotkeys .card.selected .card-hotkeys {
+		opacity: 0.7;
+	}
+
+	.hotkey-nav {
+		display: flex;
+		gap: 2px;
+		margin-left: 0.375rem;
+		padding-left: 0.375rem;
+		border-left: 1px solid var(--border-subtle);
+	}
+
+	.hotkey-nav .hotkey-hint {
+		min-width: 0.875rem;
+		height: 0.875rem;
+		font-size: 0.4375rem;
+	}
+
 	/* Search hint */
 	.search-container .hotkey-hint {
 		position: absolute;
@@ -5171,25 +5655,28 @@
 		width: 2rem;
 		height: 2rem;
 		background: transparent;
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-md);
+		border: none;
+		border-radius: var(--radius-sm);
 		cursor: pointer;
 		transition: all var(--transition-fast);
 	}
 
 	.keyboard-help-btn:hover {
-		background: var(--bg-elevated);
-		border-color: var(--border-default);
+		background: rgba(255, 255, 255, 0.06);
 	}
 
 	.keyboard-help-btn kbd {
 		font-family: ui-monospace, 'SF Mono', monospace;
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		font-weight: 500;
-		color: var(--text-secondary);
+		color: var(--text-tertiary);
 		background: none;
 		border: none;
 		box-shadow: none;
+	}
+
+	.keyboard-help-btn:hover kbd {
+		color: var(--text-secondary);
 	}
 
 	/* Position relative for buttons with inline hints */
