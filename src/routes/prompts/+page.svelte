@@ -92,6 +92,8 @@
 </div>
 
 <style>
+	@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap');
+
 	:global(body) {
 		margin: 0;
 		font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -125,9 +127,10 @@
 	}
 
 	.logo h1 {
-		font-size: 1.25rem;
+		font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+		font-size: 1.3rem;
 		font-weight: 800;
-		letter-spacing: -0.03em;
+		letter-spacing: -0.02em;
 		color: rgba(255, 255, 255, 0.95);
 		text-transform: lowercase;
 		margin: 0;
