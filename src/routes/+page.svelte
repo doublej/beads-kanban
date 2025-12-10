@@ -1,38 +1,24 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, type Pane } from '$lib/wsStore.svelte';
-
-	interface Dependency {
-		id: string;
-		title: string;
-		status: string;
-		dependency_type: string;
-	}
-
-	interface Issue {
-		id: string;
-		title: string;
-		description: string;
-		design?: string;
-		acceptance_criteria?: string;
-		notes?: string;
-		status: 'open' | 'in_progress' | 'blocked' | 'closed';
-		priority: 1 | 2 | 3 | 4;
-		issue_type: string;
-		created_at?: string;
-		updated_at?: string;
-		closed_at?: string;
-		assignee?: string;
-		labels?: string[];
-		dependencies?: Dependency[];
-		dependents?: Dependency[];
-		dependency_count?: number;
-		dependent_count?: number;
-		// UI state
-		_showDesign?: boolean;
-		_showAcceptance?: boolean;
-		_showNotes?: boolean;
-	}
+	import type { Issue, Comment, CardPosition, FlyingCard, ContextMenuState, RopeDragState, SortBy, PaneSize } from '$lib/types';
+	import {
+		columns,
+		getPriorityConfig,
+		getTypeIcon,
+		hasOpenBlockers,
+		formatDate,
+		sortIssues
+	} from '$lib/utils';
+	import {
+		updateIssue as updateIssueApi,
+		deleteIssueApi,
+		createIssueApi,
+		loadComments as loadCommentsApi,
+		addCommentApi,
+		createDependencyApi,
+		removeDependencyApi
+	} from '$lib/api';
 
 	let issues = $state<Issue[]>([]);
 	let draggedId = $state<string | null>(null);
@@ -137,15 +123,6 @@
 				placeholderRefs.delete(id);
 			}
 		};
-	}
-
-	function sortIssues(issues: Issue[], sortBy: 'priority' | 'created' | 'title'): Issue[] {
-		return [...issues].sort((a, b) => {
-			if (sortBy === 'priority') return a.priority - b.priority;
-			if (sortBy === 'created') return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-			if (sortBy === 'title') return a.title.localeCompare(b.title);
-			return 0;
-		});
 	}
 
 	function toggleSortMenu(columnKey: string, e: MouseEvent) {
@@ -322,13 +299,6 @@
 		const idx = columns.findIndex(c => c.key === editingIssue.status);
 		return idx >= 0 ? idx : 0;
 	});
-
-	const columns = [
-		{ key: 'open', label: 'Backlog', icon: '○', accent: '#6366f1' },
-		{ key: 'in_progress', label: 'In Progress', icon: '◐', accent: '#f59e0b' },
-		{ key: 'blocked', label: 'Blocked', icon: '◉', accent: '#ef4444' },
-		{ key: 'closed', label: 'Complete', icon: '●', accent: '#10b981' }
-	] as const;
 
 	function issueMatchesFilters(issue: Issue): boolean {
 		const query = searchQuery.toLowerCase();
@@ -623,32 +593,6 @@
 		}
 	}
 
-	function getPriorityConfig(priority: number) {
-		const configs = {
-			1: { color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', label: 'Critical', lightBg: 'rgba(239, 68, 68, 0.08)' },
-			2: { color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)', label: 'High', lightBg: 'rgba(245, 158, 11, 0.08)' },
-			3: { color: '#6366f1', bg: 'rgba(99, 102, 241, 0.12)', label: 'Medium', lightBg: 'rgba(99, 102, 241, 0.08)' },
-			4: { color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)', label: 'Low', lightBg: 'rgba(16, 185, 129, 0.08)' }
-		};
-		return configs[priority as keyof typeof configs];
-	}
-
-	function getTypeIcon(type: string) {
-		const icons: Record<string, string> = {
-			task: '◇',
-			bug: '⬡',
-			feature: '★',
-			epic: '◈',
-			chore: '○'
-		};
-		return icons[type] || '◇';
-	}
-
-	function hasOpenBlockers(issue: Issue): boolean {
-		if (!issue.dependencies || issue.dependencies.length === 0) return false;
-		return issue.dependencies.some(dep => dep.status !== 'closed');
-	}
-
 	function handleTouchStart(e: TouchEvent) {
 		touchStartX = e.changedTouches[0].screenX;
 	}
@@ -664,18 +608,6 @@
 		if (Math.abs(diff) < swipeThreshold) return;
 		if (diff > 0 && activeColumnIndex < columns.length - 1) activeColumnIndex++;
 		else if (diff < 0 && activeColumnIndex > 0) activeColumnIndex--;
-	}
-
-	function formatDate(dateStr?: string) {
-		if (!dateStr) return '';
-		const date = new Date(dateStr);
-		const now = new Date();
-		const diff = now.getTime() - date.getTime();
-		const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-		if (days === 0) return 'Today';
-		if (days === 1) return 'Yesterday';
-		if (days < 7) return `${days}d ago`;
-		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 	}
 
 	function getCardGrid() {
@@ -1099,8 +1031,12 @@
 	<header class="header">
 		<div class="header-left">
 			<div class="logo">
-				<h1>StrandKanban</h1>
+				<h1>strandkanban</h1>
 			</div>
+			<nav class="header-nav">
+				<a href="/about">About</a>
+				<a href="/prompts">Prompts</a>
+			</nav>
 		</div>
 		<div class="header-center">
 			<div class="search-container">
@@ -1870,12 +1806,12 @@
 {/snippet}
 
 <style>
-	@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+	@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@700;800&display=swap');
 
 	:root {
-		--bg-primary: #000000;
-		--bg-secondary: #1c1c1e;
-		--bg-tertiary: #2c2c2e;
+		--bg-primary: #3f3f46;
+		--bg-secondary: #27272a;
+		--bg-tertiary: #18181b;
 		--bg-elevated: #3a3a3c;
 		--border-subtle: rgba(255, 255, 255, 0.08);
 		--border-default: rgba(255, 255, 255, 0.12);
@@ -1943,6 +1879,18 @@
 		z-index: 0;
 	}
 
+	/* Noise overlay to eliminate gradient banding */
+	.app::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+		background-size: 256px 256px;
+		opacity: 0.035;
+		pointer-events: none;
+		z-index: 0;
+	}
+
 	.app > * {
 		position: relative;
 		z-index: 1;
@@ -1998,7 +1946,7 @@
 	/* Header */
 	.header {
 		display: flex;
-		align-items: center;
+		align-items: baseline;
 		justify-content: space-between;
 		padding: 0.875rem 1.5rem;
 		background: transparent;
@@ -2009,18 +1957,45 @@
 
 	.header-left {
 		flex-shrink: 0;
+		display: flex;
+		align-items: baseline;
+		gap: 1.5rem;
+	}
+
+	.header-nav {
+		display: flex;
+		align-items: baseline;
+		gap: 1rem;
+	}
+
+	.header-nav a {
+		color: rgba(255, 255, 255, 0.7);
+		text-decoration: none;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		transition: color 0.15s;
+	}
+
+	.header-nav a:hover {
+		color: rgba(255, 255, 255, 0.9);
+	}
+
+	.app.light .header-nav a {
+		color: rgba(0, 0, 0, 0.7);
+	}
+
+	.app.light .header-nav a:hover {
+		color: rgba(0, 0, 0, 0.9);
 	}
 
 	.logo h1 {
-		font-family: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
-		font-size: 1.25rem;
+		font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+		font-size: 1.3rem;
 		font-weight: 800;
-		letter-spacing: -0.03em;
+		letter-spacing: -0.02em;
 		color: rgba(255, 255, 255, 0.95);
 		text-transform: lowercase;
-		text-shadow:
-			0 1px 2px rgba(0, 0, 0, 0.3),
-			0 2px 4px rgba(0, 0, 0, 0.15);
+		text-shadow: 0 0.5px 0 rgba(0, 0, 0, 0.5);
 	}
 
 	.header-center {
@@ -2176,7 +2151,10 @@
 		font-size: 0.875rem;
 		font-weight: 500;
 		cursor: pointer;
-		transition: all var(--transition-fast);
+		transition:
+			transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+			box-shadow 200ms cubic-bezier(0, 0, 0.2, 1),
+			background 150ms ease-out;
 		box-shadow:
 			0 2px 8px rgba(59, 130, 246, 0.3),
 			0 1px 2px rgba(0, 0, 0, 0.1);
@@ -2184,15 +2162,18 @@
 
 	.btn-create:hover {
 		background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
-		transform: translateY(-1px);
+		transform: translateY(-2px) scale(1.02);
 		box-shadow:
-			0 4px 12px rgba(59, 130, 246, 0.4),
-			0 2px 4px rgba(0, 0, 0, 0.1);
+			0 6px 16px rgba(59, 130, 246, 0.45),
+			0 3px 6px rgba(0, 0, 0, 0.12);
 	}
 
 	.btn-create:active {
 		background: linear-gradient(180deg, var(--accent-primary) 0%, #0066cc 100%);
-		transform: scale(0.98);
+		transform: translateY(0) scale(0.98);
+		transition:
+			transform 80ms cubic-bezier(0.4, 0, 0.2, 1),
+			box-shadow 80ms ease-out;
 		box-shadow:
 			inset 0 2px 4px rgba(0, 0, 0, 0.2),
 			0 1px 2px rgba(0, 0, 0, 0.15);
@@ -2556,17 +2537,27 @@
 			inset 0 1px 0 rgba(255, 255, 255, 0.12),
 			inset 0 -1px 0 rgba(0, 0, 0, 0.2);
 		cursor: pointer;
-		transition: all var(--transition-smooth);
+		transition:
+			transform 200ms cubic-bezier(0.34, 1.4, 0.64, 1),
+			box-shadow 250ms cubic-bezier(0, 0, 0.2, 1),
+			background 200ms ease-out;
 		overflow: hidden;
 	}
 
 	.card:hover {
-		transform: translateY(-2px);
+		transform: translateY(-3px) scale(1.005);
 		box-shadow:
-			0 6px 16px -4px rgba(0, 0, 0, 0.12),
-			0 3px 8px -2px rgba(0, 0, 0, 0.06),
-			inset 0 1px 0 rgba(255, 255, 255, 0.12),
+			0 8px 20px -4px rgba(0, 0, 0, 0.15),
+			0 4px 10px -2px rgba(0, 0, 0, 0.08),
+			inset 0 1px 0 rgba(255, 255, 255, 0.15),
 			inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+	}
+
+	.card:active {
+		transform: translateY(-1px) scale(0.995);
+		transition:
+			transform 100ms cubic-bezier(0.4, 0, 0.2, 1),
+			box-shadow 100ms ease-out;
 	}
 
 	.card-priority-bar {
