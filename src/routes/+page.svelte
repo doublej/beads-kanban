@@ -1243,7 +1243,35 @@
 		<main class="board" ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
 			{#each columns as column, i}
 				{#if i === 0 && isCreating}
-					{@render detailPanel()}
+					<DetailPanel
+						bind:editingIssue
+						bind:createForm
+						bind:newLabelInput
+						bind:newComment
+						{isCreating}
+						{comments}
+						{copiedId}
+						{loadingComments}
+						{originalLabels}
+						{isPanelDragging}
+						{panelDragOffset}
+						onclose={closePanel}
+						oncreate={createIssue}
+						ondelete={deleteIssue}
+						onsave={updateIssue}
+						onaddcomment={addComment}
+						oncopyid={copyToClipboard}
+						onsetcolumn={setEditingColumn}
+						onaddlabel={addLabelToEditing}
+						onremovelabel={removeLabelFromEditing}
+						onremovedep={removeDependency}
+						onpaneltouchstart={handlePanelTouchStart}
+						onpaneltouchmove={handlePanelTouchMove}
+						onpaneltouchend={handlePanelTouchEnd}
+						updatecreateform={(k, v) => createForm[k] = v}
+						updatenewlabel={(v) => newLabelInput = v}
+						updatenewcomment={(v) => newComment = v}
+					/>
 				{/if}
 				{@const rawColumnIssues = issues.filter((x) => getIssueColumn(x).key === column.key)}
 				{@const allColumnIssues = columnSortBy[column.key] ? sortIssues(rawColumnIssues, columnSortBy[column.key]) : rawColumnIssues}
@@ -2681,10 +2709,6 @@
 		animation: dropPulse 1s ease-in-out infinite;
 	}
 
-	@keyframes dropPulse {
-		0%, 100% { opacity: 0.6; transform: scaleX(0.95); }
-		50% { opacity: 1; transform: scaleX(1); }
-	}
 
 	/* Card */
 	.card {
@@ -3021,11 +3045,6 @@
 		animation: copySuccess 400ms ease-out;
 	}
 
-	@keyframes copySuccess {
-		0% { transform: scale(1); }
-		50% { transform: scale(1.2); }
-		100% { transform: scale(1); }
-	}
 
 	.blocked-indicator {
 		color: #ef4444;
@@ -4083,67 +4102,6 @@
 		opacity: 0.8;
 	}
 
-	/* Buttons */
-	.btn-secondary,
-	.btn-primary,
-	.btn-danger {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.625rem 1.25rem;
-		border: none;
-		border-radius: var(--radius-lg);
-		font-family: inherit;
-		font-size: 0.875rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all var(--transition-fast);
-	}
-
-	.btn-secondary {
-		background: var(--bg-tertiary);
-		color: var(--text-primary);
-	}
-
-	.btn-secondary:hover {
-		background: var(--bg-elevated);
-	}
-
-	.btn-secondary:active {
-		transform: scale(0.98);
-	}
-
-	.btn-primary {
-		background: var(--accent-primary);
-		color: white;
-	}
-
-	.btn-primary:hover {
-		filter: brightness(1.1);
-	}
-
-	.btn-primary:active {
-		filter: brightness(0.95);
-		transform: scale(0.98);
-	}
-
-	.btn-danger {
-		background: rgba(255, 59, 48, 0.12);
-		color: #ff3b30;
-	}
-
-	.btn-danger:hover {
-		background: rgba(255, 59, 48, 0.18);
-	}
-
-	.btn-danger:active {
-		transform: scale(0.98);
-	}
-
-	.btn-danger svg {
-		width: 0.875rem;
-		height: 0.875rem;
-	}
 
 	/* ===== MOBILE DESIGN SYSTEM ===== */
 	@media (max-width: 768px) {
