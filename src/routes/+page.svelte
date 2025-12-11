@@ -23,6 +23,16 @@
 		removeDependencyApi
 	} from '$lib/api';
 	import ColumnNav from '$lib/components/ColumnNav.svelte';
+	import Header from '$lib/components/Header.svelte';
+	import ContextMenu from '$lib/components/ContextMenu.svelte';
+	import RopeDrag from '$lib/components/RopeDrag.svelte';
+	import DepTypePicker from '$lib/components/DepTypePicker.svelte';
+	import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
+	import KanbanColumn from '$lib/components/KanbanColumn.svelte';
+	import IssueCard from '$lib/components/IssueCard.svelte';
+	import DetailPanel from '$lib/components/DetailPanel.svelte';
+	import FlyingCardComponent from '$lib/components/FlyingCard.svelte';
+	import PaneActivity from '$lib/components/PaneActivity.svelte';
 
 	let issues = $state<Issue[]>([]);
 	let draggedId = $state<string | null>(null);
@@ -242,7 +252,7 @@
 	async function confirmDependency(depType: string) {
 		if (!pendingDep) return;
 		await createDependencyApi(pendingDep.fromId, pendingDep.toId, depType);
-		await loadIssues();
+		// Issues are updated via SSE stream
 		pendingDep = null;
 		closeContextMenu();
 	}
@@ -909,327 +919,35 @@
 <svelte:window onkeydown={handleKeydown} onkeyup={handleKeyup} onpopstate={handlePopState} onclick={closeContextMenu} onmousemove={handleMouseMove} onmouseup={handleMouseUp} onblur={handleWindowBlur} />
 
 {#if contextMenu}
-	<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-	<div
-		class="context-menu"
-		role="menu"
-		style="left: {contextMenu.x}px; top: {contextMenu.y}px"
-		onclick={(e) => e.stopPropagation()}
-	>
-		<div class="context-menu-section">
-			<span class="context-menu-label">Priority</span>
-			<div class="context-menu-options">
-				<button class="context-option" class:active={contextMenu.issue.priority === 0} onclick={() => setIssuePriority(contextMenu.issue.id, 0)}>
-					<span class="priority-dot" style="background: #ef4444"></span>Critical
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.priority === 1} onclick={() => setIssuePriority(contextMenu.issue.id, 1)}>
-					<span class="priority-dot" style="background: #f59e0b"></span>High
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.priority === 2} onclick={() => setIssuePriority(contextMenu.issue.id, 2)}>
-					<span class="priority-dot" style="background: #6366f1"></span>Medium
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.priority === 3} onclick={() => setIssuePriority(contextMenu.issue.id, 3)}>
-					<span class="priority-dot" style="background: #10b981"></span>Low
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.priority === 4} onclick={() => setIssuePriority(contextMenu.issue.id, 4)}>
-					<span class="priority-dot" style="background: #6b7280"></span>Backlog
-				</button>
-			</div>
-		</div>
-		<div class="context-menu-divider"></div>
-		<div class="context-menu-section">
-			<span class="context-menu-label">Link</span>
-			<div
-				class="rope-handle"
-				onmousedown={(e) => startRopeDrag(e, contextMenu.issue.id)}
-			>
-				<svg class="rope-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-					<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-				</svg>
-				<span>Drag to link</span>
-				<span class="rope-tip">⟡</span>
-			</div>
-		</div>
-	</div>
+	<ContextMenu
+		x={contextMenu.x}
+		y={contextMenu.y}
+		issue={contextMenu.issue}
+		onSetPriority={(p) => setIssuePriority(contextMenu.issue.id, p)}
+		onStartRopeDrag={(e) => startRopeDrag(e, contextMenu.issue.id)}
+		onClose={closeContextMenu}
+	/>
 {/if}
 
-{#if ropeDrag}
-	{@const dx = ropeDrag.currentX - ropeDrag.startX}
-	{@const dy = ropeDrag.currentY - ropeDrag.startY}
-	{@const length = Math.sqrt(dx * dx + dy * dy)}
-	{@const hasTarget = !!ropeDrag.targetId}
-	{@const midX = ropeDrag.startX + dx * 0.5}
-	{@const midY = ropeDrag.startY + dy * 0.5 - Math.min(length * 0.15, 40)}
-	{@const pathD = `M ${ropeDrag.startX} ${ropeDrag.startY} Q ${midX} ${midY} ${ropeDrag.currentX} ${ropeDrag.currentY}`}
-	<svg class="link-beam" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;">
-		<defs>
-			<linearGradient id="energyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-				<stop offset="0%" stop-color={hasTarget ? "#22d3ee" : "#64748b"} stop-opacity="0.2" />
-				<stop offset="50%" stop-color={hasTarget ? "#06b6d4" : "#94a3b8"} stop-opacity="1" />
-				<stop offset="100%" stop-color={hasTarget ? "#22d3ee" : "#64748b"} stop-opacity="0.2" />
-			</linearGradient>
-			<filter id="energyGlow" x="-50%" y="-50%" width="200%" height="200%">
-				<feGaussianBlur stdDeviation="3" result="blur" />
-				<feMerge>
-					<feMergeNode in="blur" />
-					<feMergeNode in="blur" />
-					<feMergeNode in="SourceGraphic" />
-				</feMerge>
-			</filter>
-			<filter id="nodeGlow" x="-100%" y="-100%" width="300%" height="300%">
-				<feGaussianBlur stdDeviation="8" result="blur" />
-				<feMerge>
-					<feMergeNode in="blur" />
-					<feMergeNode in="blur" />
-					<feMergeNode in="SourceGraphic" />
-				</feMerge>
-			</filter>
-		</defs>
+<RopeDrag {ropeDrag} />
 
-		<!-- Ambient glow path -->
-		<path
-			d={pathD}
-			fill="none"
-			stroke={hasTarget ? "rgba(34, 211, 238, 0.15)" : "rgba(148, 163, 184, 0.1)"}
-			stroke-width="12"
-			stroke-linecap="round"
-		/>
-
-		<!-- Main energy beam -->
-		<path
-			d={pathD}
-			fill="none"
-			stroke={hasTarget ? "#06b6d4" : "#64748b"}
-			stroke-width="2"
-			stroke-linecap="round"
-			filter="url(#energyGlow)"
-		/>
-
-		<!-- Flowing particles -->
-		<path
-			d={pathD}
-			fill="none"
-			stroke={hasTarget ? "#22d3ee" : "#94a3b8"}
-			stroke-width="2"
-			stroke-linecap="round"
-			stroke-dasharray="4 12"
-			class="energy-flow"
-		/>
-
-		<!-- Origin node -->
-		<g filter="url(#energyGlow)">
-			<circle
-				cx={ropeDrag.startX}
-				cy={ropeDrag.startY}
-				r="6"
-				fill={hasTarget ? "#06b6d4" : "#64748b"}
-				opacity="0.8"
-			/>
-			<circle
-				cx={ropeDrag.startX}
-				cy={ropeDrag.startY}
-				r="3"
-				fill="white"
-				opacity="0.9"
-			/>
-		</g>
-
-		<!-- Target node -->
-		<g filter={hasTarget ? "url(#nodeGlow)" : "url(#energyGlow)"}>
-			<circle
-				cx={ropeDrag.currentX}
-				cy={ropeDrag.currentY}
-				r={hasTarget ? "14" : "8"}
-				fill="none"
-				stroke={hasTarget ? "#22d3ee" : "#94a3b8"}
-				stroke-width="2"
-				class="target-ring"
-				class:locked={hasTarget}
-			/>
-			<circle
-				cx={ropeDrag.currentX}
-				cy={ropeDrag.currentY}
-				r={hasTarget ? "8" : "4"}
-				fill={hasTarget ? "#06b6d4" : "#64748b"}
-				class="target-core"
-				class:locked={hasTarget}
-			/>
-			<circle
-				cx={ropeDrag.currentX}
-				cy={ropeDrag.currentY}
-				r="2"
-				fill="white"
-				opacity="0.9"
-			/>
-		</g>
-
-		<!-- Target label -->
-		{#if hasTarget}
-			<g class="target-label-energy">
-				<text
-					x={ropeDrag.currentX}
-					y={ropeDrag.currentY - 26}
-					text-anchor="middle"
-					fill="#22d3ee"
-					font-size="11"
-					font-weight="600"
-					font-family="ui-monospace, 'SF Mono', monospace"
-					filter="url(#energyGlow)"
-				>{ropeDrag.targetId}</text>
-			</g>
-		{/if}
-	</svg>
-{/if}
-
-{#if pendingDep}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="dep-type-overlay" onclick={cancelDependency}>
-		<div class="dep-type-modal" onclick={(e) => e.stopPropagation()}>
-			<h3>Link Type</h3>
-			<p class="dep-type-hint">How does <strong>{pendingDep.fromId}</strong> relate to <strong>{pendingDep.toId}</strong>?</p>
-			<div class="dep-type-options">
-				<button class="dep-type-btn" onclick={() => confirmDependency('blocks')}>
-					<span class="dep-type-icon" style="color: #ef4444;">⊘</span>
-					<span class="dep-type-label">Blocks</span>
-					<span class="dep-type-desc">Must complete first</span>
-				</button>
-				<button class="dep-type-btn" onclick={() => confirmDependency('related')}>
-					<span class="dep-type-icon" style="color: #3b82f6;">↔</span>
-					<span class="dep-type-label">Related</span>
-					<span class="dep-type-desc">Connected but independent</span>
-				</button>
-				<button class="dep-type-btn" onclick={() => confirmDependency('parent-child')}>
-					<span class="dep-type-icon" style="color: #8b5cf6;">↳</span>
-					<span class="dep-type-label">Parent-Child</span>
-					<span class="dep-type-desc">Epic/subtask relationship</span>
-				</button>
-				<button class="dep-type-btn" onclick={() => confirmDependency('discovered-from')}>
-					<span class="dep-type-icon" style="color: #f59e0b;">◊</span>
-					<span class="dep-type-label">Discovered From</span>
-					<span class="dep-type-desc">Found during work</span>
-				</button>
-			</div>
-			<button class="dep-type-cancel" onclick={cancelDependency}>Cancel</button>
-		</div>
-	</div>
-{/if}
+<DepTypePicker {pendingDep} onconfirm={confirmDependency} oncancel={cancelDependency} />
 
 <div class="app" class:light={!isDarkMode} class:panel-open={panelOpen} class:show-hotkeys={showHotkeys}>
 
-{#if showKeyboardHelp}
-	<div class="keyboard-help-overlay" onclick={() => showKeyboardHelp = false}>
-		<div class="keyboard-help" onclick={(e) => e.stopPropagation()}>
-			<div class="keyboard-help-header">
-				<h2>Keyboard Shortcuts</h2>
-				<button class="keyboard-help-close" onclick={() => showKeyboardHelp = false}>
-					<kbd>esc</kbd>
-				</button>
-			</div>
-			<div class="keyboard-help-content">
-				<div class="shortcut-group">
-					<h3>Navigation</h3>
-					<div class="shortcut"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd><span>Navigate cards</span></div>
-					<div class="shortcut"><kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd><span>Vim-style navigation</span></div>
-					<div class="shortcut"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd><span>Jump to column</span></div>
-				</div>
-				<div class="shortcut-group">
-					<h3>Actions</h3>
-					<div class="shortcut"><kbd>n</kbd><span>New issue</span></div>
-					<div class="shortcut"><kbd>o</kbd> or <kbd>↵</kbd><span>Open issue</span></div>
-					<div class="shortcut"><kbd>x</kbd><span>Delete issue</span></div>
-					<div class="shortcut"><kbd>/</kbd><span>Focus search</span></div>
-				</div>
-				<div class="shortcut-group">
-					<h3>General</h3>
-					<div class="shortcut"><kbd>t</kbd><span>Toggle theme</span></div>
-					<div class="shortcut"><kbd>?</kbd><span>Show this help</span></div>
-					<div class="shortcut"><kbd>esc</kbd><span>Close / Cancel</span></div>
-					<div class="shortcut"><kbd>⌥</kbd><span>Hold for hints</span></div>
-				</div>
-			</div>
-		</div>
-	</div>
-{/if}
-	<header class="header">
-		<div class="header-left">
-			<div class="logo">
-				<h1>strandkanban</h1>
-			</div>
-			<nav class="header-nav">
-				<a href="/about">About</a>
-				<a href="/prompts">Prompts</a>
-			</nav>
-		</div>
-		<div class="header-center">
-			<div class="search-container">
-				<svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<circle cx="11" cy="11" r="8"/>
-					<path d="m21 21-4.35-4.35"/>
-				</svg>
-				<input
-					type="text"
-					placeholder="Search issues..."
-					bind:value={searchQuery}
-					class="search-input"
-				/>
-				{#if searchQuery}
-					<button class="search-clear" onclick={() => searchQuery = ''}>×</button>
-				{:else}
-					<kbd class="hotkey-hint">/</kbd>
-				{/if}
-			</div>
-			<button class="btn-create" onclick={openCreatePanel}>
-				<span class="btn-create-icon">+</span>
-				<span class="btn-create-text">New Issue</span>
-				<kbd class="btn-hotkey">N</kbd>
-			</button>
-		</div>
-		<div class="header-right">
-			<div class="filter-group">
-				<select bind:value={filterPriority} class="filter-select">
-					<option value="all">All Priorities</option>
-					<option value={0}>Critical</option>
-					<option value={1}>High</option>
-					<option value={2}>Medium</option>
-					<option value={3}>Low</option>
-					<option value={4}>Backlog</option>
-				</select>
-				<select bind:value={filterType} class="filter-select">
-					<option value="all">All Types</option>
-					<option value="task">Task</option>
-					<option value="bug">Bug</option>
-					<option value="feature">Feature</option>
-					<option value="epic">Epic</option>
-					<option value="chore">Chore</option>
-				</select>
-			</div>
-			<button class="keyboard-help-btn" onclick={() => showKeyboardHelp = true} aria-label="Keyboard shortcuts" title="Keyboard shortcuts">
-				<kbd>?</kbd>
-			</button>
-			<button class="theme-toggle" onclick={toggleTheme} aria-label="Toggle theme">
-				{#if isDarkMode}
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<circle cx="12" cy="12" r="5"/>
-						<path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-					</svg>
-				{:else}
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-					</svg>
-				{/if}
-			</button>
-			<button
-				class="pane-toggle"
-				class:connected={wsConnected}
-				onclick={() => showPaneActivity = !showPaneActivity}
-				title={wsConnected ? 'Panes connected' : 'Panes disconnected'}
-			>
-				<span class="pane-dot"></span>
-				<span class="pane-count">{wsPanes.size}</span>
-			</button>
-		</div>
-	</header>
+<KeyboardHelp bind:show={showKeyboardHelp} />
+	<Header
+		bind:searchQuery
+		bind:filterPriority
+		bind:filterType
+		{isDarkMode}
+		wsConnected={wsConnected}
+		paneCount={wsPanes.size}
+		ontoggleTheme={toggleTheme}
+		onopenKeyboardHelp={() => showKeyboardHelp = true}
+		onopenCreatePanel={openCreatePanel}
+		ontogglePaneActivity={() => showPaneActivity = !showPaneActivity}
+	/>
 
 	<ColumnNav
 		{columns}
@@ -1250,198 +968,42 @@
 				{@const matchingCount = allColumnIssues.filter(issueMatchesFilters).length}
 				{@const isCollapsed = collapsedColumns.has(column.key)}
 				{@const currentSort = columnSortBy[column.key]}
-				<section
-					class="column"
-					class:mobile-active={activeColumnIndex === i}
-					class:drag-over={draggedOverColumn === column.key}
-					class:collapsed={isCollapsed}
-					style="--accent: {column.accent}"
+				<KanbanColumn
+					{column}
+					columnIndex={i}
+					{allColumnIssues}
+					{matchingCount}
+					{isCollapsed}
+					{currentSort}
+					{sortMenuOpen}
+					{selectedId}
+					{editingIssue}
+					{draggedId}
+					{draggedOverColumn}
+					{dropTargetColumn}
+					{dropIndicatorIndex}
+					{animatingIds}
+					{copiedId}
+					{hasActiveFilters}
+					{flyingCards}
+					{placeholders}
+					{activeColumnIndex}
+					{registerCard}
+					{registerPlaceholder}
+					{issueMatchesFilters}
 					ondragover={(e) => handleDragOver(e, column.key)}
 					ondragleave={(e) => handleDragLeave(e, column.key)}
 					ondrop={(e) => handleDrop(e, column.key)}
-				>
-					<div class="column-header" onclick={() => isCollapsed && toggleColumnCollapse(column.key)}>
-						<div class="column-title">
-							<kbd class="hotkey-hint hotkey-hint-column">{i + 1}</kbd>
-							<span class="column-icon">{column.icon}</span>
-							<h2>{column.label}</h2>
-						</div>
-						<div class="column-header-actions">
-							<div class="sort-dropdown">
-								<button class="sort-btn" class:active={currentSort} onclick={(e) => toggleSortMenu(column.key, e)} title="Sort by">
-									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
-								</button>
-								{#if sortMenuOpen === column.key}
-									<div class="sort-menu">
-										<button class:active={currentSort === 'priority'} onclick={() => setColumnSort(column.key, 'priority')}>Priority</button>
-										<button class:active={currentSort === 'created'} onclick={() => setColumnSort(column.key, 'created')}>Newest</button>
-										<button class:active={currentSort === 'title'} onclick={() => setColumnSort(column.key, 'title')}>Title</button>
-									</div>
-								{/if}
-							</div>
-							<span class="column-count">{#if hasActiveFilters}{matchingCount}/{allColumnIssues.length}{:else}{allColumnIssues.length}{/if}</span>
-							<button class="column-collapse-btn" onclick={(e) => { e.stopPropagation(); toggleColumnCollapse(column.key); }} aria-label={isCollapsed ? 'Expand column' : 'Collapse column'}>
-								{isCollapsed ? '▶' : '◀'}
-							</button>
-						</div>
-					</div>
-
-					{#if !isCollapsed}
-					<div class="cards">
-						{#if draggedOverColumn === column.key && dropTargetColumn === column.key && dropIndicatorIndex === 0}
-							<div class="drop-indicator"></div>
-						{/if}
-
-						<!-- Placeholder slots for incoming cards -->
-						{#each placeholders.filter(p => p.targetColumn === column.key) as placeholder}
-							<div
-								class="placeholder-slot"
-								style="--placeholder-height: {placeholder.height}px"
-								use:registerPlaceholder={placeholder.id}
-							></div>
-						{/each}
-
-						{#each allColumnIssues as issue, idx}
-							{@const priorityConfig = getPriorityConfig(issue.priority)}
-							{@const isBlocked = hasOpenBlockers(issue)}
-							{@const matchesFilter = issueMatchesFilters(issue)}
-							{@const isFlying = flyingCards.has(issue.id)}
-							<article
-								class="card"
-								class:animating={animatingIds.has(issue.id)}
-								class:selected={selectedId === issue.id}
-								class:editing={editingIssue?.id === issue.id}
-								class:dragging={draggedId === issue.id}
-								class:has-blockers={isBlocked}
-								class:filter-dimmed={hasActiveFilters && !matchesFilter}
-								class:flying-hidden={isFlying}
-								draggable="true"
-								ondragstart={(e) => handleDragStart(e, issue.id)}
-								ondragend={handleDragEnd}
-								onclick={() => openEditPanel(issue)}
-								oncontextmenu={(e) => openContextMenu(e, issue)}
-								use:registerCard={issue.id}
-							>
-									<div class="card-priority-bar" style="--priority-bar-color: {priorityConfig.color}">
-									<span class="priority-label">{priorityConfig.label}</span>
-								</div>
-								<span class="type-indicator" title={issue.issue_type}>{getTypeIcon(issue.issue_type)} {issue.issue_type}</span>
-								<div class="card-content">
-									<div class="card-header">
-										<span class="card-id-wrap">
-											<span class="card-id">{issue.id}</span>
-											<button
-												class="btn-copy"
-												class:copied={copiedId === issue.id}
-												onclick={(e) => { e.stopPropagation(); copyToClipboard(issue.id, issue.id); }}
-												aria-label="Copy ID"
-											>
-												{#if copiedId === issue.id}
-													<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-												{:else}
-													<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-												{/if}
-											</button>
-										</span>
-										{#if isBlocked}
-											<span class="blocked-indicator" title="Blocked by open dependencies">⊘</span>
-										{/if}
-										</div>
-									{#if issue.status === 'in_progress' && issue.assignee}
-										<div class="agent-chip">
-											<span class="agent-pulse"></span>
-											<svg class="agent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<circle cx="12" cy="12" r="3"/>
-												<path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-											</svg>
-											<span class="agent-name">{issue.assignee}</span>
-											<span class="agent-status">working</span>
-										</div>
-									{/if}
-									<h3 class="card-title">{issue.title}</h3>
-									{#if issue.description}
-										<p class="card-description">{issue.description}</p>
-									{/if}
-									{#if issue.labels && issue.labels.length > 0}
-										<div class="card-labels">
-											{#each issue.labels.slice(0, 3) as label}
-												<span class="label">{label}</span>
-											{/each}
-											{#if issue.labels.length > 3}
-												<span class="label more">+{issue.labels.length - 3}</span>
-											{/if}
-										</div>
-									{/if}
-									{#if issue.assignee && !(issue.assignee.toLowerCase() === 'claude' || issue.assignee.toLowerCase().includes('agent'))}
-									<div class="card-footer">
-										<span class="badge assignee">
-											<span class="assignee-dot"></span>
-											{issue.assignee}
-										</span>
-									</div>
-									{/if}
-									{#if (issue.dependencies && issue.dependencies.length > 0) || (issue.dependents && issue.dependents.length > 0)}
-										<div class="card-links">
-											{#if issue.dependencies && issue.dependencies.length > 0}
-												<div class="link-group blocked-by" title="Blocked by: {issue.dependencies.map(d => `${getDepTypeConfig(d.dependency_type).label}: ${d.title}`).join(', ')}">
-													<span class="link-arrow">←</span>
-													{#each issue.dependencies.slice(0, 3) as dep}
-														{@const depConfig = getDepTypeConfig(dep.dependency_type)}
-														<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
-															<span class="dep-type-indicator" style="color: {depConfig.color}">{depConfig.icon}</span>{dep.id}
-														</span>
-													{/each}
-													{#if issue.dependencies.length > 3}
-														<span class="link-more">+{issue.dependencies.length - 3}</span>
-													{/if}
-												</div>
-											{/if}
-											{#if issue.dependents && issue.dependents.length > 0}
-												<div class="link-group blocking" title="Blocking: {issue.dependents.map(d => `${getDepTypeConfig(d.dependency_type).label}: ${d.title}`).join(', ')}">
-													<span class="link-arrow">→</span>
-													{#each issue.dependents.slice(0, 3) as dep}
-														{@const depConfig = getDepTypeConfig(dep.dependency_type)}
-														<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
-															<span class="dep-type-indicator" style="color: {depConfig.color}">{depConfig.icon}</span>{dep.id}
-														</span>
-													{/each}
-													{#if issue.dependents.length > 3}
-														<span class="link-more">+{issue.dependents.length - 3}</span>
-													{/if}
-												</div>
-											{/if}
-										</div>
-									{/if}
-									{#if issue.created_at}
-										<div class="card-meta">
-											<span class="meta-item" title="Created {new Date(issue.created_at).toLocaleString()}">
-												{formatDate(issue.created_at)}
-											</span>
-											{#if issue.closed_at}
-												<span class="meta-separator">→</span>
-												<span class="meta-item closed" title="Closed {new Date(issue.closed_at).toLocaleString()}">
-													{formatDate(issue.closed_at)}
-												</span>
-											{/if}
-										</div>
-									{/if}
-								</div>
-							</article>
-
-							{#if draggedOverColumn === column.key && dropTargetColumn === column.key && dropIndicatorIndex === idx + 1}
-								<div class="drop-indicator"></div>
-							{/if}
-						{/each}
-
-						{#if allColumnIssues.length === 0}
-							<div class="empty-state">
-								<div class="empty-icon">{column.icon}</div>
-								<p>No issues</p>
-							</div>
-						{/if}
-					</div>
-					{/if}
-				</section>
+					oncollapseclick={(key) => toggleColumnCollapse(key)}
+					ontogglecollapse={(e, key) => { e.stopPropagation(); toggleColumnCollapse(key); }}
+					ontogglesortmenu={(key, e) => toggleSortMenu(key, e)}
+					onsetcolumnsort={(key, sortBy) => setColumnSort(key, sortBy)}
+					oncardclick={(issue) => openEditPanel(issue)}
+					oncarddragstart={(e, id) => handleDragStart(e, id)}
+					oncarddragend={handleDragEnd}
+					oncardcontextmenu={(e, issue) => openContextMenu(e, issue)}
+					oncopyid={(id, text) => copyToClipboard(id, text)}
+				/>
 				{#if editingIssue && editingColumnIndex() === i}
 					{@render detailPanel()}
 				{/if}
@@ -1481,480 +1043,59 @@
 		</div>
 	</div>
 
-	<!-- Expanded chat windows -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="chat-windows"
-		class:has-large={Object.values(paneSizes).includes('large')}
-		onmousemove={handleMouseMove}
-		onmouseup={handleMouseUp}
-		onmouseleave={handleMouseUp}
-	>
-		{#each [...wsPanes.values()].filter(p => expandedPanes.has(p.name)) as pane}
-			{@const size = getPaneSize(pane.name)}
-			{@const customized = isCustomized(pane.name)}
-			<div
-				class="chat-window {size}"
-				class:streaming={pane.streaming}
-				class:customized={customized}
-				class:dragging={draggingPane === pane.name}
-				class:resizing={resizingPane === pane.name}
-				data-pane={pane.name}
-				style={getPaneStyle(pane.name)}
-			>
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="chat-window-header" onmousedown={(e) => startDrag(e, pane.name)}>
-					<div class="chat-window-title">
-						<span class="window-indicator" class:active={pane.streaming}></span>
-						<span class="window-name">{pane.name}</span>
-						<span class="window-type">{pane.pane_type}</span>
-					</div>
-					<div class="chat-window-actions">
-						<button class="window-btn size-btn" onclick={() => cyclePaneSize(pane.name)} title={size === 'compact' ? 'Expand' : size === 'medium' ? 'Maximize' : 'Compact'}>
-							{#if size === 'compact'}
-								<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M1 4.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1H2v2.5a.5.5 0 0 1-1 0v-3zm14 0a.5.5 0 0 0-.5-.5h-3a.5.5 0 0 0 0 1H14v2.5a.5.5 0 0 0 1 0v-3zm0 7a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1 0-1H14V8.5a.5.5 0 0 1 1 0v3zm-14 0a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 0-1H2V8.5a.5.5 0 0 0-1 0v3z"/></svg>
-							{:else if size === 'medium'}
-								<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M5.828 10.172a.5.5 0 0 0-.707 0l-4.096 4.096V11.5a.5.5 0 0 0-1 0v3.975a.5.5 0 0 0 .5.5H4.5a.5.5 0 0 0 0-1H1.732l4.096-4.096a.5.5 0 0 0 0-.707zm4.344-4.344a.5.5 0 0 0 .707 0l4.096-4.096V4.5a.5.5 0 1 0 1 0V.525a.5.5 0 0 0-.5-.5H11.5a.5.5 0 0 0 0 1h2.768l-4.096 4.096a.5.5 0 0 0 0 .707z"/></svg>
-							{:else}
-								<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M5.5 0a.5.5 0 0 1 .5.5v4A1.5 1.5 0 0 1 4.5 6h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5zm5 0a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 10 4.5v-4a.5.5 0 0 1 .5-.5zM0 10.5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 6 11.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zm10 1a1.5 1.5 0 0 1 1.5-1.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4z"/></svg>
-							{/if}
-						</button>
-						<button class="window-btn" onclick={() => removePane(pane.name)} title="Remove">×</button>
-						<button class="window-btn" onclick={() => { expandedPanes.delete(pane.name); expandedPanes = new Set(expandedPanes); }} title="Minimize">−</button>
-					</div>
-				</div>
-				<div class="chat-messages">
-					{#each pane.messages.slice(size === 'large' ? -100 : size === 'medium' ? -40 : -20) as msg}
-						<div class="chat-msg" class:user={msg.role === 'user'} class:assistant={msg.role === 'assistant'} class:tool={msg.role === 'tool'}>
-							<span class="msg-role">{msg.role}</span>
-							<p class="msg-content">{size === 'large' ? msg.content : msg.content.slice(0, 500)}{size !== 'large' && msg.content.length > 500 ? '...' : ''}</p>
-						</div>
-					{/each}
-					{#if pane.currentDelta}
-						<div class="chat-msg assistant streaming">
-							<span class="msg-role">assistant</span>
-							<p class="msg-content">{size === 'large' ? pane.currentDelta : pane.currentDelta.slice(-300)}<span class="cursor"></span></p>
-						</div>
-					{/if}
-					{#if pane.messages.length === 0 && !pane.currentDelta}
-						<div class="chat-empty">No messages yet</div>
-					{/if}
-				</div>
-				<form class="chat-input-form" onsubmit={(e) => { e.preventDefault(); const msg = paneMessageInputs[pane.name]; if (msg?.trim()) { sendToPane(pane.name, msg.trim()); paneMessageInputs[pane.name] = ''; } }}>
-					<input type="text" value={paneMessageInputs[pane.name] || ''} oninput={(e) => paneMessageInputs[pane.name] = e.currentTarget.value} placeholder="Message..." class="chat-input" />
-					<button type="submit" class="chat-send-btn" disabled={!paneMessageInputs[pane.name]?.trim()} aria-label="Send"></button>
-				</form>
-				<!-- Resize handle -->
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="resize-handle" onmousedown={(e) => startResize(e, pane.name)}>
-					<svg viewBox="0 0 10 10" width="10" height="10"><path d="M9 1v8H1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-				</div>
-			</div>
-		{/each}
-	</div>
+	<PaneActivity
+		{wsPanes}
+		{expandedPanes}
+		{paneSizes}
+		{panePositions}
+		{paneCustomSizes}
+		bind:paneMessageInputs
+		{draggingPane}
+		{resizingPane}
+		onStartDrag={startDrag}
+		onStartResize={startResize}
+		onCyclePaneSize={cyclePaneSize}
+		onRemovePane={removePane}
+		onMinimizePane={(name) => { expandedPanes.delete(name); expandedPanes = new Set(expandedPanes); }}
+		onSendMessage={(name, msg) => sendToPane(name, msg)}
+		onMouseMove={handleMouseMove}
+		onMouseUp={handleMouseUp}
+	/>
 </div>
 
-<!-- Teleport Ghost Strobe Effects -->
-{#each teleports as teleport}
-	{@const dx = teleport.to.x - teleport.from.x}
-	{@const dy = teleport.to.y - teleport.from.y}
-	{#each [0, 1, 2, 3, 4] as i}
-		<div
-			class="teleport-ghost"
-			style="
-				--from-x: {teleport.from.x}px;
-				--from-y: {teleport.from.y}px;
-				--to-x: {teleport.to.x}px;
-				--to-y: {teleport.to.y}px;
-				--ghost-w: {teleport.from.w}px;
-				--ghost-h: {teleport.from.h}px;
-				--delay: {i * 40}ms;
-				--opacity: {0.6 - i * 0.1};
-			"
-		></div>
-	{/each}
-{/each}
-
-<!-- Flying Cards -->
-{#each [...flyingCards] as [id, { from, to, issue }]}
-	{@const priorityConfig = getPriorityConfig(issue.priority)}
-	<article
-		class="card flying-card"
-		style="
-			--from-x: {from.x}px;
-			--from-y: {from.y}px;
-			--to-x: {to.x}px;
-			--to-y: {to.y}px;
-			--card-w: {from.w}px;
-			--card-h: {from.h}px;
-		"
-	>
-		<div class="card-priority-bar" style="--priority-bar-color: {priorityConfig.color}">
-			<span class="priority-label">{priorityConfig.label}</span>
-		</div>
-		<span class="type-indicator">{getTypeIcon(issue.issue_type)} {issue.issue_type}</span>
-		<div class="card-content">
-			<div class="card-header">
-				<span class="card-id-wrap"><span class="card-id">{issue.id}</span></span>
-			</div>
-			<h3 class="card-title">{issue.title}</h3>
-			{#if issue.description}
-				<p class="card-desc">{issue.description}</p>
-			{/if}
-		</div>
-	</article>
-{/each}
+<FlyingCardComponent {teleports} {flyingCards} />
 </div>
 
 {#snippet detailPanel()}
-		<aside
-			class="panel open"
-			class:dragging={isPanelDragging}
-			style={panelDragOffset > 0 ? `transform: translateY(${panelDragOffset}px); opacity: ${1 - panelDragOffset / 200}` : ''}
-			ontouchstart={handlePanelTouchStart}
-			ontouchmove={handlePanelTouchMove}
-			ontouchend={handlePanelTouchEnd}
-		>
-			<div class="panel-drag-handle"></div>
-			{#if isCreating}
-				<div class="panel-header">
-					<h2>New Issue</h2>
-					<button class="panel-close" onclick={closePanel} aria-label="Close panel">
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M18 6L6 18M6 6l12 12"/>
-						</svg>
-						<kbd class="hotkey-hint hotkey-hint-close">esc</kbd>
-					</button>
-				</div>
-				<div class="panel-body">
-					<div class="form-group">
-						<label for="create-title">Title</label>
-						<input
-							id="create-title"
-							type="text"
-							bind:value={createForm.title}
-							placeholder="What needs to be done?"
-						/>
-					</div>
-					<div class="form-group">
-						<label for="create-desc">Description</label>
-						<textarea
-							id="create-desc"
-							bind:value={createForm.description}
-							rows="6"
-							placeholder="Add details, context, acceptance criteria..."
-						></textarea>
-					</div>
-					<div class="form-group">
-						<label for="create-priority">Priority</label>
-						<div class="priority-options">
-							{#each [0, 1, 2, 3, 4] as p}
-								{@const config = getPriorityConfig(p)}
-								<button
-									type="button"
-									class="priority-option"
-									class:selected={createForm.priority === p}
-									style="--priority-color: {config.color}"
-									onclick={() => createForm.priority = p}
-								>
-									<span class="priority-dot"></span>
-									{config.label}
-								</button>
-							{/each}
-						</div>
-					</div>
-					<div class="form-group">
-						<label for="create-type">Type</label>
-						<div class="type-options">
-							{#each ['task', 'bug', 'feature', 'epic', 'chore'] as t}
-								<button
-									type="button"
-									class="type-option"
-									class:selected={createForm.issue_type === t}
-									onclick={() => createForm.issue_type = t}
-								>
-									<span class="type-icon">{getTypeIcon(t)}</span>
-									{t}
-								</button>
-							{/each}
-						</div>
-					</div>
-				</div>
-				<div class="panel-footer">
-					<button class="btn-secondary" onclick={closePanel}>Cancel <kbd class="btn-hotkey-subtle">Esc</kbd></button>
-					<button class="btn-create" onclick={createIssue}>
-						<span class="btn-create-icon">+</span>
-						Create Issue
-						<kbd class="btn-hotkey">⌘↵</kbd>
-					</button>
-				</div>
-			{:else if editingIssue}
-				{@const priorityConfig = getPriorityConfig(editingIssue.priority)}
-				<div class="panel-header">
-					<div class="panel-header-info">
-						<span class="panel-id-wrap">
-							<span class="panel-id">{editingIssue.id}</span>
-							<button
-								class="btn-copy panel-copy"
-								class:copied={copiedId === `panel-${editingIssue.id}`}
-								onclick={() => copyToClipboard(editingIssue.id, `panel-${editingIssue.id}`)}
-								aria-label="Copy ID"
-							>
-								{#if copiedId === `panel-${editingIssue.id}`}
-									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-								{:else}
-									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-								{/if}
-							</button>
-						</span>
-						<div class="panel-status-bar" style="background: {priorityConfig.color}"></div>
-					</div>
-					<button class="panel-close" onclick={closePanel} aria-label="Close panel">
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M18 6L6 18M6 6l12 12"/>
-						</svg>
-						<kbd class="hotkey-hint hotkey-hint-close">esc</kbd>
-					</button>
-				</div>
-				<div class="panel-body">
-					<div class="form-group">
-						<label for="edit-title">Title</label>
-						<input id="edit-title" type="text" bind:value={editingIssue.title} />
-					</div>
-					<div class="form-group">
-						<label for="edit-desc" class="label-with-action">
-							Description
-							{#if editingIssue.description}
-								<button
-									class="btn-copy-inline"
-									class:copied={copiedId === `desc-${editingIssue.id}`}
-									onclick={() => copyToClipboard(editingIssue.description, `desc-${editingIssue.id}`)}
-									aria-label="Copy description"
-								>
-									{#if copiedId === `desc-${editingIssue.id}`}
-										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-										copied
-									{:else}
-										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-										copy
-									{/if}
-								</button>
-							{/if}
-						</label>
-						<textarea id="edit-desc" bind:value={editingIssue.description} rows="6"></textarea>
-					</div>
-					<div class="form-group">
-						<label>Status</label>
-						<div class="status-options">
-							{#each columns as col}
-								<button
-									type="button"
-									class="status-option"
-									class:selected={getIssueColumn(editingIssue).key === col.key}
-									style="--status-color: {col.accent}"
-									onclick={() => setEditingColumn(col.key)}
-								>
-									<span class="status-icon">{col.icon}</span>
-									{col.label}
-								</button>
-							{/each}
-						</div>
-					</div>
-					<div class="form-group">
-						<label>Priority</label>
-						<div class="priority-options">
-							{#each [0, 1, 2, 3, 4] as p}
-								{@const config = getPriorityConfig(p)}
-								<button
-									type="button"
-									class="priority-option"
-									class:selected={editingIssue.priority === p}
-									style="--priority-color: {config.color}"
-									onclick={() => editingIssue.priority = p}
-								>
-									<span class="priority-dot"></span>
-									{config.label}
-								</button>
-							{/each}
-						</div>
-					</div>
-					<div class="form-group">
-						<label>Type</label>
-						<div class="type-options">
-							{#each ['task', 'bug', 'feature', 'epic', 'chore'] as t}
-								<button
-									type="button"
-									class="type-option"
-									class:selected={editingIssue.issue_type === t}
-									onclick={() => editingIssue.issue_type = t}
-								>
-									<span class="type-icon">{getTypeIcon(t)}</span>
-									{t}
-								</button>
-							{/each}
-						</div>
-					</div>
-					{#if editingIssue.design || editingIssue._showDesign}
-						<div class="form-group expandable">
-							<label for="edit-design">
-								Design Notes
-								<button class="btn-collapse" onclick={() => { editingIssue.design = ''; editingIssue._showDesign = false; }} aria-label="Remove section">×</button>
-							</label>
-							<textarea id="edit-design" bind:value={editingIssue.design} rows="3" placeholder="Technical approach, architecture decisions..."></textarea>
-						</div>
-					{/if}
-					{#if editingIssue.acceptance_criteria || editingIssue._showAcceptance}
-						<div class="form-group expandable">
-							<label for="edit-acceptance">
-								Acceptance Criteria
-								<button class="btn-collapse" onclick={() => { editingIssue.acceptance_criteria = ''; editingIssue._showAcceptance = false; }} aria-label="Remove section">×</button>
-							</label>
-							<textarea id="edit-acceptance" bind:value={editingIssue.acceptance_criteria} rows="3" placeholder="Definition of done, test cases..."></textarea>
-						</div>
-					{/if}
-					{#if editingIssue.notes || editingIssue._showNotes}
-						<div class="form-group expandable">
-							<label for="edit-notes">
-								Implementation Notes
-								<button class="btn-collapse" onclick={() => { editingIssue.notes = ''; editingIssue._showNotes = false; }} aria-label="Remove section">×</button>
-							</label>
-							<textarea id="edit-notes" bind:value={editingIssue.notes} rows="3" placeholder="Progress updates, blockers, learnings..."></textarea>
-						</div>
-					{/if}
-					{#if !editingIssue.design && !editingIssue._showDesign || !editingIssue.acceptance_criteria && !editingIssue._showAcceptance || !editingIssue.notes && !editingIssue._showNotes}
-						<div class="add-sections">
-							{#if !editingIssue.design && !editingIssue._showDesign}
-								<button class="btn-add-section" onclick={() => editingIssue._showDesign = true}>
-									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-									Design
-								</button>
-							{/if}
-							{#if !editingIssue.acceptance_criteria && !editingIssue._showAcceptance}
-								<button class="btn-add-section" onclick={() => editingIssue._showAcceptance = true}>
-									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-									Acceptance
-								</button>
-							{/if}
-							{#if !editingIssue.notes && !editingIssue._showNotes}
-								<button class="btn-add-section" onclick={() => editingIssue._showNotes = true}>
-									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-									Notes
-								</button>
-							{/if}
-						</div>
-					{/if}
-					<div class="form-group">
-						<label>Labels</label>
-						<div class="label-editor">
-							{#if editingIssue.labels && editingIssue.labels.length > 0}
-								<div class="label-chips">
-									{#each editingIssue.labels as label}
-										<span class="label-chip">
-											{label}
-											<button class="label-remove" onclick={() => removeLabelFromEditing(label)} aria-label="Remove {label}">×</button>
-										</span>
-									{/each}
-								</div>
-							{/if}
-							<div class="label-input-wrap">
-								<input
-									type="text"
-									class="label-input"
-									placeholder="Add label..."
-									bind:value={newLabelInput}
-									onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLabelToEditing(newLabelInput); } }}
-								/>
-								<button class="label-add-btn" onclick={() => addLabelToEditing(newLabelInput)} disabled={!newLabelInput.trim()}>+</button>
-							</div>
-						</div>
-					</div>
-					{#if editingIssue.dependencies && editingIssue.dependencies.length > 0}
-						<div class="form-group">
-							<label>Related Beads</label>
-							<div class="dep-list">
-								{#each editingIssue.dependencies as dep}
-									{@const depConfig = getDepTypeConfig(dep.dependency_type)}
-									<div class="dep-item blocked-by">
-										<span class="dep-type-badge" style="background: {depConfig.color}20; color: {depConfig.color}" title="{depConfig.label}">{depConfig.icon}</span>
-										<span class="dep-status" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:closed={dep.status === 'closed'}></span>
-										<span class="dep-id">{dep.id}</span>
-										<span class="dep-title">{dep.title}</span>
-										<button class="dep-remove" onclick={() => removeDependency(editingIssue.id, dep.id)} title="Remove dependency">×</button>
-									</div>
-								{/each}
-							</div>
-						</div>
-					{/if}
-					{#if editingIssue.dependents && editingIssue.dependents.length > 0}
-						<div class="form-group">
-							<label>Related Beads</label>
-							<div class="dep-list">
-								{#each editingIssue.dependents as dep}
-									{@const depConfig = getDepTypeConfig(dep.dependency_type)}
-									<div class="dep-item blocking">
-										<span class="dep-type-badge" style="background: {depConfig.color}20; color: {depConfig.color}" title="{depConfig.label}">{depConfig.icon}</span>
-										<span class="dep-status" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:closed={dep.status === 'closed'}></span>
-										<span class="dep-id">{dep.id}</span>
-										<span class="dep-title">{dep.title}</span>
-										<button class="dep-remove" onclick={() => removeDependency(dep.id, editingIssue.id)} title="Remove dependency">×</button>
-									</div>
-								{/each}
-							</div>
-						</div>
-					{/if}
-					<div class="form-group">
-						<label>Comments {#if loadingComments}<span class="loading-indicator">...</span>{/if}</label>
-						<div class="comments-section">
-							{#if comments.length > 0}
-								<div class="comments-list">
-									{#each comments as comment}
-										<div class="comment">
-											<div class="comment-header">
-												<span class="comment-author">{comment.author}</span>
-												<span class="comment-date">{formatDate(comment.created_at)}</span>
-											</div>
-											<p class="comment-text">{comment.text}</p>
-										</div>
-									{/each}
-								</div>
-							{:else if !loadingComments}
-								<p class="no-comments">No comments yet</p>
-							{/if}
-							<div class="comment-input">
-								<textarea
-									bind:value={newComment}
-									rows="2"
-									placeholder="Add a comment..."
-									onkeydown={(e) => { if (e.key === 'Enter' && e.metaKey) addComment(); }}
-								></textarea>
-								<button class="btn-comment" onclick={addComment} disabled={!newComment.trim()}>
-									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-									</svg>
-								</button>
-							</div>
-						</div>
-					</div>
-				</div>
-				<div class="panel-footer">
-					<button class="btn-danger" onclick={() => deleteIssue(editingIssue.id)}>
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-							<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-						</svg>
-						Delete
-					</button>
-					<button class="btn-primary" onclick={() => {
-						const currentLabels = editingIssue.labels || [];
-						const addLabels = currentLabels.filter(l => !originalLabels.includes(l));
-						const removeLabels = originalLabels.filter(l => !currentLabels.includes(l));
-						updateIssue(editingIssue.id, { ...editingIssue, addLabels, removeLabels });
-						closePanel();
-					}}>
-						Save Changes
-					</button>
-				</div>
-			{/if}
-		</aside>
+	<DetailPanel
+		bind:editingIssue
+		{isCreating}
+		bind:createForm
+		{comments}
+		{copiedId}
+		bind:newLabelInput
+		bind:newComment
+		{loadingComments}
+		{originalLabels}
+		{isPanelDragging}
+		{panelDragOffset}
+		onclose={closePanel}
+		oncreate={createIssue}
+		ondelete={(id) => deleteIssue(id)}
+		onsave={(id, updates) => updateIssue(id, updates)}
+		onaddcomment={addComment}
+		oncopyid={(text, id) => copyToClipboard(text, id)}
+		onsetcolumn={(key) => setEditingColumn(key)}
+		onaddlabel={(label) => addLabelToEditing(label)}
+		onremovelabel={(label) => removeLabelFromEditing(label)}
+		onremovedep={(issueId, depId) => removeDependency(issueId, depId)}
+		onpaneltouchstart={handlePanelTouchStart}
+		onpaneltouchmove={handlePanelTouchMove}
+		onpaneltouchend={handlePanelTouchEnd}
+		updatecreateform={(key, value) => createForm[key] = value}
+		updatenewlabel={(value) => newLabelInput = value}
+		updatenewcomment={(value) => newComment = value}
+	/>
 {/snippet}
 
 <style>
