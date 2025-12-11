@@ -10,6 +10,7 @@
 		paneMessageInputs: Record<string, string>;
 		draggingPane: string | null;
 		resizingPane: string | null;
+		disabled?: boolean;
 		onStartDrag: (e: MouseEvent, name: string) => void;
 		onStartResize: (e: MouseEvent, name: string) => void;
 		onCyclePaneSize: (name: string) => void;
@@ -29,6 +30,7 @@
 		paneMessageInputs = $bindable(),
 		draggingPane,
 		resizingPane,
+		disabled = false,
 		onStartDrag,
 		onStartResize,
 		onCyclePaneSize,
@@ -129,8 +131,12 @@
 				{/if}
 			</div>
 			<form class="chat-input-form" onsubmit={(e) => handleSubmit(e, pane.name)}>
-				<input type="text" value={paneMessageInputs[pane.name] || ''} oninput={(e) => paneMessageInputs[pane.name] = e.currentTarget.value} placeholder="Message..." class="chat-input" />
-				<button type="submit" class="chat-send-btn" disabled={!paneMessageInputs[pane.name]?.trim()} aria-label="Send"></button>
+				<input type="text" value={paneMessageInputs[pane.name] || ''} oninput={(e) => paneMessageInputs[pane.name] = e.currentTarget.value} placeholder={disabled ? "Connecting..." : "Message..."} class="chat-input" disabled={disabled} />
+				<button type="submit" class="chat-send-btn" disabled={disabled || !paneMessageInputs[pane.name]?.trim()} aria-label="Send">
+					{#if disabled}
+						<span class="loading-spinner"></span>
+					{/if}
+				</button>
 			</form>
 			<!-- Resize handle -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -647,6 +653,28 @@
 		background: rgba(255, 255, 255, 0.1);
 		color: var(--text-tertiary);
 		cursor: default;
+	}
+
+	.loading-spinner {
+		width: 12px;
+		height: 12px;
+		border: 2px solid var(--text-tertiary);
+		border-top-color: transparent;
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+
+	.chat-send-btn:has(.loading-spinner)::after {
+		display: none;
+	}
+
+	.chat-input:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	:global(.app.light) .chat-send-btn {
