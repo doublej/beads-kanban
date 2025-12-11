@@ -55,11 +55,39 @@ type ServerMessage =
 	| { type: 'error'; error: string }
 	| { type: 'interrupted' };
 
-let sessions = $state<Map<string, AgentSession>>(new Map());
+const STORAGE_KEY = 'beads-kanban-sessions';
+
+function loadSessionsFromStorage(): Map<string, AgentSession> {
+	if (typeof window === 'undefined') return new Map();
+	const stored = localStorage.getItem(STORAGE_KEY);
+	if (!stored) return new Map();
+	try {
+		const arr: [string, AgentSession][] = JSON.parse(stored);
+		// Mark all loaded sessions as not streaming (they were interrupted)
+		return new Map(arr.map(([k, v]) => [k, { ...v, streaming: false, currentDelta: '' }]));
+	} catch {
+		return new Map();
+	}
+}
+
+function saveSessionsToStorage(sessions: Map<string, AgentSession>) {
+	if (typeof window === 'undefined') return;
+	const arr = Array.from(sessions.entries());
+	localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+}
+
+let sessions = $state<Map<string, AgentSession>>(loadSessionsFromStorage());
 let connected = $state(false);
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let currentSessionName: string | null = null;
+
+// Save sessions whenever they change
+$effect.root(() => {
+	$effect(() => {
+		saveSessionsToStorage(sessions);
+	});
+});
 
 function handleSessionStarted(sessionId: string) {
 	if (!currentSessionName) return;

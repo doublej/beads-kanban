@@ -1052,6 +1052,7 @@
 		bind:paneMessageInputs
 		{draggingPane}
 		{resizingPane}
+		disabled={true}
 		onStartDrag={startDrag}
 		onStartResize={startResize}
 		onCyclePaneSize={cyclePaneSize}
