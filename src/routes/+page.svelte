@@ -29,6 +29,8 @@
 	import FlyingCardComponent from '$lib/components/FlyingCard.svelte';
 	import ContextMenu from '$lib/components/ContextMenu.svelte';
 	import Header from '$lib/components/Header.svelte';
+	import IssueCard from '$lib/components/IssueCard.svelte';
+	import PaneActivity from '$lib/components/PaneActivity.svelte';
 
 	let issues = $state<Issue[]>([]);
 	let draggedId = $state<string | null>(null);
@@ -1017,131 +1019,26 @@
 						{/each}
 
 						{#each allColumnIssues as issue, idx}
-							{@const priorityConfig = getPriorityConfig(issue.priority)}
 							{@const isBlocked = hasOpenBlockers(issue)}
 							{@const matchesFilter = issueMatchesFilters(issue)}
 							{@const isFlying = flyingCards.has(issue.id)}
-							<article
-								class="card"
-								class:animating={animatingIds.has(issue.id)}
-								class:selected={selectedId === issue.id}
-								class:editing={editingIssue?.id === issue.id}
-								class:dragging={draggedId === issue.id}
-								class:has-blockers={isBlocked}
-								class:filter-dimmed={hasActiveFilters && !matchesFilter}
-								class:flying-hidden={isFlying}
-								draggable="true"
+							<IssueCard
+								issue={issue}
+								selected={selectedId === issue.id}
+								dragging={draggedId === issue.id}
+								animating={animatingIds.has(issue.id)}
+								hasOpenBlockers={isBlocked}
+								copiedId={copiedId}
+								editing={editingIssue?.id === issue.id}
+								filterDimmed={hasActiveFilters && !matchesFilter}
+								flyingHidden={isFlying}
+								registerCard={registerCard}
+								onclick={() => openEditPanel(issue)}
 								ondragstart={(e) => handleDragStart(e, issue.id)}
 								ondragend={handleDragEnd}
-								onclick={() => openEditPanel(issue)}
 								oncontextmenu={(e) => openContextMenu(e, issue)}
-								use:registerCard={issue.id}
-							>
-									<div class="card-priority-bar" style="--priority-bar-color: {priorityConfig.color}">
-									<span class="priority-label">{priorityConfig.label}</span>
-								</div>
-								<span class="type-indicator" title={issue.issue_type}>{getTypeIcon(issue.issue_type)} {issue.issue_type}</span>
-								<div class="card-content">
-									<div class="card-header">
-										<span class="card-id-wrap">
-											<span class="card-id">{issue.id}</span>
-											<button
-												class="btn-copy"
-												class:copied={copiedId === issue.id}
-												onclick={(e) => { e.stopPropagation(); copyToClipboard(issue.id, issue.id); }}
-												aria-label="Copy ID"
-											>
-												{#if copiedId === issue.id}
-													<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-												{:else}
-													<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-												{/if}
-											</button>
-										</span>
-										{#if isBlocked}
-											<span class="blocked-indicator" title="Blocked by open dependencies">⊘</span>
-										{/if}
-										</div>
-									{#if issue.status === 'in_progress' && issue.assignee}
-										<div class="agent-chip">
-											<span class="agent-pulse"></span>
-											<svg class="agent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-												<circle cx="12" cy="12" r="3"/>
-												<path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-											</svg>
-											<span class="agent-name">{issue.assignee}</span>
-											<span class="agent-status">working</span>
-										</div>
-									{/if}
-									<h3 class="card-title">{issue.title}</h3>
-									{#if issue.description}
-										<p class="card-description">{issue.description}</p>
-									{/if}
-									{#if issue.labels && issue.labels.length > 0}
-										<div class="card-labels">
-											{#each issue.labels.slice(0, 3) as label}
-												<span class="label">{label}</span>
-											{/each}
-											{#if issue.labels.length > 3}
-												<span class="label more">+{issue.labels.length - 3}</span>
-											{/if}
-										</div>
-									{/if}
-									{#if issue.assignee && !(issue.assignee.toLowerCase() === 'claude' || issue.assignee.toLowerCase().includes('agent'))}
-									<div class="card-footer">
-										<span class="badge assignee">
-											<span class="assignee-dot"></span>
-											{issue.assignee}
-										</span>
-									</div>
-									{/if}
-									{#if (issue.dependencies && issue.dependencies.length > 0) || (issue.dependents && issue.dependents.length > 0)}
-										<div class="card-links">
-											{#if issue.dependencies && issue.dependencies.length > 0}
-												<div class="link-group blocked-by" title="Blocked by: {issue.dependencies.map(d => `${getDepTypeConfig(d.dependency_type).label}: ${d.title}`).join(', ')}">
-													<span class="link-arrow">←</span>
-													{#each issue.dependencies.slice(0, 3) as dep}
-														{@const depConfig = getDepTypeConfig(dep.dependency_type)}
-														<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
-															<span class="dep-type-indicator" style="color: {depConfig.color}">{depConfig.icon}</span>{dep.id}
-														</span>
-													{/each}
-													{#if issue.dependencies.length > 3}
-														<span class="link-more">+{issue.dependencies.length - 3}</span>
-													{/if}
-												</div>
-											{/if}
-											{#if issue.dependents && issue.dependents.length > 0}
-												<div class="link-group blocking" title="Blocking: {issue.dependents.map(d => `${getDepTypeConfig(d.dependency_type).label}: ${d.title}`).join(', ')}">
-													<span class="link-arrow">→</span>
-													{#each issue.dependents.slice(0, 3) as dep}
-														{@const depConfig = getDepTypeConfig(dep.dependency_type)}
-														<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
-															<span class="dep-type-indicator" style="color: {depConfig.color}">{depConfig.icon}</span>{dep.id}
-														</span>
-													{/each}
-													{#if issue.dependents.length > 3}
-														<span class="link-more">+{issue.dependents.length - 3}</span>
-													{/if}
-												</div>
-											{/if}
-										</div>
-									{/if}
-									{#if issue.created_at}
-										<div class="card-meta">
-											<span class="meta-item" title="Created {new Date(issue.created_at).toLocaleString()}">
-												{formatDate(issue.created_at)}
-											</span>
-											{#if issue.closed_at}
-												<span class="meta-separator">→</span>
-												<span class="meta-item closed" title="Closed {new Date(issue.closed_at).toLocaleString()}">
-													{formatDate(issue.closed_at)}
-												</span>
-											{/if}
-										</div>
-									{/if}
-								</div>
-							</article>
+								oncopyid={(id) => copyToClipboard(id, id)}
+							/>
 
 							{#if draggedOverColumn === column.key && dropTargetColumn === column.key && dropIndicatorIndex === idx + 1}
 								<div class="drop-indicator"></div>
