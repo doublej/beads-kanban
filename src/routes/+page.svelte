@@ -5,10 +5,13 @@
 	import {
 		columns,
 		getPriorityConfig,
+		getDepTypeConfig,
 		getTypeIcon,
 		hasOpenBlockers,
 		formatDate,
-		sortIssues
+		sortIssues,
+		getIssueColumn,
+		getColumnMoveUpdates
 	} from '$lib/utils';
 	import {
 		updateIssue as updateIssueApi,
@@ -19,11 +22,13 @@
 		createDependencyApi,
 		removeDependencyApi
 	} from '$lib/api';
+	import ColumnNav from '$lib/components/ColumnNav.svelte';
 
 	let issues = $state<Issue[]>([]);
 	let draggedId = $state<string | null>(null);
 	let draggedOverColumn = $state<string | null>(null);
 	let editingIssue = $state<Issue | null>(null);
+	let originalLabels = $state<string[]>([]);
 	let isCreating = $state(false);
 	let createForm = $state({ title: '', description: '', priority: 2, issue_type: 'task' });
 	let searchQuery = $state('');
@@ -34,6 +39,11 @@
 	let activeColumnIndex = $state(0);
 	let touchStartX = $state(0);
 	let touchEndX = $state(0);
+	let touchStartY = $state(0);
+	let touchEndY = $state(0);
+	let panelTouchStartY = $state(0);
+	let panelDragOffset = $state(0);
+	let isPanelDragging = $state(false);
 	let dropIndicatorIndex = $state<number | null>(null);
 	let dropTargetColumn = $state<string | null>(null);
 	let isDarkMode = $state(true);
@@ -56,6 +66,8 @@
 	let columnSortBy = $state<Record<string, 'priority' | 'created' | 'title'>>({});
 	let sortMenuOpen = $state<string | null>(null);
 	let ropeDrag = $state<{ fromId: string; startX: number; startY: number; currentX: number; currentY: number; targetId: string | null } | null>(null);
+	let newLabelInput = $state('');
+	let pendingDep = $state<{ fromId: string; toId: string } | null>(null);
 	let showKeyboardHelp = $state(false);
 	let showHotkeys = $state(false);
 	let teleports = $state<{id: string; from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; startTime: number}[]>([]);
@@ -220,11 +232,23 @@
 
 	function handleMouseUp() {
 		if (ropeDrag && ropeDrag.targetId) {
-			createDependency(ropeDrag.fromId, ropeDrag.targetId);
+			pendingDep = { fromId: ropeDrag.fromId, toId: ropeDrag.targetId };
 		}
 		ropeDrag = null;
 		draggingPane = null;
 		resizingPane = null;
+	}
+
+	async function confirmDependency(depType: string) {
+		if (!pendingDep) return;
+		await createDependencyApi(pendingDep.fromId, pendingDep.toId, depType);
+		await loadIssues();
+		pendingDep = null;
+		closeContextMenu();
+	}
+
+	function cancelDependency() {
+		pendingDep = null;
 	}
 
 	async function createDependency(fromId: string, toId: string) {
@@ -296,7 +320,8 @@
 
 	const editingColumnIndex = $derived(() => {
 		if (!editingIssue) return 0; // default for create
-		const idx = columns.findIndex(c => c.key === editingIssue.status);
+		const col = getIssueColumn(editingIssue);
+		const idx = columns.findIndex(c => c.key === col.key);
 		return idx >= 0 ? idx : 0;
 	});
 
@@ -473,7 +498,8 @@
 		}
 		isCreating = false;
 		createForm = { title: '', description: '', priority: 2, issue_type: 'task' };
-		editingIssue = { ...issue };
+		editingIssue = { ...issue, labels: issue.labels ? [...issue.labels] : [] };
+		originalLabels = issue.labels ? [...issue.labels] : [];
 		selectedId = issue.id;
 		comments = [];
 		loadComments(issue.id);
@@ -482,6 +508,33 @@
 			url.searchParams.set('issue', issue.id);
 			history.pushState({ issue: issue.id }, '', url);
 		}
+	}
+
+	function setEditingColumn(columnKey: string) {
+		if (!editingIssue) return;
+		const updates = getColumnMoveUpdates(editingIssue, columnKey);
+		if (updates.status) editingIssue.status = updates.status;
+		// Update labels in editingIssue
+		let labels = editingIssue.labels ? [...editingIssue.labels] : [];
+		if (updates.removeLabels) labels = labels.filter(l => !updates.removeLabels!.includes(l));
+		if (updates.addLabels) labels = [...labels, ...updates.addLabels];
+		editingIssue.labels = labels;
+	}
+
+	function addLabelToEditing(label: string) {
+		if (!editingIssue) return;
+		const trimmed = label.trim().toLowerCase();
+		if (!trimmed) return;
+		const labels = editingIssue.labels || [];
+		if (!labels.includes(trimmed)) {
+			editingIssue.labels = [...labels, trimmed];
+		}
+		newLabelInput = '';
+	}
+
+	function removeLabelFromEditing(label: string) {
+		if (!editingIssue) return;
+		editingIssue.labels = (editingIssue.labels || []).filter(l => l !== label);
 	}
 
 	function hasUnsavedCreate(): boolean {
@@ -573,11 +626,11 @@
 		}
 	}
 
-	function handleDrop(e: DragEvent, status: string) {
+	function handleDrop(e: DragEvent, columnKey: string) {
 		e.preventDefault();
 		if (draggedId) {
 			const issue = issues.find(i => i.id === draggedId);
-			if (issue && status === 'closed' && hasOpenBlockers(issue)) {
+			if (issue && columnKey === 'closed' && hasOpenBlockers(issue)) {
 				// Prevent moving blocked issues to closed
 				draggedId = null;
 				draggedOverColumn = null;
@@ -585,7 +638,12 @@
 				dropTargetColumn = null;
 				return;
 			}
-			updateIssue(draggedId, { status });
+			if (issue) {
+				const updates = getColumnMoveUpdates(issue, columnKey);
+				if (Object.keys(updates).length > 0) {
+					updateIssue(draggedId, updates);
+				}
+			}
 			draggedId = null;
 			draggedOverColumn = null;
 			dropIndicatorIndex = null;
@@ -595,23 +653,53 @@
 
 	function handleTouchStart(e: TouchEvent) {
 		touchStartX = e.changedTouches[0].screenX;
+		touchStartY = e.changedTouches[0].screenY;
 	}
 
 	function handleTouchEnd(e: TouchEvent) {
 		touchEndX = e.changedTouches[0].screenX;
+		touchEndY = e.changedTouches[0].screenY;
 		handleSwipe();
 	}
 
 	function handleSwipe() {
 		const swipeThreshold = 50;
-		const diff = touchStartX - touchEndX;
-		if (Math.abs(diff) < swipeThreshold) return;
-		if (diff > 0 && activeColumnIndex < columns.length - 1) activeColumnIndex++;
-		else if (diff < 0 && activeColumnIndex > 0) activeColumnIndex--;
+		const diffX = touchStartX - touchEndX;
+		const diffY = touchStartY - touchEndY;
+		// Only trigger horizontal swipe if horizontal > vertical (prevents scroll conflicts)
+		if (Math.abs(diffX) < swipeThreshold || Math.abs(diffY) > Math.abs(diffX)) return;
+		if (diffX > 0 && activeColumnIndex < columns.length - 1) activeColumnIndex++;
+		else if (diffX < 0 && activeColumnIndex > 0) activeColumnIndex--;
+	}
+
+	function handlePanelTouchStart(e: TouchEvent) {
+		// Only track on panel-header for drag handle
+		const target = e.target as HTMLElement;
+		if (!target.closest('.panel-header')) return;
+		panelTouchStartY = e.touches[0].clientY;
+		isPanelDragging = true;
+		panelDragOffset = 0;
+	}
+
+	function handlePanelTouchMove(e: TouchEvent) {
+		if (!isPanelDragging) return;
+		const diff = e.touches[0].clientY - panelTouchStartY;
+		// Only allow downward drag
+		panelDragOffset = Math.max(0, diff);
+	}
+
+	function handlePanelTouchEnd() {
+		if (!isPanelDragging) return;
+		isPanelDragging = false;
+		// Dismiss if dragged more than 100px down
+		if (panelDragOffset > 100) {
+			closePanel();
+		}
+		panelDragOffset = 0;
 	}
 
 	function getCardGrid() {
-		return columns.map(col => filteredIssues.filter(i => i.status === col.key));
+		return columns.map(col => filteredIssues.filter(i => getIssueColumn(i).key === col.key));
 	}
 
 	function findCardPosition(id: string) {
@@ -692,12 +780,11 @@
 			return;
 		}
 
-		// Jump to column by number
-		if (['1', '2', '3', '4'].includes(e.key)) {
-			const colIndex = parseInt(e.key) - 1;
-			const columnKeys = ['open', 'in_progress', 'blocked', 'closed'];
-			const targetColumn = columnKeys[colIndex];
-			const columnIssues = filteredIssues.filter(i => i.status === targetColumn);
+		// Jump to column by number (1-7)
+		const colIndex = parseInt(e.key) - 1;
+		if (colIndex >= 0 && colIndex < columns.length) {
+			const targetColumn = columns[colIndex];
+			const columnIssues = filteredIssues.filter(i => getIssueColumn(i).key === targetColumn.key);
 			if (columnIssues.length > 0) {
 				selectedId = columnIssues[0].id;
 			}
@@ -832,17 +919,20 @@
 		<div class="context-menu-section">
 			<span class="context-menu-label">Priority</span>
 			<div class="context-menu-options">
-				<button class="context-option" class:active={contextMenu.issue.priority === 1} onclick={() => setIssuePriority(contextMenu.issue.id, 1)}>
+				<button class="context-option" class:active={contextMenu.issue.priority === 0} onclick={() => setIssuePriority(contextMenu.issue.id, 0)}>
 					<span class="priority-dot" style="background: #ef4444"></span>Critical
 				</button>
-				<button class="context-option" class:active={contextMenu.issue.priority === 2} onclick={() => setIssuePriority(contextMenu.issue.id, 2)}>
+				<button class="context-option" class:active={contextMenu.issue.priority === 1} onclick={() => setIssuePriority(contextMenu.issue.id, 1)}>
 					<span class="priority-dot" style="background: #f59e0b"></span>High
 				</button>
+				<button class="context-option" class:active={contextMenu.issue.priority === 2} onclick={() => setIssuePriority(contextMenu.issue.id, 2)}>
+					<span class="priority-dot" style="background: #6366f1"></span>Medium
+				</button>
 				<button class="context-option" class:active={contextMenu.issue.priority === 3} onclick={() => setIssuePriority(contextMenu.issue.id, 3)}>
-					<span class="priority-dot" style="background: #3b82f6"></span>Medium
+					<span class="priority-dot" style="background: #10b981"></span>Low
 				</button>
 				<button class="context-option" class:active={contextMenu.issue.priority === 4} onclick={() => setIssuePriority(contextMenu.issue.id, 4)}>
-					<span class="priority-dot" style="background: #6b7280"></span>Low
+					<span class="priority-dot" style="background: #6b7280"></span>Backlog
 				</button>
 			</div>
 		</div>
@@ -992,6 +1082,39 @@
 	</svg>
 {/if}
 
+{#if pendingDep}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="dep-type-overlay" onclick={cancelDependency}>
+		<div class="dep-type-modal" onclick={(e) => e.stopPropagation()}>
+			<h3>Link Type</h3>
+			<p class="dep-type-hint">How does <strong>{pendingDep.fromId}</strong> relate to <strong>{pendingDep.toId}</strong>?</p>
+			<div class="dep-type-options">
+				<button class="dep-type-btn" onclick={() => confirmDependency('blocks')}>
+					<span class="dep-type-icon" style="color: #ef4444;">⊘</span>
+					<span class="dep-type-label">Blocks</span>
+					<span class="dep-type-desc">Must complete first</span>
+				</button>
+				<button class="dep-type-btn" onclick={() => confirmDependency('related')}>
+					<span class="dep-type-icon" style="color: #3b82f6;">↔</span>
+					<span class="dep-type-label">Related</span>
+					<span class="dep-type-desc">Connected but independent</span>
+				</button>
+				<button class="dep-type-btn" onclick={() => confirmDependency('parent-child')}>
+					<span class="dep-type-icon" style="color: #8b5cf6;">↳</span>
+					<span class="dep-type-label">Parent-Child</span>
+					<span class="dep-type-desc">Epic/subtask relationship</span>
+				</button>
+				<button class="dep-type-btn" onclick={() => confirmDependency('discovered-from')}>
+					<span class="dep-type-icon" style="color: #f59e0b;">◊</span>
+					<span class="dep-type-label">Discovered From</span>
+					<span class="dep-type-desc">Found during work</span>
+				</button>
+			</div>
+			<button class="dep-type-cancel" onclick={cancelDependency}>Cancel</button>
+		</div>
+	</div>
+{/if}
+
 <div class="app" class:light={!isDarkMode} class:panel-open={panelOpen} class:show-hotkeys={showHotkeys}>
 
 {#if showKeyboardHelp}
@@ -1066,10 +1189,11 @@
 			<div class="filter-group">
 				<select bind:value={filterPriority} class="filter-select">
 					<option value="all">All Priorities</option>
-					<option value={1}>Critical</option>
-					<option value={2}>High</option>
-					<option value={3}>Medium</option>
-					<option value={4}>Low</option>
+					<option value={0}>Critical</option>
+					<option value={1}>High</option>
+					<option value={2}>Medium</option>
+					<option value={3}>Low</option>
+					<option value={4}>Backlog</option>
 				</select>
 				<select bind:value={filterType} class="filter-select">
 					<option value="all">All Types</option>
@@ -1107,22 +1231,13 @@
 		</div>
 	</header>
 
-	<nav class="column-nav">
-		{#each columns as column, i}
-			{@const totalInColumn = issues.filter((x) => x.status === column.key).length}
-			{@const matchingInColumn = filteredIssues.filter((x) => x.status === column.key).length}
-			<button
-				class="column-tab"
-				class:active={activeColumnIndex === i}
-				onclick={() => (activeColumnIndex = i)}
-				style="--accent: {column.accent}"
-			>
-				<span class="column-tab-icon">{column.icon}</span>
-				<span class="column-tab-label">{column.label}</span>
-				<span class="column-tab-count">{#if hasActiveFilters}{matchingInColumn}/{totalInColumn}{:else}{totalInColumn}{/if}</span>
-			</button>
-		{/each}
-	</nav>
+	<ColumnNav
+		{columns}
+		bind:activeColumnIndex
+		{issues}
+		{filteredIssues}
+		{hasActiveFilters}
+	/>
 
 	<div class="main-content">
 		<main class="board" ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
@@ -1130,7 +1245,7 @@
 				{#if i === 0 && isCreating}
 					{@render detailPanel()}
 				{/if}
-				{@const rawColumnIssues = issues.filter((x) => x.status === column.key)}
+				{@const rawColumnIssues = issues.filter((x) => getIssueColumn(x).key === column.key)}
 				{@const allColumnIssues = columnSortBy[column.key] ? sortIssues(rawColumnIssues, columnSortBy[column.key]) : rawColumnIssues}
 				{@const matchingCount = allColumnIssues.filter(issueMatchesFilters).length}
 				{@const isCollapsed = collapsedColumns.has(column.key)}
@@ -1232,7 +1347,7 @@
 											<span class="blocked-indicator" title="Blocked by open dependencies">⊘</span>
 										{/if}
 										</div>
-									{#if issue.assignee && (issue.assignee.toLowerCase() === 'claude' || issue.assignee.toLowerCase().includes('agent')) && issue.status === 'in_progress'}
+									{#if issue.status === 'in_progress' && issue.assignee}
 										<div class="agent-chip">
 											<span class="agent-pulse"></span>
 											<svg class="agent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1268,10 +1383,13 @@
 									{#if (issue.dependencies && issue.dependencies.length > 0) || (issue.dependents && issue.dependents.length > 0)}
 										<div class="card-links">
 											{#if issue.dependencies && issue.dependencies.length > 0}
-												<div class="link-group blocked-by" title="Blocked by: {issue.dependencies.map(d => d.title).join(', ')}">
+												<div class="link-group blocked-by" title="Blocked by: {issue.dependencies.map(d => `${getDepTypeConfig(d.dependency_type).label}: ${d.title}`).join(', ')}">
 													<span class="link-arrow">←</span>
 													{#each issue.dependencies.slice(0, 3) as dep}
-														<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'}>{dep.id}</span>
+														{@const depConfig = getDepTypeConfig(dep.dependency_type)}
+														<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
+															<span class="dep-type-indicator" style="color: {depConfig.color}">{depConfig.icon}</span>{dep.id}
+														</span>
 													{/each}
 													{#if issue.dependencies.length > 3}
 														<span class="link-more">+{issue.dependencies.length - 3}</span>
@@ -1279,10 +1397,13 @@
 												</div>
 											{/if}
 											{#if issue.dependents && issue.dependents.length > 0}
-												<div class="link-group blocking" title="Blocking: {issue.dependents.map(d => d.title).join(', ')}">
+												<div class="link-group blocking" title="Blocking: {issue.dependents.map(d => `${getDepTypeConfig(d.dependency_type).label}: ${d.title}`).join(', ')}">
 													<span class="link-arrow">→</span>
 													{#each issue.dependents.slice(0, 3) as dep}
-														<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'}>{dep.id}</span>
+														{@const depConfig = getDepTypeConfig(dep.dependency_type)}
+														<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
+															<span class="dep-type-indicator" style="color: {depConfig.color}">{depConfig.icon}</span>{dep.id}
+														</span>
 													{/each}
 													{#if issue.dependents.length > 3}
 														<span class="link-more">+{issue.dependents.length - 3}</span>
@@ -1305,18 +1426,6 @@
 										</div>
 									{/if}
 								</div>
-								{#if selectedId === issue.id}
-									<div class="card-hotkeys">
-										<kbd class="hotkey-hint">o</kbd>
-										<kbd class="hotkey-hint">x</kbd>
-										<span class="hotkey-nav">
-											<kbd class="hotkey-hint">h</kbd>
-											<kbd class="hotkey-hint">j</kbd>
-											<kbd class="hotkey-hint">k</kbd>
-											<kbd class="hotkey-hint">l</kbd>
-										</span>
-									</div>
-								{/if}
 							</article>
 
 							{#if draggedOverColumn === column.key && dropTargetColumn === column.key && dropIndicatorIndex === idx + 1}
@@ -1416,7 +1525,7 @@
 				</div>
 				<div class="chat-messages">
 					{#each pane.messages.slice(size === 'large' ? -100 : size === 'medium' ? -40 : -20) as msg}
-						<div class="chat-msg" class:user={msg.role === 'user'} class:assistant={msg.role === 'assistant'}>
+						<div class="chat-msg" class:user={msg.role === 'user'} class:assistant={msg.role === 'assistant'} class:tool={msg.role === 'tool'}>
 							<span class="msg-role">{msg.role}</span>
 							<p class="msg-content">{size === 'large' ? msg.content : msg.content.slice(0, 500)}{size !== 'large' && msg.content.length > 500 ? '...' : ''}</p>
 						</div>
@@ -1432,8 +1541,8 @@
 					{/if}
 				</div>
 				<form class="chat-input-form" onsubmit={(e) => { e.preventDefault(); const msg = paneMessageInputs[pane.name]; if (msg?.trim()) { sendToPane(pane.name, msg.trim()); paneMessageInputs[pane.name] = ''; } }}>
-					<input type="text" value={paneMessageInputs[pane.name] || ''} oninput={(e) => paneMessageInputs[pane.name] = e.currentTarget.value} placeholder="Send message..." class="chat-input" />
-					<button type="submit" class="chat-send-btn" disabled={!paneMessageInputs[pane.name]?.trim()}>Send</button>
+					<input type="text" value={paneMessageInputs[pane.name] || ''} oninput={(e) => paneMessageInputs[pane.name] = e.currentTarget.value} placeholder="Message..." class="chat-input" />
+					<button type="submit" class="chat-send-btn" disabled={!paneMessageInputs[pane.name]?.trim()} aria-label="Send"></button>
 				</form>
 				<!-- Resize handle -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1498,7 +1607,15 @@
 </div>
 
 {#snippet detailPanel()}
-		<aside class="panel open">
+		<aside
+			class="panel open"
+			class:dragging={isPanelDragging}
+			style={panelDragOffset > 0 ? `transform: translateY(${panelDragOffset}px); opacity: ${1 - panelDragOffset / 200}` : ''}
+			ontouchstart={handlePanelTouchStart}
+			ontouchmove={handlePanelTouchMove}
+			ontouchend={handlePanelTouchEnd}
+		>
+			<div class="panel-drag-handle"></div>
 			{#if isCreating}
 				<div class="panel-header">
 					<h2>New Issue</h2>
@@ -1531,7 +1648,7 @@
 					<div class="form-group">
 						<label for="create-priority">Priority</label>
 						<div class="priority-options">
-							{#each [1, 2, 3, 4] as p}
+							{#each [0, 1, 2, 3, 4] as p}
 								{@const config = getPriorityConfig(p)}
 								<button
 									type="button"
@@ -1633,9 +1750,9 @@
 								<button
 									type="button"
 									class="status-option"
-									class:selected={editingIssue.status === col.key}
+									class:selected={getIssueColumn(editingIssue).key === col.key}
 									style="--status-color: {col.accent}"
-									onclick={() => editingIssue.status = col.key}
+									onclick={() => setEditingColumn(col.key)}
 								>
 									<span class="status-icon">{col.icon}</span>
 									{col.label}
@@ -1646,7 +1763,7 @@
 					<div class="form-group">
 						<label>Priority</label>
 						<div class="priority-options">
-							{#each [1, 2, 3, 4] as p}
+							{#each [0, 1, 2, 3, 4] as p}
 								{@const config = getPriorityConfig(p)}
 								<button
 									type="button"
@@ -1726,12 +1843,39 @@
 							{/if}
 						</div>
 					{/if}
+					<div class="form-group">
+						<label>Labels</label>
+						<div class="label-editor">
+							{#if editingIssue.labels && editingIssue.labels.length > 0}
+								<div class="label-chips">
+									{#each editingIssue.labels as label}
+										<span class="label-chip">
+											{label}
+											<button class="label-remove" onclick={() => removeLabelFromEditing(label)} aria-label="Remove {label}">×</button>
+										</span>
+									{/each}
+								</div>
+							{/if}
+							<div class="label-input-wrap">
+								<input
+									type="text"
+									class="label-input"
+									placeholder="Add label..."
+									bind:value={newLabelInput}
+									onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLabelToEditing(newLabelInput); } }}
+								/>
+								<button class="label-add-btn" onclick={() => addLabelToEditing(newLabelInput)} disabled={!newLabelInput.trim()}>+</button>
+							</div>
+						</div>
+					</div>
 					{#if editingIssue.dependencies && editingIssue.dependencies.length > 0}
 						<div class="form-group">
-							<label>Blocked By</label>
+							<label>Related Beads</label>
 							<div class="dep-list">
 								{#each editingIssue.dependencies as dep}
+									{@const depConfig = getDepTypeConfig(dep.dependency_type)}
 									<div class="dep-item blocked-by">
+										<span class="dep-type-badge" style="background: {depConfig.color}20; color: {depConfig.color}" title="{depConfig.label}">{depConfig.icon}</span>
 										<span class="dep-status" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:closed={dep.status === 'closed'}></span>
 										<span class="dep-id">{dep.id}</span>
 										<span class="dep-title">{dep.title}</span>
@@ -1743,10 +1887,12 @@
 					{/if}
 					{#if editingIssue.dependents && editingIssue.dependents.length > 0}
 						<div class="form-group">
-							<label>Blocking</label>
+							<label>Related Beads</label>
 							<div class="dep-list">
 								{#each editingIssue.dependents as dep}
+									{@const depConfig = getDepTypeConfig(dep.dependency_type)}
 									<div class="dep-item blocking">
+										<span class="dep-type-badge" style="background: {depConfig.color}20; color: {depConfig.color}" title="{depConfig.label}">{depConfig.icon}</span>
 										<span class="dep-status" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:closed={dep.status === 'closed'}></span>
 										<span class="dep-id">{dep.id}</span>
 										<span class="dep-title">{dep.title}</span>
@@ -1797,7 +1943,13 @@
 						</svg>
 						Delete
 					</button>
-					<button class="btn-primary" onclick={() => { updateIssue(editingIssue.id, editingIssue); closePanel(); }}>
+					<button class="btn-primary" onclick={() => {
+						const currentLabels = editingIssue.labels || [];
+						const addLabels = currentLabels.filter(l => !originalLabels.includes(l));
+						const removeLabels = originalLabels.filter(l => !currentLabels.includes(l));
+						updateIssue(editingIssue.id, { ...editingIssue, addLabels, removeLabels });
+						closePanel();
+					}}>
 						Save Changes
 					</button>
 				</div>
@@ -2219,41 +2371,51 @@
 	/* Column Navigation (Mobile) */
 	.column-nav {
 		display: none;
-		padding: 0.625rem 0.875rem;
+		padding: 0.5rem 0.75rem;
+		padding-left: max(0.75rem, env(safe-area-inset-left));
+		padding-right: max(0.75rem, env(safe-area-inset-right));
 		background: var(--bg-secondary);
 		border-bottom: 1px solid var(--border-subtle);
-		gap: 0.375rem;
+		gap: 0.5rem;
 		overflow-x: auto;
 		-webkit-overflow-scrolling: touch;
 		flex-shrink: 0;
+		scroll-snap-type: x proximity;
+		scrollbar-width: none;
+	}
+
+	.column-nav::-webkit-scrollbar {
+		display: none;
 	}
 
 	.column-tab {
 		display: flex;
 		align-items: center;
-		gap: 0.3125rem;
-		padding: 0.4375rem 0.75rem;
-		background: transparent;
-		border: 1px solid var(--border-subtle);
+		gap: 0.375rem;
+		padding: 0.625rem 1rem;
+		min-height: 2.75rem; /* 44px touch target */
+		background: var(--bg-tertiary);
+		border: 1px solid transparent;
 		border-radius: var(--radius-lg);
 		color: var(--text-secondary);
 		font-family: inherit;
-		font-size: 0.75rem;
+		font-size: 0.8125rem;
 		font-weight: 500;
 		cursor: pointer;
 		white-space: nowrap;
-		transition: all var(--transition-fast);
+		scroll-snap-align: start;
+		transition: all 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
 	}
 
-	.column-tab:hover {
-		background: var(--bg-tertiary);
-		border-color: var(--border-default);
+	.column-tab:active {
+		transform: scale(0.97);
 	}
 
 	.column-tab.active {
 		background: var(--accent);
-		border-color: var(--accent);
+		border-color: transparent;
 		color: white;
+		box-shadow: 0 2px 12px rgba(var(--accent-rgb, 10, 132, 255), 0.35);
 	}
 
 	.column-tab-icon {
@@ -2359,8 +2521,10 @@
 	}
 
 	.sort-btn {
-		width: 1.25rem;
-		height: 1.25rem;
+		width: 2rem;
+		height: 2rem;
+		min-width: 2.75rem; /* 44px touch target */
+		min-height: 2.75rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -2808,8 +2972,12 @@
 	}
 
 	.btn-copy {
-		width: 1.25rem;
-		height: 1.25rem;
+		width: 1.5rem;
+		height: 1.5rem;
+		min-width: 2.75rem; /* 44px touch target */
+		min-height: 2.75rem;
+		margin: -0.625rem; /* Expand touch area without visual change */
+		padding: 0.625rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -3206,6 +3374,10 @@
 		}
 	}
 
+	.panel-drag-handle {
+		display: none; /* Hidden on desktop, shown in mobile media query */
+	}
+
 	.panel.open {
 		/* keep for compatibility */
 	}
@@ -3410,6 +3582,77 @@
 		line-height: 1.5;
 	}
 
+	/* Label Editor */
+	.label-editor {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.label-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.375rem;
+	}
+
+	.label-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 0.25rem 0.5rem;
+		background: var(--bg-elevated);
+		border-radius: var(--radius-sm);
+		font-size: 0.75rem;
+		font-weight: 500;
+		color: var(--text-secondary);
+	}
+
+	.label-remove {
+		background: none;
+		border: none;
+		color: var(--text-tertiary);
+		cursor: pointer;
+		padding: 0;
+		font-size: 0.875rem;
+		line-height: 1;
+		transition: color var(--transition-fast);
+	}
+
+	.label-remove:hover {
+		color: #ef4444;
+	}
+
+	.label-input-wrap {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.label-input {
+		flex: 1;
+		padding: 0.5rem;
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-sm);
+		color: var(--text-primary);
+		font-size: 0.875rem;
+	}
+
+	.label-add-btn {
+		padding: 0.5rem 0.75rem;
+		background: var(--accent-primary);
+		border: none;
+		border-radius: var(--radius-sm);
+		color: white;
+		font-weight: 600;
+		cursor: pointer;
+		transition: opacity var(--transition-fast);
+	}
+
+	.label-add-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
 	/* Dependency List */
 	.dep-list {
 		display: flex;
@@ -3489,6 +3732,114 @@
 
 	.dep-remove:hover {
 		color: #ef4444;
+	}
+
+	.dep-type-indicator {
+		font-size: 0.625rem;
+		margin-right: 0.125rem;
+	}
+
+	.dep-type-badge {
+		padding: 0.125rem 0.25rem;
+		border-radius: var(--radius-sm);
+		font-size: 0.625rem;
+		font-weight: 600;
+		flex-shrink: 0;
+	}
+
+	/* Dependency Type Modal */
+	.dep-type-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.6);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+	}
+
+	.dep-type-modal {
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-lg);
+		padding: 1.5rem;
+		max-width: 320px;
+		width: 90%;
+	}
+
+	.dep-type-modal h3 {
+		font-size: 1rem;
+		margin-bottom: 0.5rem;
+		color: var(--text-primary);
+	}
+
+	.dep-type-hint {
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+		margin-bottom: 1rem;
+	}
+
+	.dep-type-hint strong {
+		color: var(--accent-primary);
+		font-family: ui-monospace, 'SF Mono', monospace;
+	}
+
+	.dep-type-options {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.dep-type-btn {
+		display: grid;
+		grid-template-columns: 24px 1fr;
+		grid-template-rows: auto auto;
+		gap: 0 0.5rem;
+		padding: 0.75rem;
+		background: var(--bg-elevated);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+		text-align: left;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.dep-type-btn:hover {
+		border-color: var(--accent-primary);
+		background: var(--accent-glow);
+	}
+
+	.dep-type-icon {
+		grid-row: span 2;
+		font-size: 1.25rem;
+		align-self: center;
+	}
+
+	.dep-type-label {
+		font-weight: 600;
+		font-size: 0.875rem;
+		color: var(--text-primary);
+	}
+
+	.dep-type-desc {
+		font-size: 0.75rem;
+		color: var(--text-tertiary);
+	}
+
+	.dep-type-cancel {
+		width: 100%;
+		margin-top: 1rem;
+		padding: 0.5rem;
+		background: none;
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-sm);
+		color: var(--text-secondary);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.dep-type-cancel:hover {
+		background: var(--bg-tertiary);
 	}
 
 	/* Comments */
@@ -3794,55 +4145,198 @@
 		height: 0.875rem;
 	}
 
-	/* Mobile */
+	/* ===== MOBILE DESIGN SYSTEM ===== */
 	@media (max-width: 768px) {
+		/* --- Variables for consistency --- */
+		--mobile-control-height: 2.75rem;
+		--mobile-radius: 0.75rem;
+		--mobile-bg: rgba(255, 255, 255, 0.06);
+		--mobile-border: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+		--mobile-padding: 0.75rem;
+
+		/* --- Header: Single row search, second row filters --- */
 		.header {
+			display: flex;
 			flex-direction: column;
-			padding: 0.625rem 0.875rem;
-			gap: 0.625rem;
-		}
-
-		.header-left,
-		.header-center,
-		.header-right {
-			width: 100%;
-		}
-
-		.header-center {
-			max-width: 100%;
-		}
-
-		.header-right {
-			flex-direction: row;
-			flex-wrap: wrap;
+			padding: var(--mobile-padding);
+			padding-top: max(var(--mobile-padding), env(safe-area-inset-top));
+			padding-left: max(var(--mobile-padding), env(safe-area-inset-left));
+			padding-right: max(var(--mobile-padding), env(safe-area-inset-right));
 			gap: 0.5rem;
 		}
 
-		.filter-group {
+		.header-left {
+			display: none;
+		}
+
+		.header-center {
+			display: flex;
+			width: 100%;
+			max-width: 100%;
+			gap: 0.5rem;
+		}
+
+		.header-right {
+			display: flex;
+			width: 100%;
+			gap: 0.5rem;
+		}
+
+		/* --- All controls: same height & radius --- */
+		.search-input,
+		.filter-select,
+		.btn-create {
+			height: var(--mobile-control-height);
+			min-height: var(--mobile-control-height);
+			border-radius: var(--mobile-radius);
+		}
+
+		/* --- Search --- */
+		.search-container {
 			flex: 1;
+			min-width: 0;
+		}
+
+		.search-input {
+			width: 100%;
+			padding: 0 2.25rem 0 2.5rem;
+			font-size: 1rem;
+			background: var(--mobile-bg);
+			border: none;
+			box-shadow: var(--mobile-border);
+		}
+
+		.search-input:focus {
+			background: rgba(255, 255, 255, 0.1);
+			box-shadow: inset 0 0 0 2px var(--accent-primary);
+		}
+
+		.search-icon {
+			left: 0.75rem;
+			width: 1.125rem;
+			height: 1.125rem;
+		}
+
+		.search-clear {
+			right: 0.625rem;
+		}
+
+		.hotkey-hint {
+			display: none;
+		}
+
+		/* --- Create Button (square) --- */
+		.btn-create {
+			flex: 0 0 var(--mobile-control-height);
+			width: var(--mobile-control-height);
+			padding: 0;
+			justify-content: center;
+			border: none;
+		}
+
+		.btn-create-text,
+		.btn-create .btn-hotkey {
+			display: none;
+		}
+
+		.btn-create-icon {
+			font-size: 1.5rem;
+			line-height: 1;
+		}
+
+		/* --- Filters --- */
+		.filter-group {
+			display: flex;
+			flex: 1;
+			gap: 0.5rem;
 		}
 
 		.filter-select {
 			flex: 1;
+			min-width: 0;
+			padding: 0 1.75rem 0 0.75rem;
+			font-size: 0.875rem;
+			background: var(--mobile-bg);
+			border: none;
+			box-shadow: var(--mobile-border);
+			color: var(--text-secondary);
+			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2398989d' stroke-width='3'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+			background-repeat: no-repeat;
+			background-position: right 0.5rem center;
 		}
 
-		.btn-create {
+		.filter-select:focus {
+			background-color: rgba(255, 255, 255, 0.1);
+			box-shadow: inset 0 0 0 2px var(--accent-primary);
+			outline: none;
+		}
+
+		.pane-toggle,
+		.theme-toggle {
+			display: none;
+		}
+
+		/* --- Column Tabs --- */
+		.column-nav {
+			display: flex;
+			padding: 0.375rem var(--mobile-padding);
+			padding-left: max(var(--mobile-padding), env(safe-area-inset-left));
+			padding-right: max(var(--mobile-padding), env(safe-area-inset-right));
+			gap: 0.375rem;
+			background: transparent;
+			border: none;
+			overflow-x: auto;
+			scrollbar-width: none;
+		}
+
+		.column-nav::-webkit-scrollbar {
+			display: none;
+		}
+
+		.column-tab {
 			flex: 1;
+			height: 2.5rem;
+			min-height: 2.5rem;
+			padding: 0 0.625rem;
+			border-radius: var(--mobile-radius);
+			font-size: 0.8125rem;
+			background: var(--mobile-bg);
+			border: none;
+			box-shadow: none;
 			justify-content: center;
 		}
 
-		.column-nav {
-			display: flex;
+		.column-tab.active {
+			background: var(--accent);
+			box-shadow: none;
 		}
 
+		.column-tab-icon {
+			font-size: 1rem;
+		}
+
+		.column-tab-label {
+			display: none;
+		}
+
+		.column-tab-count {
+			font-size: 0.75rem;
+			padding: 0 0.25rem;
+			background: rgba(255, 255, 255, 0.2);
+			min-width: 1.25rem;
+		}
+
+		/* --- Board & Cards --- */
 		.main-content {
 			flex-direction: column;
 		}
 
 		.board {
 			flex-direction: column;
-			padding: 0.625rem;
-			gap: 0;
+			padding: var(--mobile-padding);
+			padding-left: max(var(--mobile-padding), env(safe-area-inset-left));
+			padding-right: max(var(--mobile-padding), env(safe-area-inset-right));
+			gap: 0.5rem;
 			overflow-y: auto;
 		}
 
@@ -3853,6 +4347,33 @@
 
 		.column.mobile-active {
 			display: flex;
+		}
+
+		.column-header {
+			display: none;
+		}
+
+		.card {
+			margin: 0;
+			border-radius: var(--mobile-radius);
+		}
+
+		.card-content {
+			padding: 0.75rem;
+		}
+
+		.card-title {
+			font-size: 0.9375rem;
+		}
+
+		.card-description {
+			font-size: 0.8125rem;
+			-webkit-line-clamp: 2;
+		}
+
+		.card-priority-bar {
+			width: 4px;
+			border-radius: var(--mobile-radius) 0 0 var(--mobile-radius);
 		}
 
 		.panel {
@@ -3866,10 +4387,36 @@
 			max-width: 100% !important;
 			flex: none !important;
 			max-height: 85vh;
-			border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+			border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 			z-index: 100;
-			animation: panelSlideUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+			animation: panelSlideUp 350ms cubic-bezier(0.32, 0.72, 0, 1);
 			overflow: hidden;
+			touch-action: pan-y;
+			backdrop-filter: saturate(180%) blur(20px);
+			-webkit-backdrop-filter: saturate(180%) blur(20px);
+			background: rgba(39, 39, 42, 0.92);
+			box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.4);
+			padding-bottom: env(safe-area-inset-bottom);
+		}
+
+		.panel.dragging {
+			animation: none;
+			transition: none;
+		}
+
+		.panel-drag-handle {
+			display: block;
+			width: 2.25rem;
+			height: 0.3125rem;
+			background: rgba(255, 255, 255, 0.2);
+			border-radius: 3px;
+			margin: 0.625rem auto 0.25rem;
+			transition: background 150ms ease;
+		}
+
+		.panel:active .panel-drag-handle,
+		.panel.dragging .panel-drag-handle {
+			background: rgba(255, 255, 255, 0.4);
 		}
 
 		.flow-connector {
@@ -4851,13 +5398,22 @@
 		max-height: 400px;
 		display: flex;
 		flex-direction: column;
-		background: rgba(28, 28, 30, 0.95);
-		border: 1px solid rgba(255, 255, 255, 0.12);
-		border-radius: var(--radius-lg);
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-		backdrop-filter: blur(20px);
+		background: linear-gradient(
+			145deg,
+			rgba(38, 38, 42, 0.92) 0%,
+			rgba(28, 28, 32, 0.95) 100%
+		);
+		border: none;
+		border-radius: 1rem;
+		box-shadow:
+			0 0 0 0.5px rgba(255, 255, 255, 0.08),
+			0 2px 8px rgba(0, 0, 0, 0.12),
+			0 8px 32px rgba(0, 0, 0, 0.24),
+			inset 0 1px 0 rgba(255, 255, 255, 0.04);
+		backdrop-filter: saturate(180%) blur(24px);
+		-webkit-backdrop-filter: saturate(180%) blur(24px);
 		overflow: hidden;
-		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		transition: transform 200ms ease, box-shadow 200ms ease;
 	}
 
 	/* Compact size (default) */
@@ -4881,8 +5437,12 @@
 	.chat-window.large {
 		width: min(90vw, 900px);
 		max-height: 85vh;
-		border-radius: var(--radius-xl, 16px);
-		box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+		border-radius: 1.25rem;
+		box-shadow:
+			0 0 0 0.5px rgba(255, 255, 255, 0.1),
+			0 4px 16px rgba(0, 0, 0, 0.15),
+			0 24px 64px rgba(0, 0, 0, 0.35),
+			inset 0 1px 0 rgba(255, 255, 255, 0.06);
 	}
 
 	.chat-window.large .chat-messages {
@@ -4918,32 +5478,52 @@
 	}
 
 	.chat-window.streaming {
-		border-color: rgba(245, 158, 11, 0.3);
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(245, 158, 11, 0.1);
+		box-shadow:
+			0 0 0 1px rgba(245, 158, 11, 0.2),
+			0 2px 8px rgba(0, 0, 0, 0.12),
+			0 8px 32px rgba(0, 0, 0, 0.24),
+			0 0 24px rgba(245, 158, 11, 0.08),
+			inset 0 1px 0 rgba(255, 255, 255, 0.04);
 	}
 
 	.chat-window.large.streaming {
-		box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 40px rgba(245, 158, 11, 0.15);
+		box-shadow:
+			0 0 0 1px rgba(245, 158, 11, 0.25),
+			0 4px 16px rgba(0, 0, 0, 0.15),
+			0 24px 64px rgba(0, 0, 0, 0.35),
+			0 0 40px rgba(245, 158, 11, 0.1),
+			inset 0 1px 0 rgba(255, 255, 255, 0.06);
 	}
 
 	.app.light .chat-window {
-		background: rgba(255, 255, 255, 0.98);
-		border-color: rgba(0, 0, 0, 0.1);
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+		background: linear-gradient(
+			145deg,
+			rgba(255, 255, 255, 0.95) 0%,
+			rgba(248, 248, 250, 0.98) 100%
+		);
+		box-shadow:
+			0 0 0 0.5px rgba(0, 0, 0, 0.06),
+			0 2px 8px rgba(0, 0, 0, 0.06),
+			0 8px 32px rgba(0, 0, 0, 0.1),
+			inset 0 1px 0 rgba(255, 255, 255, 0.8);
 	}
 
 	.app.light .chat-windows.has-large {
-		background: rgba(255, 255, 255, 0.7);
+		background: rgba(0, 0, 0, 0.3);
+		backdrop-filter: blur(8px);
 	}
 
 	.app.light .chat-window.large {
-		box-shadow: 0 25px 80px rgba(0, 0, 0, 0.2);
+		box-shadow:
+			0 0 0 0.5px rgba(0, 0, 0, 0.08),
+			0 4px 16px rgba(0, 0, 0, 0.08),
+			0 24px 64px rgba(0, 0, 0, 0.15),
+			inset 0 1px 0 rgba(255, 255, 255, 0.9);
 	}
 
 	/* Customized (dragged/resized) windows */
 	.chat-window.customized {
 		z-index: 1001;
-		overflow: visible;
 	}
 
 	.chat-window.dragging,
@@ -4952,9 +5532,13 @@
 	}
 
 	.chat-window.dragging {
-		opacity: 0.95;
 		cursor: grabbing;
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+		transform: scale(1.02);
+		box-shadow:
+			0 0 0 0.5px rgba(255, 255, 255, 0.1),
+			0 8px 24px rgba(0, 0, 0, 0.2),
+			0 32px 80px rgba(0, 0, 0, 0.4),
+			inset 0 1px 0 rgba(255, 255, 255, 0.06);
 		z-index: 1002;
 	}
 
@@ -4963,7 +5547,11 @@
 	}
 
 	.app.light .chat-window.dragging {
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+		box-shadow:
+			0 0 0 0.5px rgba(0, 0, 0, 0.08),
+			0 8px 24px rgba(0, 0, 0, 0.1),
+			0 32px 80px rgba(0, 0, 0, 0.2),
+			inset 0 1px 0 rgba(255, 255, 255, 0.9);
 	}
 
 	/* Size button styling */
@@ -4982,40 +5570,32 @@
 		opacity: 1;
 	}
 
-	/* Resize handle */
+	/* Resize handle - invisible but functional */
 	.resize-handle {
 		position: absolute;
 		bottom: 0;
 		right: 0;
-		width: 20px;
-		height: 20px;
+		width: 16px;
+		height: 16px;
 		cursor: nwse-resize;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		color: var(--text-tertiary);
-		opacity: 0.4;
-		transition: opacity 0.15s ease;
 		z-index: 10;
+		opacity: 0;
 	}
 
-	.resize-handle:hover {
-		opacity: 0.8;
-	}
-
-	.chat-window.resizing .resize-handle {
-		opacity: 1;
-		color: #6366f1;
+	.resize-handle svg {
+		display: none;
 	}
 
 	.chat-window-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.625rem 0.75rem;
-		background: rgba(255, 255, 255, 0.04);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+		padding: 0.625rem 0.625rem 0.5rem 0.875rem;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+		border: none;
 		cursor: grab;
+		-webkit-user-select: none;
+		user-select: none;
 	}
 
 	.chat-window.dragging .chat-window-header {
@@ -5023,8 +5603,7 @@
 	}
 
 	.app.light .chat-window-header {
-		background: rgba(0, 0, 0, 0.03);
-		border-bottom-color: rgba(0, 0, 0, 0.06);
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, transparent 100%);
 	}
 
 	.chat-window-title {
@@ -5064,79 +5643,128 @@
 
 	.chat-window-actions {
 		display: flex;
-		gap: 0.25rem;
+		gap: 0.125rem;
 	}
 
 	.window-btn {
-		width: 24px;
-		height: 24px;
+		width: 1.75rem;
+		height: 1.75rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: transparent;
+		background: rgba(255, 255, 255, 0.08);
 		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: 50%;
 		color: var(--text-tertiary);
-		font-size: 1rem;
+		font-size: 0.875rem;
+		font-weight: 500;
 		cursor: pointer;
-		transition: all 0.15s ease;
+		transition: all 120ms ease;
 	}
 
 	.window-btn:hover {
-		background: rgba(255, 255, 255, 0.1);
+		background: rgba(255, 255, 255, 0.15);
 		color: var(--text-primary);
+	}
+
+	.window-btn:active {
+		transform: scale(0.92);
+	}
+
+	.app.light .window-btn {
+		background: rgba(0, 0, 0, 0.06);
+	}
+
+	.app.light .window-btn:hover {
+		background: rgba(0, 0, 0, 0.1);
 	}
 
 	.chat-messages {
 		flex: 1;
 		overflow-y: auto;
+		overflow-x: hidden;
 		padding: 0.75rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.25rem;
 		min-height: 150px;
 		max-height: 250px;
+		overscroll-behavior: contain;
+		-webkit-overflow-scrolling: touch;
+		scroll-behavior: smooth;
 	}
 
 	.chat-msg {
-		padding: 0.5rem 0.75rem;
-		border-radius: var(--radius-md);
-		max-width: 90%;
+		padding: 0.5rem 0.875rem;
+		max-width: 85%;
+		border: none;
+		animation: msgIn 250ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+	}
+
+	@keyframes msgIn {
+		from {
+			opacity: 0;
+			transform: translateY(8px) scale(0.96);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+		}
 	}
 
 	.chat-msg.user {
 		align-self: flex-end;
-		background: rgba(99, 102, 241, 0.2);
-		border: 1px solid rgba(99, 102, 241, 0.3);
+		background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+		color: white;
+		border-radius: 1.125rem 1.125rem 0.25rem 1.125rem;
+		box-shadow: 0 1px 2px rgba(99, 102, 241, 0.3);
+	}
+
+	.chat-msg.user .msg-content {
+		color: white;
 	}
 
 	.chat-msg.assistant {
 		align-self: flex-start;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.06);
+		background: rgba(255, 255, 255, 0.08);
+		border-radius: 1.125rem 1.125rem 1.125rem 0.25rem;
+	}
+
+	.chat-msg.tool {
+		align-self: flex-start;
+		background: rgba(245, 158, 11, 0.12);
+		border-radius: 0.75rem;
+		font-size: 0.6875rem;
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		padding: 0.375rem 0.625rem;
+		max-width: 95%;
+	}
+
+	.chat-msg.tool .msg-content {
+		font-size: inherit;
+		font-family: inherit;
+		opacity: 0.9;
 	}
 
 	.chat-msg.streaming {
-		border-color: rgba(245, 158, 11, 0.3);
+		background: rgba(245, 158, 11, 0.15);
+	}
+
+	.app.light .chat-msg.user {
+		background: linear-gradient(135deg, #007aff 0%, #0056b3 100%);
 	}
 
 	.app.light .chat-msg.assistant {
-		background: rgba(0, 0, 0, 0.03);
-		border-color: rgba(0, 0, 0, 0.06);
+		background: rgba(0, 0, 0, 0.05);
 	}
 
 	.msg-role {
-		display: block;
-		font-size: 0.625rem;
-		font-family: 'JetBrains Mono', monospace;
-		color: var(--text-tertiary);
-		text-transform: uppercase;
-		margin-bottom: 0.25rem;
+		display: none;
 	}
 
 	.msg-content {
 		font-size: 0.8125rem;
-		line-height: 1.5;
+		line-height: 1.45;
 		color: var(--text-primary);
 		word-break: break-word;
 		white-space: pre-wrap;
@@ -5159,43 +5787,49 @@
 	.chat-empty {
 		flex: 1;
 		display: flex;
+		flex-direction: column;
 		align-items: center;
 		justify-content: center;
+		gap: 0.5rem;
 		color: var(--text-tertiary);
-		font-size: 0.75rem;
-		font-style: italic;
+		font-size: 0.8125rem;
+		padding: 2rem;
+	}
+
+	.chat-empty::before {
+		content: '💬';
+		font-size: 2rem;
+		opacity: 0.4;
 	}
 
 	.chat-input-form {
 		display: flex;
+		align-items: center;
 		gap: 0.5rem;
-		padding: 0.625rem 0.75rem;
-		background: rgba(255, 255, 255, 0.03);
-		border-top: 1px solid rgba(255, 255, 255, 0.06);
+		padding: 0.5rem 0.625rem;
+		background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.05) 100%);
+		border: none;
 	}
 
 	.app.light .chat-input-form {
-		background: rgba(0, 0, 0, 0.02);
-		border-top-color: rgba(0, 0, 0, 0.06);
+		background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.02) 100%);
 	}
 
 	.chat-input {
 		flex: 1;
-		padding: 0.5rem 0.75rem;
-		font-size: 0.8125rem;
-		font-family: 'JetBrains Mono', monospace;
-		background: rgba(255, 255, 255, 0.06);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: var(--radius-sm);
+		padding: 0.625rem 1rem;
+		font-size: 0.875rem;
+		font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+		background: rgba(255, 255, 255, 0.08);
+		border: none;
+		border-radius: 1.25rem;
 		color: var(--text-primary);
-		transition: all 0.2s ease;
+		transition: background 150ms ease;
 	}
 
 	.chat-input:focus {
 		outline: none;
-		background: rgba(255, 255, 255, 0.08);
-		border-color: rgba(10, 132, 255, 0.5);
-		box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.1);
+		background: rgba(255, 255, 255, 0.12);
 	}
 
 	.chat-input::placeholder {
@@ -5203,29 +5837,61 @@
 	}
 
 	.app.light .chat-input {
-		background: rgba(255, 255, 255, 0.8);
-		border-color: rgba(0, 0, 0, 0.1);
+		background: rgba(0, 0, 0, 0.05);
+	}
+
+	.app.light .chat-input:focus {
+		background: rgba(0, 0, 0, 0.08);
 	}
 
 	.chat-send-btn {
-		padding: 0.5rem 1rem;
-		font-size: 0.75rem;
-		font-weight: 600;
+		width: 2rem;
+		height: 2rem;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1rem;
 		background: #6366f1;
 		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: 50%;
 		color: white;
 		cursor: pointer;
-		transition: all 0.15s ease;
+		transition: all 150ms cubic-bezier(0.25, 0.1, 0.25, 1);
+		flex-shrink: 0;
+	}
+
+	.chat-send-btn::after {
+		content: '↑';
+		font-weight: 700;
+		font-size: 0.875rem;
 	}
 
 	.chat-send-btn:hover:not(:disabled) {
 		background: #4f46e5;
+		transform: scale(1.05);
+	}
+
+	.chat-send-btn:active:not(:disabled) {
+		transform: scale(0.95);
 	}
 
 	.chat-send-btn:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
+		background: rgba(255, 255, 255, 0.1);
+		color: var(--text-tertiary);
+		cursor: default;
+	}
+
+	.app.light .chat-send-btn {
+		background: #007aff;
+	}
+
+	.app.light .chat-send-btn:hover:not(:disabled) {
+		background: #0056b3;
+	}
+
+	.app.light .chat-send-btn:disabled {
+		background: rgba(0, 0, 0, 0.08);
 	}
 
 	@keyframes pulse {
@@ -5237,11 +5903,63 @@
 		.chat-windows {
 			flex-direction: column;
 			align-items: stretch;
+			padding: 0.5rem;
+			gap: 0.5rem;
+		}
+
+		.chat-windows.has-large {
+			padding: 0;
+			background: rgba(0, 0, 0, 0.85);
 		}
 
 		.chat-window {
 			width: 100%;
 			max-width: none;
+			border-radius: var(--radius-xl);
+		}
+
+		.chat-window.large {
+			width: 100%;
+			max-height: 100vh;
+			border-radius: 0;
+		}
+
+		.chat-window.large .chat-messages {
+			max-height: calc(100vh - 140px);
+			min-height: 60vh;
+		}
+
+		.chat-window-header {
+			padding: 0.75rem 1rem;
+			padding-top: max(0.75rem, env(safe-area-inset-top));
+		}
+
+		.chat-messages {
+			padding: 0.875rem;
+		}
+
+		.chat-msg {
+			max-width: 80%;
+		}
+
+		.chat-input-form {
+			padding: 0.625rem 0.75rem;
+			padding-bottom: max(0.625rem, env(safe-area-inset-bottom));
+		}
+
+		.chat-input {
+			padding: 0.75rem 1rem;
+			font-size: 1rem;
+			min-height: 2.75rem;
+		}
+
+		.chat-send-btn {
+			width: 2.5rem;
+			height: 2.5rem;
+		}
+
+		.chat-send-btn::after {
+			font-size: 1rem;
 		}
 	}
 

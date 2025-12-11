@@ -1,149 +1,214 @@
-// WebSocket store for pane bridge at ws://localhost:8765
-// Daemon events: pane_added, message, delta, status
-// Response format: {"type": "response", "data": {...}}
-// Event format: {"event": "...", "pane": "name", ...}
+// WebSocket store for kanban_claude agent server at ws://localhost:9347
+// Protocol: start session, stream events, send messages, interrupt
 
 export interface ChatMessage {
-	role: string;
+	role: 'user' | 'assistant' | 'tool';
 	content: string;
-	block_type: string;
+	toolName?: string;
 	timestamp?: string;
 }
 
-export interface Pane {
+export interface AgentSession {
+	id: string;
 	name: string;
-	pane_type: string;
-	backend: string;
 	streaming: boolean;
 	messages: ChatMessage[];
 	currentDelta: string;
+	cost?: number;
+	diffs?: FileDiff[];
+	// Compatibility with old Pane interface
+	pane_type: string;
+	backend: string;
 }
 
-interface DaemonEvent {
-	event: 'pane_added' | 'message' | 'delta' | 'status';
-	pane: string;
-	pane_type?: string;
-	backend?: string;
-	streaming?: boolean;
-	version?: number;
-	message?: { role: string; content: string; block_type: string };
+export interface FileDiff {
+	path: string;
+	operation: 'created' | 'modified' | 'deleted';
+	before: string | null;
+	after: string | null;
 }
 
-interface DaemonResponse {
-	type: 'response' | 'error';
-	data?: Record<string, unknown>;
-	message?: string;
+interface StreamEvent {
+	type: 'stream_event';
+	event: {
+		type: string;
+		delta?: { type: string; text?: string };
+	};
 }
 
-let panes = $state<Map<string, Pane>>(new Map());
+interface AssistantMessage {
+	type: 'assistant';
+	message?: {
+		content: Array<{ type: string; name?: string; text?: string }>;
+	};
+}
+
+interface ToolResult {
+	type: 'user';
+	tool_use_result?: string;
+}
+
+type ServerMessage =
+	| { type: 'session_started'; sessionId: string }
+	| { type: 'stream'; data: StreamEvent | AssistantMessage | ToolResult | { type: string } }
+	| { type: 'done'; result: { subtype: string; total_cost_usd?: number }; diffs?: FileDiff[] }
+	| { type: 'error'; error: string }
+	| { type: 'interrupted' };
+
+let sessions = $state<Map<string, AgentSession>>(new Map());
 let connected = $state(false);
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let currentSessionName: string | null = null;
 
-function handlePaneAdded(data: DaemonEvent) {
-	const name = data.pane;
-	if (panes.has(name)) return;
-	panes.set(name, {
-		name,
-		pane_type: data.pane_type || 'worker',
-		backend: data.backend || 'claude',
-		streaming: false,
+function handleSessionStarted(sessionId: string) {
+	if (!currentSessionName) return;
+	const session: AgentSession = {
+		id: sessionId,
+		name: currentSessionName,
+		streaming: true,
 		messages: [],
-		currentDelta: ''
-	});
-	panes = new Map(panes);
-}
-
-function handleMessage(data: DaemonEvent) {
-	const pane = panes.get(data.pane);
-	if (!pane || !data.message) return;
-	const msg: ChatMessage = {
-		role: data.message.role,
-		content: data.message.content,
-		block_type: data.message.block_type,
-		timestamp: new Date().toISOString()
+		currentDelta: '',
+		pane_type: 'agent',
+		backend: 'claude'
 	};
-	panes.set(data.pane, {
-		...pane,
-		messages: [...pane.messages, msg],
-		currentDelta: ''
+	sessions.set(currentSessionName, session);
+	sessions = new Map(sessions);
+}
+
+function handleStream(data: StreamEvent | AssistantMessage | ToolResult | { type: string }) {
+	if (!currentSessionName) return;
+	const session = sessions.get(currentSessionName);
+	if (!session) return;
+
+	if (data.type === 'stream_event') {
+		const ev = (data as StreamEvent).event;
+		if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) {
+			sessions.set(currentSessionName, {
+				...session,
+				currentDelta: session.currentDelta + ev.delta.text
+			});
+			sessions = new Map(sessions);
+		}
+	} else if (data.type === 'assistant') {
+		const msg = data as AssistantMessage;
+		const content = msg.message?.content;
+		if (Array.isArray(content)) {
+			for (const block of content) {
+				if (block.type === 'text' && block.text) {
+					const chatMsg: ChatMessage = {
+						role: 'assistant',
+						content: block.text,
+						timestamp: new Date().toISOString()
+					};
+					sessions.set(currentSessionName, {
+						...session,
+						messages: [...session.messages, chatMsg],
+						currentDelta: ''
+					});
+					sessions = new Map(sessions);
+				} else if (block.type === 'tool_use' && block.name) {
+					const toolMsg: ChatMessage = {
+						role: 'tool',
+						content: `Using ${block.name}`,
+						toolName: block.name,
+						timestamp: new Date().toISOString()
+					};
+					sessions.set(currentSessionName, {
+						...session,
+						messages: [...session.messages, toolMsg],
+						currentDelta: ''
+					});
+					sessions = new Map(sessions);
+				}
+			}
+		}
+	}
+}
+
+function handleDone(result: { subtype: string; total_cost_usd?: number }, diffs?: FileDiff[]) {
+	if (!currentSessionName) return;
+	const session = sessions.get(currentSessionName);
+	if (!session) return;
+
+	// Flush any remaining delta as a message
+	let messages = session.messages;
+	if (session.currentDelta) {
+		messages = [...messages, {
+			role: 'assistant' as const,
+			content: session.currentDelta,
+			timestamp: new Date().toISOString()
+		}];
+	}
+
+	sessions.set(currentSessionName, {
+		...session,
+		streaming: false,
+		messages,
+		currentDelta: '',
+		cost: result.total_cost_usd,
+		diffs
 	});
-	panes = new Map(panes);
+	sessions = new Map(sessions);
+	currentSessionName = null;
 }
 
-function handleDelta(data: DaemonEvent) {
-	const pane = panes.get(data.pane);
-	if (!pane) return;
-	const delta = pane.currentDelta + (data.message?.content || '');
-	panes.set(data.pane, { ...pane, currentDelta: delta });
-	panes = new Map(panes);
-}
-
-function handleStatus(data: DaemonEvent) {
-	const pane = panes.get(data.pane);
-	if (!pane) return;
-	panes.set(data.pane, { ...pane, streaming: data.streaming ?? pane.streaming });
-	panes = new Map(panes);
-}
-
-function handleResponse(data: DaemonResponse) {
-	if (data.type === 'error') {
-		console.error('[ws] daemon error:', data.message);
-		return;
-	}
-	// Handle panes list response
-	if (data.data?.panes && Array.isArray(data.data.panes)) {
-		for (const name of data.data.panes as string[]) {
-			if (!panes.has(name)) {
-				panes.set(name, {
-					name,
-					pane_type: 'worker',
-					backend: 'claude',
-					streaming: false,
-					messages: [],
-					currentDelta: ''
-				});
-			}
+function handleError(error: string) {
+	console.error('[agent] error:', error);
+	if (currentSessionName) {
+		const session = sessions.get(currentSessionName);
+		if (session) {
+			sessions.set(currentSessionName, {
+				...session,
+				streaming: false,
+				messages: [...session.messages, {
+					role: 'assistant',
+					content: `Error: ${error}`,
+					timestamp: new Date().toISOString()
+				}]
+			});
+			sessions = new Map(sessions);
 		}
-		panes = new Map(panes);
 	}
-	// Handle status response
-	if (data.data?.status && typeof data.data.status === 'object') {
-		const statusMap = data.data.status as Record<string, { streaming?: boolean; pane_type?: string; backend?: string }>;
-		for (const [name, status] of Object.entries(statusMap)) {
-			const pane = panes.get(name);
-			if (pane) {
-				panes.set(name, {
-					...pane,
-					streaming: status.streaming ?? pane.streaming,
-					pane_type: status.pane_type ?? pane.pane_type,
-					backend: status.backend ?? pane.backend
-				});
-			}
-		}
-		panes = new Map(panes);
-	}
+}
+
+function handleInterrupted() {
+	if (!currentSessionName) return;
+	const session = sessions.get(currentSessionName);
+	if (!session) return;
+	sessions.set(currentSessionName, {
+		...session,
+		streaming: false,
+		messages: [...session.messages, {
+			role: 'assistant',
+			content: '[Interrupted]',
+			timestamp: new Date().toISOString()
+		}]
+	});
+	sessions = new Map(sessions);
+	currentSessionName = null;
 }
 
 function onMessage(event: MessageEvent) {
-	const data = JSON.parse(event.data);
-	console.log('[ws] recv', data);
+	const msg = JSON.parse(event.data) as ServerMessage;
+	console.log('[agent] recv', msg);
 
-	// Handle command responses
-	if (data.type === 'response' || data.type === 'error') {
-		handleResponse(data as DaemonResponse);
-		return;
-	}
-
-	// Handle broadcast events
-	if (data.event) {
-		const handlers: Record<string, (d: DaemonEvent) => void> = {
-			pane_added: handlePaneAdded,
-			message: handleMessage,
-			delta: handleDelta,
-			status: handleStatus
-		};
-		handlers[data.event]?.(data as DaemonEvent);
+	switch (msg.type) {
+		case 'session_started':
+			handleSessionStarted(msg.sessionId);
+			break;
+		case 'stream':
+			handleStream(msg.data);
+			break;
+		case 'done':
+			handleDone(msg.result, msg.diffs);
+			break;
+		case 'error':
+			handleError(msg.error);
+			break;
+		case 'interrupted':
+			handleInterrupted();
+			break;
 	}
 }
 
@@ -155,43 +220,120 @@ function scheduleReconnect() {
 	}, 3000);
 }
 
-export function connect(url = 'ws://localhost:8765') {
+export function connect(url?: string) {
 	if (ws?.readyState === WebSocket.OPEN) return;
-	console.log('[ws] connecting to', url);
-	ws = new WebSocket(url);
+	const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+	const wsUrl = url || `ws://${host}:9347`;
+	console.log('[agent] connecting to', wsUrl);
+	ws = new WebSocket(wsUrl);
 	ws.onopen = () => {
 		connected = true;
-		console.log('[ws] connected');
-		listPanes();
-		getStatus();
+		console.log('[agent] connected');
 	};
-	ws.onclose = () => { connected = false; console.log('[ws] disconnected'); scheduleReconnect(); };
-	ws.onerror = (e) => { console.error('[ws] error', e); ws?.close(); };
+	ws.onclose = () => {
+		connected = false;
+		console.log('[agent] disconnected');
+		scheduleReconnect();
+	};
+	ws.onerror = (e) => {
+		console.error('[agent] error', e);
+		ws?.close();
+	};
 	ws.onmessage = onMessage;
 }
 
 export function disconnect() {
-	if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+	if (reconnectTimer) {
+		clearTimeout(reconnectTimer);
+		reconnectTimer = null;
+	}
 	ws?.close();
 	ws = null;
 	connected = false;
 }
 
-export function getPanes() { return panes; }
+export function getSessions() { return sessions; }
 export function isConnected() { return connected; }
+
+// Compatibility aliases for existing UI
+export function getPanes() { return sessions; }
+export type Pane = AgentSession;
 
 function send(payload: Record<string, unknown>) {
 	if (ws?.readyState === WebSocket.OPEN) {
-		console.log('[ws] send', payload);
+		console.log('[agent] send', payload);
 		ws.send(JSON.stringify(payload));
 	}
 }
 
-export function listPanes() { send({ action: 'panes' }); }
-export function getStatus() { send({ action: 'status' }); }
-export function addPane(name: string) { send({ action: 'add', name }); }
-export function removePane(name: string) { send({ action: 'rm', name }); }
-export function getPaneOutput(name: string) { send({ action: 'get', name }); }
+let workingDirectory = '.';
+
+export function setWorkingDirectory(cwd: string) {
+	workingDirectory = cwd;
+}
+
+export function startSession(name: string, briefing: string, cwd?: string, systemPromptAppend?: string) {
+	currentSessionName = name;
+	send({
+		type: 'start',
+		cwd: cwd || workingDirectory,
+		briefing,
+		systemPromptAppend
+	});
+}
+
+export function sendMessage(text: string) {
+	if (!currentSessionName) return;
+	const session = sessions.get(currentSessionName);
+	if (session) {
+		sessions.set(currentSessionName, {
+			...session,
+			messages: [...session.messages, {
+				role: 'user',
+				content: text,
+				timestamp: new Date().toISOString()
+			}]
+		});
+		sessions = new Map(sessions);
+	}
+	send({ type: 'message', text });
+}
+
+export function interrupt() {
+	send({ type: 'interrupt' });
+}
+
+// Compatibility: addPane starts a session with a default briefing
+export function addPane(name: string) {
+	startSession(name, `You are an agent named "${name}". Await further instructions.`);
+}
+
+// Compatibility: removePane just removes from local state (session continues on server until ws closes)
+export function removePane(name: string) {
+	sessions.delete(name);
+	sessions = new Map(sessions);
+}
+
+// Compatibility: sendToPane sends a message or starts session
 export function sendToPane(name: string, message: string, cwd?: string) {
-	send({ action: 'send', name, message, ...(cwd && { cwd }) });
+	const session = sessions.get(name);
+	if (!session) {
+		currentSessionName = name;
+		send({
+			type: 'start',
+			cwd: cwd || '.',
+			briefing: message
+		});
+	} else if (!session.streaming) {
+		// Session exists but finished - send follow-up message
+		currentSessionName = name;
+		session.streaming = true;
+		sessions.set(name, { ...session, streaming: true });
+		sessions = new Map(sessions);
+		send({ type: 'message', text: message });
+	} else {
+		// Active session - send follow-up
+		currentSessionName = name;
+		sendMessage(message);
+	}
 }

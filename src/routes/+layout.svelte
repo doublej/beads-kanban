@@ -1,9 +1,16 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { setWorkingDirectory } from '$lib/wsStore.svelte';
 
 	let { data, children } = $props();
 
 	let isDarkMode = $state(true);
+
+	$effect(() => {
+		if (browser && data.cwd) {
+			setWorkingDirectory(data.cwd);
+		}
+	});
 
 	$effect(() => {
 		if (browser) {
@@ -29,7 +36,7 @@
 </script>
 
 <svelte:head>
-	<title>Strandkanban - cwd: {data.folderName}</title>
+	<title>{data.folderName} - Strandkanban</title>
 	<meta name="theme-color" content={themeColor} />
 	<meta name="apple-mobile-web-app-capable" content="yes" />
 	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
