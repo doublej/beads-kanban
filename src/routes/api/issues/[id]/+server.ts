@@ -7,25 +7,45 @@ const execAsync = promisify(exec);
 const VALID_STATUSES = ['open', 'in_progress', 'blocked', 'closed'];
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
-	const { status, title, description, priority, issue_type, design, acceptance_criteria, notes } = await request.json();
+	const { status, title, description, priority, issue_type, design, acceptance_criteria, notes, addLabels, removeLabels } = await request.json();
 
 	if (status && !VALID_STATUSES.includes(status)) {
 		return json({ error: 'Invalid status' }, { status: 400 });
 	}
 
-	let cmd = `bd update ${params.id}`;
-	if (status) cmd += ` --status ${status}`;
-	if (title !== undefined) cmd += ` --title "${title.replace(/"/g, '\\"')}"`;
-	if (description !== undefined) cmd += ` --description "${description.replace(/"/g, '\\"')}"`;
-	if (priority !== undefined) cmd += ` --priority ${priority}`;
-	// Note: bd update does not support --type flag, issue_type cannot be updated
-	if (design !== undefined) cmd += ` --design "${(design || '').replace(/"/g, '\\"')}"`;
-	if (acceptance_criteria !== undefined) cmd += ` --acceptance "${(acceptance_criteria || '').replace(/"/g, '\\"')}"`;
-	if (notes !== undefined) cmd += ` --notes "${(notes || '').replace(/"/g, '\\"')}"`;
+	const commands: string[] = [];
+
+	// Build update command if there are field updates
+	let updateCmd = `bd update ${params.id}`;
+	let hasUpdates = false;
+	if (status) { updateCmd += ` --status ${status}`; hasUpdates = true; }
+	if (title !== undefined) { updateCmd += ` --title "${title.replace(/"/g, '\\"')}"`; hasUpdates = true; }
+	if (description !== undefined) { updateCmd += ` --description "${description.replace(/"/g, '\\"')}"`; hasUpdates = true; }
+	if (priority !== undefined) { updateCmd += ` --priority ${priority}`; hasUpdates = true; }
+	if (design !== undefined) { updateCmd += ` --design "${(design || '').replace(/"/g, '\\"')}"`; hasUpdates = true; }
+	if (acceptance_criteria !== undefined) { updateCmd += ` --acceptance "${(acceptance_criteria || '').replace(/"/g, '\\"')}"`; hasUpdates = true; }
+	if (notes !== undefined) { updateCmd += ` --notes "${(notes || '').replace(/"/g, '\\"')}"`; hasUpdates = true; }
+	if (hasUpdates) commands.push(updateCmd);
+
+	// Add label commands
+	if (removeLabels?.length) {
+		for (const label of removeLabels) {
+			commands.push(`bd label remove ${params.id} ${label}`);
+		}
+	}
+	if (addLabels?.length) {
+		for (const label of addLabels) {
+			commands.push(`bd label add ${params.id} ${label}`);
+		}
+	}
 
 	try {
-		const { stdout } = await execAsync(cmd);
-		return json({ success: true, message: stdout.trim() });
+		const results = [];
+		for (const cmd of commands) {
+			const { stdout } = await execAsync(cmd);
+			results.push(stdout.trim());
+		}
+		return json({ success: true, message: results.join('\n') });
 	} catch (err: unknown) {
 		const error = err as { stderr?: string; message?: string };
 		return json({ error: error.stderr || error.message || 'Update failed' }, { status: 500 });

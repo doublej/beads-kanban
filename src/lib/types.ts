@@ -13,7 +13,7 @@ export interface Issue {
 	acceptance_criteria?: string;
 	notes?: string;
 	status: 'open' | 'in_progress' | 'blocked' | 'closed';
-	priority: 1 | 2 | 3 | 4;
+	priority: 0 | 1 | 2 | 3 | 4;
 	issue_type: string;
 	created_at?: string;
 	updated_at?: string;
@@ -38,7 +38,10 @@ export interface Comment {
 }
 
 export interface Column {
-	key: Issue['status'];
+	key: string;
+	status: Issue['status'];
+	filterLabel?: string;  // If set, column shows issues with this label
+	excludeLabels?: string[];  // Exclude issues with these labels (for "Backlog" to exclude draft/feedback/review)
 	label: string;
 	icon: string;
 	accent: string;
