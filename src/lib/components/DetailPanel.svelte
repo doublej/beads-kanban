@@ -226,7 +226,7 @@
 							class="priority-option"
 							class:selected={editingIssue.priority === p}
 							style="--priority-color: {config.color}"
-							onclick={() => editingIssue.priority = p}
+							onclick={() => editingIssue.priority = p as 0 | 1 | 2 | 3 | 4}
 						>
 							<span class="priority-dot"></span>
 							{config.label}
@@ -403,7 +403,7 @@
 				const currentLabels = editingIssue.labels || [];
 				const addLabels = currentLabels.filter(l => !originalLabels.includes(l));
 				const removeLabels = originalLabels.filter(l => !currentLabels.includes(l));
-				onsave(editingIssue.id, { ...editingIssue, addLabels, removeLabels });
+				onsave(editingIssue.id, { ...editingIssue, addLabels, removeLabels } as any);
 				onclose();
 			}}>
 				Save Changes
