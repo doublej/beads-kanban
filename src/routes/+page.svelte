@@ -2,7 +2,6 @@
 	import { browser } from '$app/environment';
 	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, type Pane } from '$lib/wsStore.svelte';
 	import type { Issue, Comment, CardPosition, FlyingCard, ContextMenuState, RopeDragState, SortBy, PaneSize } from '$lib/types';
-	import RopeDrag from '$lib/components/RopeDrag.svelte';
 	import {
 		columns,
 		getPriorityConfig,
@@ -24,13 +23,6 @@
 		removeDependencyApi
 	} from '$lib/api';
 	import ColumnNav from '$lib/components/ColumnNav.svelte';
-	import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
-	import DepTypePicker from '$lib/components/DepTypePicker.svelte';
-	import FlyingCardComponent from '$lib/components/FlyingCard.svelte';
-	import ContextMenu from '$lib/components/ContextMenu.svelte';
-	import Header from '$lib/components/Header.svelte';
-	import IssueCard from '$lib/components/IssueCard.svelte';
-	import PaneActivity from '$lib/components/PaneActivity.svelte';
 
 	let issues = $state<Issue[]>([]);
 	let draggedId = $state<string | null>(null);
@@ -917,36 +909,327 @@
 <svelte:window onkeydown={handleKeydown} onkeyup={handleKeyup} onpopstate={handlePopState} onclick={closeContextMenu} onmousemove={handleMouseMove} onmouseup={handleMouseUp} onblur={handleWindowBlur} />
 
 {#if contextMenu}
-	<ContextMenu
-		x={contextMenu.x}
-		y={contextMenu.y}
-		issue={contextMenu.issue}
-		onSetPriority={(priority) => setIssuePriority(contextMenu!.issue.id, priority)}
-		onStartRopeDrag={(e) => startRopeDrag(e, contextMenu!.issue.id)}
-		onClose={closeContextMenu}
-	/>
+	<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+	<div
+		class="context-menu"
+		role="menu"
+		style="left: {contextMenu.x}px; top: {contextMenu.y}px"
+		onclick={(e) => e.stopPropagation()}
+	>
+		<div class="context-menu-section">
+			<span class="context-menu-label">Priority</span>
+			<div class="context-menu-options">
+				<button class="context-option" class:active={contextMenu.issue.priority === 0} onclick={() => setIssuePriority(contextMenu.issue.id, 0)}>
+					<span class="priority-dot" style="background: #ef4444"></span>Critical
+				</button>
+				<button class="context-option" class:active={contextMenu.issue.priority === 1} onclick={() => setIssuePriority(contextMenu.issue.id, 1)}>
+					<span class="priority-dot" style="background: #f59e0b"></span>High
+				</button>
+				<button class="context-option" class:active={contextMenu.issue.priority === 2} onclick={() => setIssuePriority(contextMenu.issue.id, 2)}>
+					<span class="priority-dot" style="background: #6366f1"></span>Medium
+				</button>
+				<button class="context-option" class:active={contextMenu.issue.priority === 3} onclick={() => setIssuePriority(contextMenu.issue.id, 3)}>
+					<span class="priority-dot" style="background: #10b981"></span>Low
+				</button>
+				<button class="context-option" class:active={contextMenu.issue.priority === 4} onclick={() => setIssuePriority(contextMenu.issue.id, 4)}>
+					<span class="priority-dot" style="background: #6b7280"></span>Backlog
+				</button>
+			</div>
+		</div>
+		<div class="context-menu-divider"></div>
+		<div class="context-menu-section">
+			<span class="context-menu-label">Link</span>
+			<div
+				class="rope-handle"
+				onmousedown={(e) => startRopeDrag(e, contextMenu.issue.id)}
+			>
+				<svg class="rope-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+					<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+				</svg>
+				<span>Drag to link</span>
+				<span class="rope-tip">⟡</span>
+			</div>
+		</div>
+	</div>
 {/if}
 
-<RopeDrag {ropeDrag} />
+{#if ropeDrag}
+	{@const dx = ropeDrag.currentX - ropeDrag.startX}
+	{@const dy = ropeDrag.currentY - ropeDrag.startY}
+	{@const length = Math.sqrt(dx * dx + dy * dy)}
+	{@const hasTarget = !!ropeDrag.targetId}
+	{@const midX = ropeDrag.startX + dx * 0.5}
+	{@const midY = ropeDrag.startY + dy * 0.5 - Math.min(length * 0.15, 40)}
+	{@const pathD = `M ${ropeDrag.startX} ${ropeDrag.startY} Q ${midX} ${midY} ${ropeDrag.currentX} ${ropeDrag.currentY}`}
+	<svg class="link-beam" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;">
+		<defs>
+			<linearGradient id="energyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+				<stop offset="0%" stop-color={hasTarget ? "#22d3ee" : "#64748b"} stop-opacity="0.2" />
+				<stop offset="50%" stop-color={hasTarget ? "#06b6d4" : "#94a3b8"} stop-opacity="1" />
+				<stop offset="100%" stop-color={hasTarget ? "#22d3ee" : "#64748b"} stop-opacity="0.2" />
+			</linearGradient>
+			<filter id="energyGlow" x="-50%" y="-50%" width="200%" height="200%">
+				<feGaussianBlur stdDeviation="3" result="blur" />
+				<feMerge>
+					<feMergeNode in="blur" />
+					<feMergeNode in="blur" />
+					<feMergeNode in="SourceGraphic" />
+				</feMerge>
+			</filter>
+			<filter id="nodeGlow" x="-100%" y="-100%" width="300%" height="300%">
+				<feGaussianBlur stdDeviation="8" result="blur" />
+				<feMerge>
+					<feMergeNode in="blur" />
+					<feMergeNode in="blur" />
+					<feMergeNode in="SourceGraphic" />
+				</feMerge>
+			</filter>
+		</defs>
 
-<DepTypePicker {pendingDep} onconfirm={confirmDependency} oncancel={cancelDependency} />
+		<!-- Ambient glow path -->
+		<path
+			d={pathD}
+			fill="none"
+			stroke={hasTarget ? "rgba(34, 211, 238, 0.15)" : "rgba(148, 163, 184, 0.1)"}
+			stroke-width="12"
+			stroke-linecap="round"
+		/>
+
+		<!-- Main energy beam -->
+		<path
+			d={pathD}
+			fill="none"
+			stroke={hasTarget ? "#06b6d4" : "#64748b"}
+			stroke-width="2"
+			stroke-linecap="round"
+			filter="url(#energyGlow)"
+		/>
+
+		<!-- Flowing particles -->
+		<path
+			d={pathD}
+			fill="none"
+			stroke={hasTarget ? "#22d3ee" : "#94a3b8"}
+			stroke-width="2"
+			stroke-linecap="round"
+			stroke-dasharray="4 12"
+			class="energy-flow"
+		/>
+
+		<!-- Origin node -->
+		<g filter="url(#energyGlow)">
+			<circle
+				cx={ropeDrag.startX}
+				cy={ropeDrag.startY}
+				r="6"
+				fill={hasTarget ? "#06b6d4" : "#64748b"}
+				opacity="0.8"
+			/>
+			<circle
+				cx={ropeDrag.startX}
+				cy={ropeDrag.startY}
+				r="3"
+				fill="white"
+				opacity="0.9"
+			/>
+		</g>
+
+		<!-- Target node -->
+		<g filter={hasTarget ? "url(#nodeGlow)" : "url(#energyGlow)"}>
+			<circle
+				cx={ropeDrag.currentX}
+				cy={ropeDrag.currentY}
+				r={hasTarget ? "14" : "8"}
+				fill="none"
+				stroke={hasTarget ? "#22d3ee" : "#94a3b8"}
+				stroke-width="2"
+				class="target-ring"
+				class:locked={hasTarget}
+			/>
+			<circle
+				cx={ropeDrag.currentX}
+				cy={ropeDrag.currentY}
+				r={hasTarget ? "8" : "4"}
+				fill={hasTarget ? "#06b6d4" : "#64748b"}
+				class="target-core"
+				class:locked={hasTarget}
+			/>
+			<circle
+				cx={ropeDrag.currentX}
+				cy={ropeDrag.currentY}
+				r="2"
+				fill="white"
+				opacity="0.9"
+			/>
+		</g>
+
+		<!-- Target label -->
+		{#if hasTarget}
+			<g class="target-label-energy">
+				<text
+					x={ropeDrag.currentX}
+					y={ropeDrag.currentY - 26}
+					text-anchor="middle"
+					fill="#22d3ee"
+					font-size="11"
+					font-weight="600"
+					font-family="ui-monospace, 'SF Mono', monospace"
+					filter="url(#energyGlow)"
+				>{ropeDrag.targetId}</text>
+			</g>
+		{/if}
+	</svg>
+{/if}
+
+{#if pendingDep}
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="dep-type-overlay" onclick={cancelDependency}>
+		<div class="dep-type-modal" onclick={(e) => e.stopPropagation()}>
+			<h3>Link Type</h3>
+			<p class="dep-type-hint">How does <strong>{pendingDep.fromId}</strong> relate to <strong>{pendingDep.toId}</strong>?</p>
+			<div class="dep-type-options">
+				<button class="dep-type-btn" onclick={() => confirmDependency('blocks')}>
+					<span class="dep-type-icon" style="color: #ef4444;">⊘</span>
+					<span class="dep-type-label">Blocks</span>
+					<span class="dep-type-desc">Must complete first</span>
+				</button>
+				<button class="dep-type-btn" onclick={() => confirmDependency('related')}>
+					<span class="dep-type-icon" style="color: #3b82f6;">↔</span>
+					<span class="dep-type-label">Related</span>
+					<span class="dep-type-desc">Connected but independent</span>
+				</button>
+				<button class="dep-type-btn" onclick={() => confirmDependency('parent-child')}>
+					<span class="dep-type-icon" style="color: #8b5cf6;">↳</span>
+					<span class="dep-type-label">Parent-Child</span>
+					<span class="dep-type-desc">Epic/subtask relationship</span>
+				</button>
+				<button class="dep-type-btn" onclick={() => confirmDependency('discovered-from')}>
+					<span class="dep-type-icon" style="color: #f59e0b;">◊</span>
+					<span class="dep-type-label">Discovered From</span>
+					<span class="dep-type-desc">Found during work</span>
+				</button>
+			</div>
+			<button class="dep-type-cancel" onclick={cancelDependency}>Cancel</button>
+		</div>
+	</div>
+{/if}
 
 <div class="app" class:light={!isDarkMode} class:panel-open={panelOpen} class:show-hotkeys={showHotkeys}>
 
-<KeyboardHelp bind:show={showKeyboardHelp} />
-
-<Header
-	bind:searchQuery
-	bind:filterPriority
-	bind:filterType
-	{isDarkMode}
-	wsConnected={wsConnected}
-	paneCount={wsPanes.size}
-	ontoggleTheme={toggleTheme}
-	onopenKeyboardHelp={() => showKeyboardHelp = true}
-	onopenCreatePanel={openCreatePanel}
-	ontogglePaneActivity={() => showPaneActivity = !showPaneActivity}
-/>
+{#if showKeyboardHelp}
+	<div class="keyboard-help-overlay" onclick={() => showKeyboardHelp = false}>
+		<div class="keyboard-help" onclick={(e) => e.stopPropagation()}>
+			<div class="keyboard-help-header">
+				<h2>Keyboard Shortcuts</h2>
+				<button class="keyboard-help-close" onclick={() => showKeyboardHelp = false}>
+					<kbd>esc</kbd>
+				</button>
+			</div>
+			<div class="keyboard-help-content">
+				<div class="shortcut-group">
+					<h3>Navigation</h3>
+					<div class="shortcut"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd><span>Navigate cards</span></div>
+					<div class="shortcut"><kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd><span>Vim-style navigation</span></div>
+					<div class="shortcut"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd><span>Jump to column</span></div>
+				</div>
+				<div class="shortcut-group">
+					<h3>Actions</h3>
+					<div class="shortcut"><kbd>n</kbd><span>New issue</span></div>
+					<div class="shortcut"><kbd>o</kbd> or <kbd>↵</kbd><span>Open issue</span></div>
+					<div class="shortcut"><kbd>x</kbd><span>Delete issue</span></div>
+					<div class="shortcut"><kbd>/</kbd><span>Focus search</span></div>
+				</div>
+				<div class="shortcut-group">
+					<h3>General</h3>
+					<div class="shortcut"><kbd>t</kbd><span>Toggle theme</span></div>
+					<div class="shortcut"><kbd>?</kbd><span>Show this help</span></div>
+					<div class="shortcut"><kbd>esc</kbd><span>Close / Cancel</span></div>
+					<div class="shortcut"><kbd>⌥</kbd><span>Hold for hints</span></div>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+	<header class="header">
+		<div class="header-left">
+			<div class="logo">
+				<h1>strandkanban</h1>
+			</div>
+			<nav class="header-nav">
+				<a href="/about">About</a>
+				<a href="/prompts">Prompts</a>
+			</nav>
+		</div>
+		<div class="header-center">
+			<div class="search-container">
+				<svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<circle cx="11" cy="11" r="8"/>
+					<path d="m21 21-4.35-4.35"/>
+				</svg>
+				<input
+					type="text"
+					placeholder="Search issues..."
+					bind:value={searchQuery}
+					class="search-input"
+				/>
+				{#if searchQuery}
+					<button class="search-clear" onclick={() => searchQuery = ''}>×</button>
+				{:else}
+					<kbd class="hotkey-hint">/</kbd>
+				{/if}
+			</div>
+			<button class="btn-create" onclick={openCreatePanel}>
+				<span class="btn-create-icon">+</span>
+				<span class="btn-create-text">New Issue</span>
+				<kbd class="btn-hotkey">N</kbd>
+			</button>
+		</div>
+		<div class="header-right">
+			<div class="filter-group">
+				<select bind:value={filterPriority} class="filter-select">
+					<option value="all">All Priorities</option>
+					<option value={0}>Critical</option>
+					<option value={1}>High</option>
+					<option value={2}>Medium</option>
+					<option value={3}>Low</option>
+					<option value={4}>Backlog</option>
+				</select>
+				<select bind:value={filterType} class="filter-select">
+					<option value="all">All Types</option>
+					<option value="task">Task</option>
+					<option value="bug">Bug</option>
+					<option value="feature">Feature</option>
+					<option value="epic">Epic</option>
+					<option value="chore">Chore</option>
+				</select>
+			</div>
+			<button class="keyboard-help-btn" onclick={() => showKeyboardHelp = true} aria-label="Keyboard shortcuts" title="Keyboard shortcuts">
+				<kbd>?</kbd>
+			</button>
+			<button class="theme-toggle" onclick={toggleTheme} aria-label="Toggle theme">
+				{#if isDarkMode}
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<circle cx="12" cy="12" r="5"/>
+						<path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+					</svg>
+				{:else}
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+					</svg>
+				{/if}
+			</button>
+			<button
+				class="pane-toggle"
+				class:connected={wsConnected}
+				onclick={() => showPaneActivity = !showPaneActivity}
+				title={wsConnected ? 'Panes connected' : 'Panes disconnected'}
+			>
+				<span class="pane-dot"></span>
+				<span class="pane-count">{wsPanes.size}</span>
+			</button>
+		</div>
+	</header>
 
 	<ColumnNav
 		{columns}
@@ -1019,26 +1302,131 @@
 						{/each}
 
 						{#each allColumnIssues as issue, idx}
+							{@const priorityConfig = getPriorityConfig(issue.priority)}
 							{@const isBlocked = hasOpenBlockers(issue)}
 							{@const matchesFilter = issueMatchesFilters(issue)}
 							{@const isFlying = flyingCards.has(issue.id)}
-							<IssueCard
-								issue={issue}
-								selected={selectedId === issue.id}
-								dragging={draggedId === issue.id}
-								animating={animatingIds.has(issue.id)}
-								hasOpenBlockers={isBlocked}
-								copiedId={copiedId}
-								editing={editingIssue?.id === issue.id}
-								filterDimmed={hasActiveFilters && !matchesFilter}
-								flyingHidden={isFlying}
-								registerCard={registerCard}
-								onclick={() => openEditPanel(issue)}
+							<article
+								class="card"
+								class:animating={animatingIds.has(issue.id)}
+								class:selected={selectedId === issue.id}
+								class:editing={editingIssue?.id === issue.id}
+								class:dragging={draggedId === issue.id}
+								class:has-blockers={isBlocked}
+								class:filter-dimmed={hasActiveFilters && !matchesFilter}
+								class:flying-hidden={isFlying}
+								draggable="true"
 								ondragstart={(e) => handleDragStart(e, issue.id)}
 								ondragend={handleDragEnd}
+								onclick={() => openEditPanel(issue)}
 								oncontextmenu={(e) => openContextMenu(e, issue)}
-								oncopyid={(id) => copyToClipboard(id, id)}
-							/>
+								use:registerCard={issue.id}
+							>
+									<div class="card-priority-bar" style="--priority-bar-color: {priorityConfig.color}">
+									<span class="priority-label">{priorityConfig.label}</span>
+								</div>
+								<span class="type-indicator" title={issue.issue_type}>{getTypeIcon(issue.issue_type)} {issue.issue_type}</span>
+								<div class="card-content">
+									<div class="card-header">
+										<span class="card-id-wrap">
+											<span class="card-id">{issue.id}</span>
+											<button
+												class="btn-copy"
+												class:copied={copiedId === issue.id}
+												onclick={(e) => { e.stopPropagation(); copyToClipboard(issue.id, issue.id); }}
+												aria-label="Copy ID"
+											>
+												{#if copiedId === issue.id}
+													<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+												{:else}
+													<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+												{/if}
+											</button>
+										</span>
+										{#if isBlocked}
+											<span class="blocked-indicator" title="Blocked by open dependencies">⊘</span>
+										{/if}
+										</div>
+									{#if issue.status === 'in_progress' && issue.assignee}
+										<div class="agent-chip">
+											<span class="agent-pulse"></span>
+											<svg class="agent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+												<circle cx="12" cy="12" r="3"/>
+												<path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+											</svg>
+											<span class="agent-name">{issue.assignee}</span>
+											<span class="agent-status">working</span>
+										</div>
+									{/if}
+									<h3 class="card-title">{issue.title}</h3>
+									{#if issue.description}
+										<p class="card-description">{issue.description}</p>
+									{/if}
+									{#if issue.labels && issue.labels.length > 0}
+										<div class="card-labels">
+											{#each issue.labels.slice(0, 3) as label}
+												<span class="label">{label}</span>
+											{/each}
+											{#if issue.labels.length > 3}
+												<span class="label more">+{issue.labels.length - 3}</span>
+											{/if}
+										</div>
+									{/if}
+									{#if issue.assignee && !(issue.assignee.toLowerCase() === 'claude' || issue.assignee.toLowerCase().includes('agent'))}
+									<div class="card-footer">
+										<span class="badge assignee">
+											<span class="assignee-dot"></span>
+											{issue.assignee}
+										</span>
+									</div>
+									{/if}
+									{#if (issue.dependencies && issue.dependencies.length > 0) || (issue.dependents && issue.dependents.length > 0)}
+										<div class="card-links">
+											{#if issue.dependencies && issue.dependencies.length > 0}
+												<div class="link-group blocked-by" title="Blocked by: {issue.dependencies.map(d => `${getDepTypeConfig(d.dependency_type).label}: ${d.title}`).join(', ')}">
+													<span class="link-arrow">←</span>
+													{#each issue.dependencies.slice(0, 3) as dep}
+														{@const depConfig = getDepTypeConfig(dep.dependency_type)}
+														<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
+															<span class="dep-type-indicator" style="color: {depConfig.color}">{depConfig.icon}</span>{dep.id}
+														</span>
+													{/each}
+													{#if issue.dependencies.length > 3}
+														<span class="link-more">+{issue.dependencies.length - 3}</span>
+													{/if}
+												</div>
+											{/if}
+											{#if issue.dependents && issue.dependents.length > 0}
+												<div class="link-group blocking" title="Blocking: {issue.dependents.map(d => `${getDepTypeConfig(d.dependency_type).label}: ${d.title}`).join(', ')}">
+													<span class="link-arrow">→</span>
+													{#each issue.dependents.slice(0, 3) as dep}
+														{@const depConfig = getDepTypeConfig(dep.dependency_type)}
+														<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
+															<span class="dep-type-indicator" style="color: {depConfig.color}">{depConfig.icon}</span>{dep.id}
+														</span>
+													{/each}
+													{#if issue.dependents.length > 3}
+														<span class="link-more">+{issue.dependents.length - 3}</span>
+													{/if}
+												</div>
+											{/if}
+										</div>
+									{/if}
+									{#if issue.created_at}
+										<div class="card-meta">
+											<span class="meta-item" title="Created {new Date(issue.created_at).toLocaleString()}">
+												{formatDate(issue.created_at)}
+											</span>
+											{#if issue.closed_at}
+												<span class="meta-separator">→</span>
+												<span class="meta-item closed" title="Closed {new Date(issue.closed_at).toLocaleString()}">
+													{formatDate(issue.closed_at)}
+												</span>
+											{/if}
+										</div>
+									{/if}
+								</div>
+							</article>
 
 							{#if draggedOverColumn === column.key && dropTargetColumn === column.key && dropIndicatorIndex === idx + 1}
 								<div class="drop-indicator"></div>
@@ -1166,7 +1554,56 @@
 	</div>
 </div>
 
-<FlyingCardComponent {teleports} {flyingCards} />
+<!-- Teleport Ghost Strobe Effects -->
+{#each teleports as teleport}
+	{@const dx = teleport.to.x - teleport.from.x}
+	{@const dy = teleport.to.y - teleport.from.y}
+	{#each [0, 1, 2, 3, 4] as i}
+		<div
+			class="teleport-ghost"
+			style="
+				--from-x: {teleport.from.x}px;
+				--from-y: {teleport.from.y}px;
+				--to-x: {teleport.to.x}px;
+				--to-y: {teleport.to.y}px;
+				--ghost-w: {teleport.from.w}px;
+				--ghost-h: {teleport.from.h}px;
+				--delay: {i * 40}ms;
+				--opacity: {0.6 - i * 0.1};
+			"
+		></div>
+	{/each}
+{/each}
+
+<!-- Flying Cards -->
+{#each [...flyingCards] as [id, { from, to, issue }]}
+	{@const priorityConfig = getPriorityConfig(issue.priority)}
+	<article
+		class="card flying-card"
+		style="
+			--from-x: {from.x}px;
+			--from-y: {from.y}px;
+			--to-x: {to.x}px;
+			--to-y: {to.y}px;
+			--card-w: {from.w}px;
+			--card-h: {from.h}px;
+		"
+	>
+		<div class="card-priority-bar" style="--priority-bar-color: {priorityConfig.color}">
+			<span class="priority-label">{priorityConfig.label}</span>
+		</div>
+		<span class="type-indicator">{getTypeIcon(issue.issue_type)} {issue.issue_type}</span>
+		<div class="card-content">
+			<div class="card-header">
+				<span class="card-id-wrap"><span class="card-id">{issue.id}</span></span>
+			</div>
+			<h3 class="card-title">{issue.title}</h3>
+			{#if issue.description}
+				<p class="card-desc">{issue.description}</p>
+			{/if}
+		</div>
+	</article>
+{/each}
 </div>
 
 {#snippet detailPanel()}
@@ -1658,6 +2095,257 @@
 		background: var(--bg-primary);
 	}
 
+	/* Header */
+	.header {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		padding: 0.875rem 1.5rem;
+		background: transparent;
+		gap: 1.5rem;
+		z-index: 100;
+		flex-shrink: 0;
+	}
+
+	.header-left {
+		flex-shrink: 0;
+		display: flex;
+		align-items: baseline;
+		gap: 1.5rem;
+	}
+
+	.header-nav {
+		display: flex;
+		align-items: baseline;
+		gap: 1rem;
+	}
+
+	.header-nav a {
+		color: rgba(255, 255, 255, 0.7);
+		text-decoration: none;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		transition: color 0.15s;
+	}
+
+	.header-nav a:hover {
+		color: rgba(255, 255, 255, 0.9);
+	}
+
+	.app.light .header-nav a {
+		color: rgba(0, 0, 0, 0.7);
+	}
+
+	.app.light .header-nav a:hover {
+		color: rgba(0, 0, 0, 0.9);
+	}
+
+	.logo h1 {
+		font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+		font-size: 1.3rem;
+		font-weight: 800;
+		letter-spacing: -0.02em;
+		color: rgba(255, 255, 255, 0.95);
+		text-transform: lowercase;
+		text-shadow: 0 0.5px 0 rgba(0, 0, 0, 0.5);
+	}
+
+	.header-center {
+		flex: 1;
+		max-width: 500px;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.search-container {
+		position: relative;
+		display: flex;
+		align-items: center;
+		flex: 1;
+	}
+
+	.search-icon {
+		position: absolute;
+		left: 0.75rem;
+		width: 0.9375rem;
+		height: 0.9375rem;
+		color: var(--text-tertiary);
+		pointer-events: none;
+	}
+
+	.search-input {
+		width: 100%;
+		padding: 0.625rem 2.25rem;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: var(--radius-lg);
+		color: var(--text-primary);
+		font-family: inherit;
+		font-size: 0.875rem;
+		transition: all var(--transition-fast);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+	}
+
+	.search-input::placeholder {
+		color: var(--text-secondary);
+	}
+
+	.search-input:focus {
+		outline: none;
+		background: rgba(255, 255, 255, 0.06);
+		border-color: rgba(59, 130, 246, 0.5);
+		box-shadow:
+			0 2px 8px rgba(0, 0, 0, 0.08),
+			0 0 0 3px rgba(59, 130, 246, 0.15);
+	}
+
+	.search-clear {
+		position: absolute;
+		right: 0.5rem;
+		width: 1.125rem;
+		height: 1.125rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--bg-elevated);
+		border: none;
+		border-radius: 50%;
+		color: var(--text-tertiary);
+		font-size: 0.8125rem;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.search-clear:hover {
+		background: var(--text-tertiary);
+		color: var(--bg-primary);
+	}
+
+	.header-right {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		flex-shrink: 0;
+	}
+
+	.filter-group {
+		display: flex;
+		gap: 0.375rem;
+	}
+
+	.filter-select {
+		padding: 0.375rem 0.5rem;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--text-tertiary);
+		font-family: inherit;
+		font-size: 0.75rem;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		appearance: none;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 24 24' fill='none' stroke='%2365656d' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+		background-repeat: no-repeat;
+		background-position: right 0.25rem center;
+		padding-right: 1.25rem;
+	}
+
+	.filter-select:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text-secondary);
+	}
+
+	.filter-select:focus {
+		outline: none;
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text-secondary);
+	}
+
+	.filter-select option {
+		background: var(--bg-secondary);
+	}
+
+	.theme-toggle {
+		width: 2rem;
+		height: 2rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--text-tertiary);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.theme-toggle svg {
+		width: 1rem;
+		height: 1rem;
+	}
+
+	.theme-toggle:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text-secondary);
+	}
+
+	.btn-create {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.625rem 1.125rem;
+		background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: var(--radius-lg);
+		color: white;
+		font-family: inherit;
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition:
+			transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1),
+			box-shadow 200ms cubic-bezier(0, 0, 0.2, 1),
+			background 150ms ease-out;
+		box-shadow:
+			0 2px 8px rgba(59, 130, 246, 0.3),
+			0 1px 2px rgba(0, 0, 0, 0.1);
+	}
+
+	.btn-create:hover {
+		background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+		transform: translateY(-2px) scale(1.02);
+		box-shadow:
+			0 6px 16px rgba(59, 130, 246, 0.45),
+			0 3px 6px rgba(0, 0, 0, 0.12);
+	}
+
+	.btn-create:active {
+		background: linear-gradient(180deg, var(--accent-primary) 0%, #0066cc 100%);
+		transform: translateY(0) scale(0.98);
+		transition:
+			transform 80ms cubic-bezier(0.4, 0, 0.2, 1),
+			box-shadow 80ms ease-out;
+		box-shadow:
+			inset 0 2px 4px rgba(0, 0, 0, 0.2),
+			0 1px 2px rgba(0, 0, 0, 0.15);
+	}
+
+	.btn-create-icon {
+		font-size: 1rem;
+		line-height: 1;
+	}
+
+	.btn-hotkey {
+		font-family: ui-monospace, 'SF Mono', monospace;
+		font-size: 0.625rem;
+		font-weight: 500;
+		padding: 0.125rem 0.375rem;
+		background: rgba(255, 255, 255, 0.15);
+		border-radius: 3px;
+		margin-left: 0.5rem;
+		opacity: 0.8;
+	}
 
 	.btn-hotkey-subtle {
 		font-family: ui-monospace, 'SF Mono', monospace;
@@ -2145,6 +2833,41 @@
 		pointer-events: none;
 	}
 
+	.card.flying-card {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: var(--card-w);
+		z-index: 10000;
+		pointer-events: none;
+		animation: flyCard 500ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+	}
+
+	@keyframes flyCard {
+		0% {
+			transform: translate(var(--from-x), var(--from-y));
+			box-shadow:
+				0 0 0 3px rgba(59, 130, 246, 0.6),
+				0 12px 32px -6px rgba(0, 0, 0, 0.4);
+		}
+		100% {
+			transform: translate(var(--to-x), var(--to-y));
+			box-shadow:
+				0 12px 32px -6px rgba(0, 0, 0, 0.35),
+				0 6px 12px -3px rgba(0, 0, 0, 0.18);
+		}
+	}
+
+	@keyframes cardEnter {
+		0% {
+			opacity: 0;
+			transform: scale(0.9) translateY(-12px);
+			box-shadow:
+				0 0 0 3px rgba(16, 185, 129, 0.8),
+				0 0 40px rgba(16, 185, 129, 0.6),
+				0 8px 32px rgba(0, 0, 0, 0.3);
+			background: rgba(16, 185, 129, 0.15);
+		}
 		30% {
 			opacity: 1;
 			transform: scale(1.03) translateY(0);
@@ -2153,6 +2876,66 @@
 				0 0 32px rgba(16, 185, 129, 0.5),
 				0 12px 40px rgba(0, 0, 0, 0.25);
 		}
+		60% {
+			transform: scale(0.98) translateY(0);
+			box-shadow:
+				0 0 0 2px rgba(99, 102, 241, 0.4),
+				0 0 20px rgba(99, 102, 241, 0.3),
+				0 4px 16px rgba(0, 0, 0, 0.15);
+		}
+		100% {
+			transform: scale(1) translateY(0);
+			box-shadow: none;
+			background: var(--bg-tertiary);
+		}
+	}
+
+	/* Teleport Ghost Strobe Effect */
+	.teleport-ghost {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: var(--ghost-w);
+		height: var(--ghost-h);
+		background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(99, 102, 241, 0.2) 100%);
+		border: 2px solid rgba(59, 130, 246, 0.6);
+		border-radius: var(--radius-md);
+		pointer-events: none;
+		z-index: 9999;
+		opacity: var(--opacity);
+		animation: teleportStrobe 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+		animation-delay: var(--delay);
+		box-shadow:
+			0 0 20px rgba(59, 130, 246, 0.4),
+			0 0 40px rgba(99, 102, 241, 0.2),
+			inset 0 0 20px rgba(59, 130, 246, 0.1);
+	}
+
+	@keyframes teleportStrobe {
+		0% {
+			transform: translate(var(--from-x), var(--from-y));
+			opacity: var(--opacity);
+			filter: blur(0px);
+		}
+		20% {
+			opacity: calc(var(--opacity) * 1.2);
+			filter: blur(1px);
+		}
+		80% {
+			opacity: calc(var(--opacity) * 0.8);
+			filter: blur(2px);
+		}
+		100% {
+			transform: translate(var(--to-x), var(--to-y));
+			opacity: 0;
+			filter: blur(4px);
+		}
+	}
+
+	/* Placeholder slot that makes room for incoming teleported card */
+	.placeholder-slot {
+		height: 0;
+		overflow: hidden;
 		animation: placeholderExpand 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 		margin-bottom: var(--space-sm);
 	}
@@ -2964,6 +3747,101 @@
 		flex-shrink: 0;
 	}
 
+	/* Dependency Type Modal */
+	.dep-type-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.6);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+	}
+
+	.dep-type-modal {
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-lg);
+		padding: 1.5rem;
+		max-width: 320px;
+		width: 90%;
+	}
+
+	.dep-type-modal h3 {
+		font-size: 1rem;
+		margin-bottom: 0.5rem;
+		color: var(--text-primary);
+	}
+
+	.dep-type-hint {
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+		margin-bottom: 1rem;
+	}
+
+	.dep-type-hint strong {
+		color: var(--accent-primary);
+		font-family: ui-monospace, 'SF Mono', monospace;
+	}
+
+	.dep-type-options {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.dep-type-btn {
+		display: grid;
+		grid-template-columns: 24px 1fr;
+		grid-template-rows: auto auto;
+		gap: 0 0.5rem;
+		padding: 0.75rem;
+		background: var(--bg-elevated);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+		text-align: left;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.dep-type-btn:hover {
+		border-color: var(--accent-primary);
+		background: var(--accent-glow);
+	}
+
+	.dep-type-icon {
+		grid-row: span 2;
+		font-size: 1.25rem;
+		align-self: center;
+	}
+
+	.dep-type-label {
+		font-weight: 600;
+		font-size: 0.875rem;
+		color: var(--text-primary);
+	}
+
+	.dep-type-desc {
+		font-size: 0.75rem;
+		color: var(--text-tertiary);
+	}
+
+	.dep-type-cancel {
+		width: 100%;
+		margin-top: 1rem;
+		padding: 0.5rem;
+		background: none;
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-sm);
+		color: var(--text-secondary);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.dep-type-cancel:hover {
+		background: var(--bg-tertiary);
+	}
+
 	/* Comments */
 	.comments-section {
 		display: flex;
@@ -3276,6 +4154,127 @@
 		--mobile-border: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 		--mobile-padding: 0.75rem;
 
+		/* --- Header: Single row search, second row filters --- */
+		.header {
+			display: flex;
+			flex-direction: column;
+			padding: var(--mobile-padding);
+			padding-top: max(var(--mobile-padding), env(safe-area-inset-top));
+			padding-left: max(var(--mobile-padding), env(safe-area-inset-left));
+			padding-right: max(var(--mobile-padding), env(safe-area-inset-right));
+			gap: 0.5rem;
+		}
+
+		.header-left {
+			display: none;
+		}
+
+		.header-center {
+			display: flex;
+			width: 100%;
+			max-width: 100%;
+			gap: 0.5rem;
+		}
+
+		.header-right {
+			display: flex;
+			width: 100%;
+			gap: 0.5rem;
+		}
+
+		/* --- All controls: same height & radius --- */
+		.search-input,
+		.filter-select,
+		.btn-create {
+			height: var(--mobile-control-height);
+			min-height: var(--mobile-control-height);
+			border-radius: var(--mobile-radius);
+		}
+
+		/* --- Search --- */
+		.search-container {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.search-input {
+			width: 100%;
+			padding: 0 2.25rem 0 2.5rem;
+			font-size: 1rem;
+			background: var(--mobile-bg);
+			border: none;
+			box-shadow: var(--mobile-border);
+		}
+
+		.search-input:focus {
+			background: rgba(255, 255, 255, 0.1);
+			box-shadow: inset 0 0 0 2px var(--accent-primary);
+		}
+
+		.search-icon {
+			left: 0.75rem;
+			width: 1.125rem;
+			height: 1.125rem;
+		}
+
+		.search-clear {
+			right: 0.625rem;
+		}
+
+		.hotkey-hint {
+			display: none;
+		}
+
+		/* --- Create Button (square) --- */
+		.btn-create {
+			flex: 0 0 var(--mobile-control-height);
+			width: var(--mobile-control-height);
+			padding: 0;
+			justify-content: center;
+			border: none;
+		}
+
+		.btn-create-text,
+		.btn-create .btn-hotkey {
+			display: none;
+		}
+
+		.btn-create-icon {
+			font-size: 1.5rem;
+			line-height: 1;
+		}
+
+		/* --- Filters --- */
+		.filter-group {
+			display: flex;
+			flex: 1;
+			gap: 0.5rem;
+		}
+
+		.filter-select {
+			flex: 1;
+			min-width: 0;
+			padding: 0 1.75rem 0 0.75rem;
+			font-size: 0.875rem;
+			background: var(--mobile-bg);
+			border: none;
+			box-shadow: var(--mobile-border);
+			color: var(--text-secondary);
+			background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2398989d' stroke-width='3'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+			background-repeat: no-repeat;
+			background-position: right 0.5rem center;
+		}
+
+		.filter-select:focus {
+			background-color: rgba(255, 255, 255, 0.1);
+			box-shadow: inset 0 0 0 2px var(--accent-primary);
+			outline: none;
+		}
+
+		.pane-toggle,
+		.theme-toggle {
+			display: none;
+		}
 
 		/* --- Column Tabs --- */
 		.column-nav {
@@ -3494,6 +4493,49 @@
 	}
 
 	/* Pane Activity Sidebar */
+	.pane-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 0.375rem 0.5rem;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--text-tertiary);
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.6875rem;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.pane-toggle:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text-secondary);
+	}
+
+	.pane-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #ef4444;
+		transition: all var(--transition-fast);
+	}
+
+	.pane-toggle.connected .pane-dot {
+		background: #22d3ee;
+		box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+		animation: pulseDot 2s ease-in-out infinite;
+	}
+
+	@keyframes pulseDot {
+		0%, 100% { opacity: 1; transform: scale(1); }
+		50% { opacity: 0.7; transform: scale(1.2); }
+	}
+
+	.pane-count {
+		font-weight: 500;
+		letter-spacing: 0.05em;
+	}
 
 	.pane-activity {
 		flex: 0 0 300px;
@@ -4921,6 +5963,300 @@
 		}
 	}
 
+	/* Context Menu */
+	.context-menu {
+		position: fixed;
+		z-index: 1000;
+		background: var(--bg-secondary);
+		border: none;
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-lg);
+		padding: 0.5rem;
+		min-width: 180px;
+		backdrop-filter: saturate(180%) blur(20px);
+		-webkit-backdrop-filter: saturate(180%) blur(20px);
+		animation: contextMenuIn 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
+		transform-origin: top left;
+	}
+
+	@keyframes contextMenuIn {
+		0% {
+			opacity: 0;
+			transform: scale(0.95);
+		}
+		100% {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+
+	.context-menu-section {
+		padding: 0.25rem 0;
+	}
+
+	.context-menu-label {
+		display: block;
+		font-size: 0.625rem;
+		font-weight: 600;
+		color: var(--text-tertiary);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		padding: 0.25rem 0.5rem;
+	}
+
+	.context-menu-options {
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+	}
+
+	.context-option {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		width: 100%;
+		padding: 0.375rem 0.5rem;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--text-secondary);
+		font-size: 0.75rem;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+		text-align: left;
+	}
+
+	.context-option:hover {
+		background: var(--bg-elevated);
+		color: var(--text-primary);
+	}
+
+	.context-option.active {
+		background: var(--accent-glow);
+		color: var(--accent-primary);
+	}
+
+	.context-menu-divider {
+		height: 1px;
+		background: var(--border-subtle);
+		margin: 0.375rem 0;
+	}
+
+	.app.light .context-menu {
+		background: rgba(255, 255, 255, 0.92);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+	}
+
+	.app.light .context-option:hover {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	.app.light .context-option.active {
+		background: rgba(0, 122, 255, 0.12);
+	}
+
+	.rope-handle {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.625rem;
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%);
+		border: 1px dashed rgba(99, 102, 241, 0.3);
+		border-radius: var(--radius-md);
+		cursor: grab;
+		transition: all 0.2s ease;
+		color: var(--text-secondary);
+		font-size: 0.75rem;
+	}
+
+	.rope-handle:hover {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(16, 185, 129, 0.25) 100%);
+		border-color: rgba(99, 102, 241, 0.5);
+		color: var(--text-primary);
+	}
+
+	.rope-handle:active {
+		cursor: grabbing;
+		transform: scale(0.98);
+	}
+
+	.rope-icon {
+		width: 16px;
+		height: 16px;
+		color: #6366f1;
+	}
+
+	.rope-tip {
+		margin-left: auto;
+		font-size: 0.875rem;
+		color: #10b981;
+		animation: ropeTipPulse 1.5s ease-in-out infinite;
+	}
+
+	@keyframes ropeTipPulse {
+		0%, 100% { opacity: 0.6; transform: scale(1); }
+		50% { opacity: 1; transform: scale(1.2); }
+	}
+
+	/* Energy beam link animation */
+	.energy-flow {
+		animation: energyFlow 0.8s linear infinite;
+	}
+
+	@keyframes energyFlow {
+		from { stroke-dashoffset: 0; }
+		to { stroke-dashoffset: -16; }
+	}
+
+	.target-ring {
+		transition: r 0.2s ease-out, stroke 0.2s ease-out;
+	}
+
+	.target-ring.locked {
+		animation: ringPulse 1.2s ease-in-out infinite;
+	}
+
+	.target-core.locked {
+		animation: corePulse 1.2s ease-in-out infinite;
+	}
+
+	@keyframes ringPulse {
+		0%, 100% { stroke-opacity: 0.8; }
+		50% { stroke-opacity: 1; }
+	}
+
+	@keyframes corePulse {
+		0%, 100% { transform: scale(1); }
+		50% { transform: scale(1.1); }
+	}
+
+	.target-label-energy {
+		animation: labelGlow 0.2s ease-out;
+	}
+
+	@keyframes labelGlow {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+
+	.app.light .rope-handle {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+		border-color: rgba(99, 102, 241, 0.2);
+	}
+
+	.priority-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.context-option .type-icon {
+		font-size: 0.625rem;
+		width: 14px;
+		text-align: center;
+	}
+
+	/* Keyboard Help Overlay */
+	.keyboard-help-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.6);
+		backdrop-filter: blur(8px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+		animation: fadeIn 200ms ease-out;
+	}
+
+	.keyboard-help {
+		background: var(--bg-secondary);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-xl);
+		padding: 1.5rem;
+		max-width: 480px;
+		width: 90%;
+		box-shadow: var(--shadow-lg);
+		animation: slideUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+	}
+
+	@keyframes slideUp {
+		from { opacity: 0; transform: translateY(20px) scale(0.95); }
+		to { opacity: 1; transform: translateY(0) scale(1); }
+	}
+
+	.keyboard-help-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 1.25rem;
+		padding-bottom: 0.75rem;
+		border-bottom: 1px solid var(--border-subtle);
+	}
+
+	.keyboard-help-header h2 {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--text-primary);
+	}
+
+	.keyboard-help-close {
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		padding: 0.25rem;
+	}
+
+	.keyboard-help-close kbd {
+		font-size: 0.625rem;
+	}
+
+	.keyboard-help-content {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+		gap: 1.25rem;
+	}
+
+	.shortcut-group h3 {
+		font-size: 0.625rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--text-tertiary);
+		margin-bottom: 0.625rem;
+	}
+
+	.shortcut {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		margin-bottom: 0.5rem;
+		font-size: 0.75rem;
+	}
+
+	.shortcut span {
+		color: var(--text-secondary);
+		margin-left: auto;
+	}
+
+	.shortcut kbd, .keyboard-help kbd {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 1.25rem;
+		height: 1.25rem;
+		padding: 0 0.375rem;
+		font-family: ui-monospace, 'SF Mono', monospace;
+		font-size: 0.625rem;
+		font-weight: 500;
+		color: var(--text-primary);
+		background: var(--bg-tertiary);
+		border: 1px solid var(--border-default);
+		border-radius: 4px;
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+	}
+
 	/* Hotkey Hints */
 	.hotkey-hint {
 		display: inline-flex;
@@ -5019,4 +6355,40 @@
 		transform: translateY(-50%);
 	}
 
+	/* Keyboard Help Button */
+	.keyboard-help-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 2rem;
+		height: 2rem;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.keyboard-help-btn:hover {
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	.keyboard-help-btn kbd {
+		font-family: ui-monospace, 'SF Mono', monospace;
+		font-size: 0.6875rem;
+		font-weight: 500;
+		color: var(--text-tertiary);
+		background: none;
+		border: none;
+		box-shadow: none;
+	}
+
+	.keyboard-help-btn:hover kbd {
+		color: var(--text-secondary);
+	}
+
+	/* Position relative for buttons with inline hints */
+	.theme-toggle, .btn-create {
+		position: relative;
+	}
 </style>
