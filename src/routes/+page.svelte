@@ -26,6 +26,9 @@
 	import ColumnNav from '$lib/components/ColumnNav.svelte';
 	import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
 	import DepTypePicker from '$lib/components/DepTypePicker.svelte';
+	import FlyingCardComponent from '$lib/components/FlyingCard.svelte';
+	import ContextMenu from '$lib/components/ContextMenu.svelte';
+	import Header from '$lib/components/Header.svelte';
 
 	let issues = $state<Issue[]>([]);
 	let draggedId = $state<string | null>(null);
@@ -912,49 +915,14 @@
 <svelte:window onkeydown={handleKeydown} onkeyup={handleKeyup} onpopstate={handlePopState} onclick={closeContextMenu} onmousemove={handleMouseMove} onmouseup={handleMouseUp} onblur={handleWindowBlur} />
 
 {#if contextMenu}
-	<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-	<div
-		class="context-menu"
-		role="menu"
-		style="left: {contextMenu.x}px; top: {contextMenu.y}px"
-		onclick={(e) => e.stopPropagation()}
-	>
-		<div class="context-menu-section">
-			<span class="context-menu-label">Priority</span>
-			<div class="context-menu-options">
-				<button class="context-option" class:active={contextMenu.issue.priority === 0} onclick={() => setIssuePriority(contextMenu.issue.id, 0)}>
-					<span class="priority-dot" style="background: #ef4444"></span>Critical
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.priority === 1} onclick={() => setIssuePriority(contextMenu.issue.id, 1)}>
-					<span class="priority-dot" style="background: #f59e0b"></span>High
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.priority === 2} onclick={() => setIssuePriority(contextMenu.issue.id, 2)}>
-					<span class="priority-dot" style="background: #6366f1"></span>Medium
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.priority === 3} onclick={() => setIssuePriority(contextMenu.issue.id, 3)}>
-					<span class="priority-dot" style="background: #10b981"></span>Low
-				</button>
-				<button class="context-option" class:active={contextMenu.issue.priority === 4} onclick={() => setIssuePriority(contextMenu.issue.id, 4)}>
-					<span class="priority-dot" style="background: #6b7280"></span>Backlog
-				</button>
-			</div>
-		</div>
-		<div class="context-menu-divider"></div>
-		<div class="context-menu-section">
-			<span class="context-menu-label">Link</span>
-			<div
-				class="rope-handle"
-				onmousedown={(e) => startRopeDrag(e, contextMenu.issue.id)}
-			>
-				<svg class="rope-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-					<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-				</svg>
-				<span>Drag to link</span>
-				<span class="rope-tip">⟡</span>
-			</div>
-		</div>
-	</div>
+	<ContextMenu
+		x={contextMenu.x}
+		y={contextMenu.y}
+		issue={contextMenu.issue}
+		onSetPriority={(priority) => setIssuePriority(contextMenu!.issue.id, priority)}
+		onStartRopeDrag={(e) => startRopeDrag(e, contextMenu!.issue.id)}
+		onClose={closeContextMenu}
+	/>
 {/if}
 
 <RopeDrag {ropeDrag} />
@@ -964,85 +932,19 @@
 <div class="app" class:light={!isDarkMode} class:panel-open={panelOpen} class:show-hotkeys={showHotkeys}>
 
 <KeyboardHelp bind:show={showKeyboardHelp} />
-	<header class="header">
-		<div class="header-left">
-			<div class="logo">
-				<h1>strandkanban</h1>
-			</div>
-			<nav class="header-nav">
-				<a href="/about">About</a>
-				<a href="/prompts">Prompts</a>
-			</nav>
-		</div>
-		<div class="header-center">
-			<div class="search-container">
-				<svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<circle cx="11" cy="11" r="8"/>
-					<path d="m21 21-4.35-4.35"/>
-				</svg>
-				<input
-					type="text"
-					placeholder="Search issues..."
-					bind:value={searchQuery}
-					class="search-input"
-				/>
-				{#if searchQuery}
-					<button class="search-clear" onclick={() => searchQuery = ''}>×</button>
-				{:else}
-					<kbd class="hotkey-hint">/</kbd>
-				{/if}
-			</div>
-			<button class="btn-create" onclick={openCreatePanel}>
-				<span class="btn-create-icon">+</span>
-				<span class="btn-create-text">New Issue</span>
-				<kbd class="btn-hotkey">N</kbd>
-			</button>
-		</div>
-		<div class="header-right">
-			<div class="filter-group">
-				<select bind:value={filterPriority} class="filter-select">
-					<option value="all">All Priorities</option>
-					<option value={0}>Critical</option>
-					<option value={1}>High</option>
-					<option value={2}>Medium</option>
-					<option value={3}>Low</option>
-					<option value={4}>Backlog</option>
-				</select>
-				<select bind:value={filterType} class="filter-select">
-					<option value="all">All Types</option>
-					<option value="task">Task</option>
-					<option value="bug">Bug</option>
-					<option value="feature">Feature</option>
-					<option value="epic">Epic</option>
-					<option value="chore">Chore</option>
-				</select>
-			</div>
-			<button class="keyboard-help-btn" onclick={() => showKeyboardHelp = true} aria-label="Keyboard shortcuts" title="Keyboard shortcuts">
-				<kbd>?</kbd>
-			</button>
-			<button class="theme-toggle" onclick={toggleTheme} aria-label="Toggle theme">
-				{#if isDarkMode}
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<circle cx="12" cy="12" r="5"/>
-						<path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-					</svg>
-				{:else}
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-					</svg>
-				{/if}
-			</button>
-			<button
-				class="pane-toggle"
-				class:connected={wsConnected}
-				onclick={() => showPaneActivity = !showPaneActivity}
-				title={wsConnected ? 'Panes connected' : 'Panes disconnected'}
-			>
-				<span class="pane-dot"></span>
-				<span class="pane-count">{wsPanes.size}</span>
-			</button>
-		</div>
-	</header>
+
+<Header
+	bind:searchQuery
+	bind:filterPriority
+	bind:filterType
+	{isDarkMode}
+	wsConnected={wsConnected}
+	paneCount={wsPanes.size}
+	ontoggleTheme={toggleTheme}
+	onopenKeyboardHelp={() => showKeyboardHelp = true}
+	onopenCreatePanel={openCreatePanel}
+	ontogglePaneActivity={() => showPaneActivity = !showPaneActivity}
+/>
 
 	<ColumnNav
 		{columns}
@@ -5679,159 +5581,6 @@
 		.chat-send-btn::after {
 			font-size: 1rem;
 		}
-	}
-
-	/* Context Menu */
-	.context-menu {
-		position: fixed;
-		z-index: 1000;
-		background: var(--bg-secondary);
-		border: none;
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-lg);
-		padding: 0.5rem;
-		min-width: 180px;
-		backdrop-filter: saturate(180%) blur(20px);
-		-webkit-backdrop-filter: saturate(180%) blur(20px);
-		animation: contextMenuIn 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
-		transform-origin: top left;
-	}
-
-	@keyframes contextMenuIn {
-		0% {
-			opacity: 0;
-			transform: scale(0.95);
-		}
-		100% {
-			opacity: 1;
-			transform: scale(1);
-		}
-	}
-
-	.context-menu-section {
-		padding: 0.25rem 0;
-	}
-
-	.context-menu-label {
-		display: block;
-		font-size: 0.625rem;
-		font-weight: 600;
-		color: var(--text-tertiary);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		padding: 0.25rem 0.5rem;
-	}
-
-	.context-menu-options {
-		display: flex;
-		flex-direction: column;
-		gap: 0.125rem;
-	}
-
-	.context-option {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		width: 100%;
-		padding: 0.375rem 0.5rem;
-		background: transparent;
-		border: none;
-		border-radius: var(--radius-sm);
-		color: var(--text-secondary);
-		font-size: 0.75rem;
-		cursor: pointer;
-		transition: all var(--transition-fast);
-		text-align: left;
-	}
-
-	.context-option:hover {
-		background: var(--bg-elevated);
-		color: var(--text-primary);
-	}
-
-	.context-option.active {
-		background: var(--accent-glow);
-		color: var(--accent-primary);
-	}
-
-	.context-menu-divider {
-		height: 1px;
-		background: var(--border-subtle);
-		margin: 0.375rem 0;
-	}
-
-	.app.light .context-menu {
-		background: rgba(255, 255, 255, 0.92);
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
-	}
-
-	.app.light .context-option:hover {
-		background: rgba(0, 0, 0, 0.04);
-	}
-
-	.app.light .context-option.active {
-		background: rgba(0, 122, 255, 0.12);
-	}
-
-	.rope-handle {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.5rem 0.625rem;
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%);
-		border: 1px dashed rgba(99, 102, 241, 0.3);
-		border-radius: var(--radius-md);
-		cursor: grab;
-		transition: all 0.2s ease;
-		color: var(--text-secondary);
-		font-size: 0.75rem;
-	}
-
-	.rope-handle:hover {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(16, 185, 129, 0.25) 100%);
-		border-color: rgba(99, 102, 241, 0.5);
-		color: var(--text-primary);
-	}
-
-	.rope-handle:active {
-		cursor: grabbing;
-		transform: scale(0.98);
-	}
-
-	.rope-icon {
-		width: 16px;
-		height: 16px;
-		color: #6366f1;
-	}
-
-	.rope-tip {
-		margin-left: auto;
-		font-size: 0.875rem;
-		color: #10b981;
-		animation: ropeTipPulse 1.5s ease-in-out infinite;
-	}
-
-	@keyframes ropeTipPulse {
-		0%, 100% { opacity: 0.6; transform: scale(1); }
-		50% { opacity: 1; transform: scale(1.2); }
-	}
-
-	.app.light .rope-handle {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
-		border-color: rgba(99, 102, 241, 0.2);
-	}
-
-	.priority-dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		flex-shrink: 0;
-	}
-
-	.context-option .type-icon {
-		font-size: 0.625rem;
-		width: 14px;
-		text-align: center;
 	}
 
 	/* Hotkey Hints */

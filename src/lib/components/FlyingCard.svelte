@@ -103,7 +103,7 @@
 			transform: translate(var(--to-x), var(--to-y));
 			box-shadow:
 				0 12px 32px -6px rgba(0, 0, 0, 0.35),
-				0 0 0 3px rgba(59, 130, 246, 0.3);
+				0 6px 12px -3px rgba(0, 0, 0, 0.18);
 		}
 	}
 

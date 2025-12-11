@@ -193,9 +193,15 @@
 		50% { opacity: 1; transform: scale(1.2); }
 	}
 
+	:global(.app.light) .rope-handle {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+		border-color: rgba(99, 102, 241, 0.2);
+	}
+
 	.priority-dot {
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
+		flex-shrink: 0;
 	}
 </style>
