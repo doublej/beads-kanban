@@ -446,9 +446,6 @@
 		display: none;
 	}
 
-	.panel.open {
-		/* keep for compatibility */
-	}
 
 	.panel-header {
 		display: flex;
