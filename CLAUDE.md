@@ -9,22 +9,23 @@ Beads-Kanban is a SvelteKit web app that provides a Kanban board UI for the [Bea
 ## Commands
 
 ```bash
-npm run dev      # Start dev server (HMR disabled in vite.config.ts)
-npm run build    # Build for production
-npm run check    # Type-check with svelte-check
+bun run dev      # Start dev server (HMR disabled in vite.config.ts)
+bun run build    # Build for production
+bun run check    # Type-check with svelte-check
 ```
 
 ## Architecture
 
 ### Data Flow
-- **Backend**: API routes in `src/routes/api/` shell out to `bd` CLI commands
-- **Frontend**: Single-page Kanban in `src/routes/+page.svelte` (large file, ~2000+ lines)
-- Issues flow: `bd list --json` → API → Svelte state → Kanban columns
+- **Backend**: API routes in `src/routes/api/` use `$lib/db.ts` for reads, shell out to `bd` CLI for writes
+- **Frontend**: Single-page Kanban in `src/routes/+page.svelte` (large file, ~3200+ lines)
+- Issues flow: SQLite DB → `$lib/db.ts` → API → Svelte state → Kanban columns
 
 ### Key Files
 - `src/routes/+page.svelte` - Main Kanban board (all UI logic, drag/drop, keyboard nav)
-- `src/routes/api/issues/+server.ts` - GET/POST issues via `bd` CLI
-- `src/routes/api/issues/[id]/+server.ts` - PATCH/DELETE single issue
+- `src/routes/api/issues/+server.ts` - GET (via db)/POST (via bd CLI) issues
+- `src/routes/api/issues/[id]/+server.ts` - PATCH/DELETE single issue via `bd` CLI
+- `src/lib/db.ts` - SQLite database access for reading issues (bypasses CLI for perf)
 - `src/lib/wsStore.svelte.ts` - WebSocket store for pane bridge (ws://localhost:8765)
 - `src/lib/types.ts` - TypeScript interfaces (Issue, Dependency, Column, etc.)
 - `src/lib/api.ts` - Client-side API calls
@@ -36,13 +37,12 @@ npm run check    # Type-check with svelte-check
 Each status maps to a Kanban column (Backlog, In Progress, Blocked, Complete).
 
 ### Beads CLI Integration
-All issue operations shell out to `bd` commands:
-- `bd list --json` - Fetch all issues
-- `bd create "title"` - Create issue
+Write operations shell out to `bd` commands:
+- `bd create "title" --json` - Create issue
 - `bd update ID --status STATUS` - Update issue
-- `bd close ID` - Close issue
+- `bd close ID --reason "..."` - Close/delete issue
 
-The `.beads/` directory contains the issue database (JSONL format).
+The `.beads/` directory contains the issue database (SQLite + JSONL).
 
 ## Tech Stack
 - Svelte 5 (uses `$state`, `$derived`, `$effect` runes)

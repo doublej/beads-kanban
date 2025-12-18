@@ -37,6 +37,38 @@ interface SdkSessionInfo {
   preview: string[];  // Multiple lines of conversation
 }
 
+// Calculate cumulative token usage from a session JSONL file
+function calculateSessionUsage(cwd: string, sessionId: string): { inputTokens: number; outputTokens: number; cacheRead: number; cacheCreation: number } | null {
+  const projectPath = cwd.replace(/[/_]/g, "-");
+  const sessionFile = join(homedir(), ".claude/projects", projectPath, `${sessionId}.jsonl`);
+
+  if (!existsSync(sessionFile)) return null;
+
+  try {
+    const content = require("fs").readFileSync(sessionFile, "utf8");
+    const lines = content.split("\n").filter((l: string) => l.trim());
+
+    let inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheCreation = 0;
+
+    for (const line of lines) {
+      try {
+        const data = JSON.parse(line);
+        if (data.type === "assistant" && data.message?.usage) {
+          const u = data.message.usage;
+          inputTokens += u.input_tokens || 0;
+          outputTokens += u.output_tokens || 0;
+          cacheRead += u.cache_read_input_tokens || 0;
+          cacheCreation += u.cache_creation_input_tokens || 0;
+        }
+      } catch { /* skip */ }
+    }
+
+    return { inputTokens, outputTokens, cacheRead, cacheCreation };
+  } catch {
+    return null;
+  }
+}
+
 // List SDK sessions from ~/.claude/projects/<project-path>/
 function listSdkSessions(cwd: string): SdkSessionInfo[] {
   // Convert cwd to Claude project directory format
@@ -156,6 +188,7 @@ type AgentSession = {
   isRunning: boolean;
   allowedTools?: string[];
   disallowedTools?: string[];
+  usage: { inputTokens: number; outputTokens: number; cacheRead: number; cacheCreation: number };
 };
 
 const SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
@@ -372,6 +405,17 @@ The raw \`mcp__beads__create\` and \`mcp__beads__update\` tools are blocked. All
           sdkSessionId: message.session_id,
           source: opts.resumeSdkSession ? "resume" : "new"
         });
+
+        // Send initial usage (already loaded from transcript for resumed sessions)
+        if (session.usage.inputTokens > 0 || session.usage.outputTokens > 0) {
+          sendToClient(session, {
+            type: "usage",
+            inputTokens: session.usage.inputTokens,
+            outputTokens: session.usage.outputTokens,
+            cacheRead: session.usage.cacheRead,
+            cacheCreation: session.usage.cacheCreation,
+          });
+        }
       }
 
       // Detect compact boundary (context was compacted)
@@ -380,6 +424,25 @@ The raw \`mcp__beads__create\` and \`mcp__beads__update\` tools are blocked. All
           type: "compacted",
           metadata: (message as any).compact_metadata
         });
+      }
+
+      // Extract usage/token info from assistant messages - accumulate and send totals
+      if (message.type === "assistant") {
+        const usage = (message as any).message?.usage;
+        if (usage) {
+          session.usage.inputTokens += usage.input_tokens || 0;
+          session.usage.outputTokens += usage.output_tokens || 0;
+          session.usage.cacheRead += usage.cache_read_input_tokens || 0;
+          session.usage.cacheCreation += usage.cache_creation_input_tokens || 0;
+
+          sendToClient(session, {
+            type: "usage",
+            inputTokens: session.usage.inputTokens,
+            outputTokens: session.usage.outputTokens,
+            cacheRead: session.usage.cacheRead,
+            cacheCreation: session.usage.cacheCreation,
+          });
+        }
       }
 
       sendToClient(session, { type: "stream", data: message });
@@ -482,6 +545,11 @@ const server = Bun.serve<WSData>({
         const sessionId = crypto.randomUUID();
         ws.data.sessionId = sessionId;
 
+        // If resuming, get initial usage from transcript
+        const initialUsage = msg.resumeSessionId
+          ? calculateSessionUsage(msg.cwd, msg.resumeSessionId) || { inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheCreation: 0 }
+          : { inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheCreation: 0 };
+
         const session: AgentSession = {
           id: sessionId,
           cwd: msg.cwd,
@@ -496,6 +564,7 @@ const server = Bun.serve<WSData>({
           isRunning: false,
           allowedTools: msg.allowedTools,
           disallowedTools: msg.disallowedTools,
+          usage: initialUsage,
         };
         sessions.set(sessionId, session);
 

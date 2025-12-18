@@ -8,7 +8,7 @@ const execAsync = promisify(exec);
 const VALID_STATUSES = ['open', 'in_progress', 'blocked', 'closed'];
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
-	const { status, title, description, priority, issue_type, design, acceptance_criteria, notes, addLabels, removeLabels } = await request.json();
+	const { status, title, description, priority, issue_type, design, acceptance_criteria, notes, assignee, addLabels, removeLabels } = await request.json();
 
 	if (status && !VALID_STATUSES.includes(status)) {
 		return json({ error: 'Invalid status' }, { status: 400 });
@@ -27,6 +27,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	if (design !== undefined) { updateCmd += ` --design "${(design || '').replace(/"/g, '\\"')}"`; hasUpdates = true; }
 	if (acceptance_criteria !== undefined) { updateCmd += ` --acceptance "${(acceptance_criteria || '').replace(/"/g, '\\"')}"`; hasUpdates = true; }
 	if (notes !== undefined) { updateCmd += ` --notes "${(notes || '').replace(/"/g, '\\"')}"`; hasUpdates = true; }
+	if (assignee !== undefined) { updateCmd += ` --assignee "${(assignee || '').replace(/"/g, '\\"')}"`; hasUpdates = true; }
 	if (hasUpdates) commands.push(updateCmd);
 
 	// Add label commands

@@ -14,13 +14,13 @@
 	renderer.code = ({ text, lang }) => {
 		const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext';
 		const highlighted = hljs.highlight(text, { language }).value;
-		const escapedCode = text.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+		const id = `code-${Math.random().toString(36).slice(2, 9)}`;
 		return `<div class="code-block">
 			<div class="code-header">
 				<span class="code-lang">${language}</span>
-				<button class="copy-btn" data-code="${escapedCode}" onclick="this.getRootNode().host?.dispatchEvent(new CustomEvent('copycode', {detail: this.dataset.code})) || navigator.clipboard.writeText(this.dataset.code.replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\")).then(() => { this.textContent = '✓'; setTimeout(() => this.textContent = 'copy', 1500) })">copy</button>
+				<button class="copy-btn" data-copy-id="${id}">copy</button>
 			</div>
-			<pre><code class="hljs language-${language}">${highlighted}</code></pre>
+			<pre><code id="${id}" class="hljs language-${language}">${highlighted}</code></pre>
 		</div>`;
 	};
 
@@ -32,9 +32,28 @@
 			: content;
 		return marked.parse(text) as string;
 	});
+
+	function handleClick(e: MouseEvent) {
+		const btn = (e.target as HTMLElement).closest('.copy-btn') as HTMLButtonElement | null;
+		if (!btn) return;
+
+		const codeId = btn.dataset.copyId;
+		const codeEl = codeId && document.getElementById(codeId);
+		if (!codeEl) return;
+
+		navigator.clipboard.writeText(codeEl.textContent || '').then(() => {
+			btn.textContent = '✓';
+			btn.classList.add('copied');
+			setTimeout(() => {
+				btn.textContent = 'copy';
+				btn.classList.remove('copied');
+			}, 1500);
+		});
+	}
 </script>
 
-<div class="markdown-content">
+<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<div class="markdown-content" onclick={handleClick}>
 	{@html html}
 </div>
 
@@ -46,6 +65,8 @@
 		word-break: break-word;
 		font: inherit;
 		line-height: 1.5;
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	.markdown-content :global(p) {
@@ -79,6 +100,7 @@
 		overflow: hidden;
 		background: rgba(0, 0, 0, 0.3);
 		border: 1px solid rgba(255, 255, 255, 0.1);
+		max-width: 100%;
 	}
 
 	.markdown-content :global(.code-header) {
@@ -115,6 +137,11 @@
 		border-color: rgba(255, 255, 255, 0.3);
 	}
 
+	.markdown-content :global(.copy-btn.copied) {
+		color: #4ade80;
+		border-color: #4ade80;
+	}
+
 	.markdown-content :global(.code-block pre) {
 		margin: 0;
 		padding: 0.6em;
@@ -128,7 +155,7 @@
 		line-height: 1.4;
 	}
 
-	/* highlight.js theme overrides for dark mode */
+	/* highlight.js theme - Material Palenight inspired */
 	.markdown-content :global(.hljs) {
 		color: #e6e6e6;
 		background: transparent;
