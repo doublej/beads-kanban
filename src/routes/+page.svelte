@@ -866,6 +866,23 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		addPane(agentName, currentProjectPath, briefing, agentSystemPrompt);
 	}
 
+	function openAgentPane(paneName: string) {
+		// Expand the pane if it exists
+		if (wsPanes.has(paneName)) {
+			expandedPanes.add(paneName);
+			expandedPanes = new Set(expandedPanes);
+		}
+	}
+
+	function openTicketFromPane(ticketId: string) {
+		// Find the issue and open the detail panel
+		const issue = issues.find(i => i.id === ticketId);
+		if (issue) {
+			editingIssue = issue;
+			isCreating = false;
+		}
+	}
+
 	function openCreatePanel() {
 		editingIssue = null;
 		isCreating = true;
@@ -1533,7 +1550,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	onclose={() => showProjectSwitcher = false}
 />
 
-<div class="app scheme-{colorScheme}" class:light={!isDarkMode} class:panel-open={panelOpen} class:show-hotkeys={showHotkeys} class:has-chat-bar={wsConnected} style="--project-color: {projectColor}">
+<div class="app scheme-{colorScheme}" class:light={!isDarkMode} class:panel-open={panelOpen} class:show-hotkeys={showHotkeys} class:has-chat-bar={wsConnected && showActivityBar} style="--project-color: {projectColor}">
 
 <MutationLog
 	show={showMutationLog}
@@ -1877,6 +1894,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 			expandedPanes = new Set(expandedPanes);
 		}}
 		onMarkAsRead={markPaneAsRead}
+		onOpenTicket={openTicketFromPane}
 	/>
 </div>
 {/if}
@@ -2023,6 +2041,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		oncreate={createIssue}
 		oncreateandstartagent={createIssueAndStartAgent}
 		onstartagent={startAgentForIssue}
+		onviewchat={openAgentPane}
 		ondelete={(id) => deleteIssue(id)}
 		onsave={(id, updates) => updateIssue(id, updates)}
 		onaddcomment={addComment}
@@ -2097,7 +2116,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	}
 
 	.app.has-chat-bar {
-		padding-bottom: 48px;
+		height: calc(100vh - 48px);
 	}
 
 	.app::before {
