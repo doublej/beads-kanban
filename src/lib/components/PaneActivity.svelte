@@ -1008,12 +1008,12 @@
 	}
 
 	:global(.app.light) .menu-item:hover {
-		background: rgba(100, 80, 60, 0.08);
+		background: rgba(60, 70, 80, 0.08);
 	}
 
 	:global(.app.light) .menu-trigger:hover,
 	:global(.app.light) .menu-trigger.active {
-		background: rgba(100, 80, 60, 0.10);
+		background: rgba(60, 70, 80, 0.10);
 	}
 
 	/* ===== Messages ===== */

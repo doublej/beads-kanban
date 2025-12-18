@@ -70,11 +70,11 @@
    Paper-like warmth with brown/cream tones, easier on the eyes
    ═══════════════════════════════════════════════════════════════════════════ */
 :global(.app.light) {
-	/* ─── Surface Levels (warm parchment tones) ─── */
-	--surface-app: #e8e2d9;         /* App background - warm tan */
-	--surface-panel: #f0ebe3;       /* Panel surface - light parchment */
-	--surface-card: #f7f3ec;        /* Card surface - cream paper */
-	--surface-elevated: #faf6f0;    /* Modals, popovers - lightest cream */
+	/* ─── Surface Levels (cool stone/slate tones) ─── */
+	--surface-app: #e4e6e9;         /* App background - cool gray */
+	--surface-panel: #eceef1;       /* Panel surface - lighter slate */
+	--surface-card: #f4f5f7;        /* Card surface - soft white */
+	--surface-elevated: #f9fafb;    /* Modals, popovers - near white */
 
 	/* Legacy aliases */
 	--bg-primary: var(--surface-app);
@@ -82,48 +82,48 @@
 	--bg-tertiary: var(--surface-panel);
 	--bg-elevated: var(--surface-elevated);
 
-	/* ─── Border System (warm brown tints) ─── */
-	--border-subtle: rgba(100, 80, 60, 0.15);
-	--border-default: rgba(100, 80, 60, 0.22);
-	--border-strong: rgba(100, 80, 60, 0.32);
+	/* ─── Border System (cool slate tints) ─── */
+	--border-subtle: rgba(60, 70, 80, 0.12);
+	--border-default: rgba(60, 70, 80, 0.18);
+	--border-strong: rgba(60, 70, 80, 0.28);
 
-	/* ─── Text Colors (warm sepia-ish) ─── */
-	--text-primary: #3d3630;
-	--text-secondary: #5c534a;
-	--text-tertiary: #7a6f63;
-	--text-muted: #9c9084;
+	/* ─── Text Colors (cool charcoal) ─── */
+	--text-primary: #1f2937;
+	--text-secondary: #4b5563;
+	--text-tertiary: #6b7280;
+	--text-muted: #9ca3af;
 
-	/* ─── Accent (earthy blue) ─── */
-	--accent-primary: #4a7ab0;
-	--accent-glow: rgba(74, 122, 176, 0.15);
+	/* ─── Accent (slate blue) ─── */
+	--accent-primary: #4f6b8f;
+	--accent-glow: rgba(79, 107, 143, 0.12);
 
-	/* ─── Shadows (warm brown) ─── */
-	--shadow-sm: 0 1px 2px rgba(80, 60, 40, 0.12);
-	--shadow-md: 0 4px 12px rgba(80, 60, 40, 0.15);
-	--shadow-lg: 0 8px 24px rgba(80, 60, 40, 0.18);
-	--shadow-elevated: 0 12px 40px rgba(80, 60, 40, 0.22);
+	/* ─── Shadows (cool slate) ─── */
+	--shadow-sm: 0 1px 2px rgba(30, 40, 50, 0.08);
+	--shadow-md: 0 4px 12px rgba(30, 40, 50, 0.10);
+	--shadow-lg: 0 8px 24px rgba(30, 40, 50, 0.14);
+	--shadow-elevated: 0 12px 40px rgba(30, 40, 50, 0.18);
 
-	/* ─── Input Backgrounds (warm tint) ─── */
-	--input-bg: rgba(100, 80, 60, 0.08);
-	--input-bg-focus: rgba(100, 80, 60, 0.12);
+	/* ─── Input Backgrounds (cool tint) ─── */
+	--input-bg: rgba(60, 70, 80, 0.06);
+	--input-bg-focus: rgba(60, 70, 80, 0.10);
 }
 
 /* Light theme component overrides */
 :global(.app.light) .btn-hotkey,
 :global(.app.light) .kbd {
-	background: rgba(100, 80, 60, 0.15);
+	background: rgba(60, 70, 80, 0.12);
 }
 
 :global(.app.light) .btn-hotkey-subtle {
-	background: rgba(100, 80, 60, 0.10);
+	background: rgba(60, 70, 80, 0.08);
 }
 
 :global(.app.light) .btn-hotkey-light {
-	background: rgba(100, 80, 60, 0.20);
+	background: rgba(60, 70, 80, 0.16);
 }
 
 :global(.app.light) .hotkey-hint {
-	background: rgba(100, 80, 60, 0.10);
+	background: rgba(60, 70, 80, 0.08);
 	border-color: var(--border-subtle);
 }
 
