@@ -852,6 +852,20 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		}
 	}
 
+	function startAgentForIssue(issue: Issue) {
+		const agentName = `${issue.id}-agent`;
+		const briefing = `You are agent "${agentName}" assigned to ticket ${issue.id}.
+
+## Your Task
+Work on this ticket:
+- **ID**: ${issue.id}
+- **Title**: ${issue.title}
+${issue.description ? `- **Description**: ${issue.description}` : ''}
+
+Start by claiming the ticket (set status to in_progress), then implement the required changes.`;
+		addPane(agentName, currentProjectPath, briefing, agentSystemPrompt);
+	}
+
 	function openCreatePanel() {
 		editingIssue = null;
 		isCreating = true;
@@ -2008,6 +2022,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		onclose={closePanel}
 		oncreate={createIssue}
 		oncreateandstartagent={createIssueAndStartAgent}
+		onstartagent={startAgentForIssue}
 		ondelete={(id) => deleteIssue(id)}
 		onsave={(id, updates) => updateIssue(id, updates)}
 		onaddcomment={addComment}
@@ -2371,29 +2386,34 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	}
 
 	@media (max-width: 768px) {
-	:root {
-			--mobile-control-height: 2.75rem;
-			--mobile-radius: 0.75rem;
+		:root {
+			--mobile-control-height: 2.25rem;
+			--mobile-radius: 0.625rem;
 			--mobile-bg: rgba(255, 255, 255, 0.06);
 			--mobile-border: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-			--mobile-padding: 0.75rem;
+			--mobile-padding: 0.5rem;
 		}
 
 		/* --- Board & Cards --- */
-	.main-content {
+		.main-content {
 			flex-direction: column;
 		}
 
-	.board {
+		.board {
 			flex-direction: column;
 			padding: var(--mobile-padding);
 			padding-left: max(var(--mobile-padding), env(safe-area-inset-left));
 			padding-right: max(var(--mobile-padding), env(safe-area-inset-right));
-			gap: 0.5rem;
+			gap: 0.25rem;
 			overflow-y: auto;
 		}
 
-	@keyframes panelSlideUp {
+		/* Compact app layout */
+		.app {
+			gap: 0;
+		}
+
+		@keyframes panelSlideUp {
 			from {
 				opacity: 0;
 				transform: translateY(100%);

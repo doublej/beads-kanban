@@ -563,4 +563,79 @@
 			padding: 0.5rem;
 		}
 	}
+
+	/* ═══════════════════════════════════════════════════════════════
+	   MOBILE - Compact column styles (768px and below)
+	   ═══════════════════════════════════════════════════════════════ */
+	@media (max-width: 768px) {
+		.column-header {
+			padding: 0.25rem 0.5rem;
+		}
+
+		.column-title {
+			gap: 0.375rem;
+		}
+
+		.column-icon :global(svg) {
+			width: 10px;
+			height: 10px;
+		}
+
+		.column-header h2 {
+			font-size: 0.6875rem;
+		}
+
+		.column-count {
+			padding: 0.125rem 0.375rem;
+			font-size: 0.625rem;
+		}
+
+		.column-header-actions {
+			gap: 0.375rem;
+		}
+
+		.hotkey-hint-column {
+			display: none;
+		}
+
+		.sort-btn {
+			width: 1.5rem;
+			height: 1.5rem;
+			min-width: 1.5rem;
+			min-height: 1.5rem;
+		}
+
+		.column-collapse-btn {
+			display: none;
+		}
+
+		.cards {
+			padding: 0.375rem 0.5rem 1rem;
+			gap: 0.375rem;
+			margin: 0;
+		}
+
+		.empty-state {
+			padding: 1rem;
+		}
+
+		.empty-icon {
+			font-size: 1.25rem;
+		}
+
+		.empty-state p {
+			font-size: 0.6875rem;
+		}
+
+		.add-card-btn {
+			margin: 0.125rem 2px;
+			padding: 0.625rem 0.75rem;
+			font-size: 0.75rem;
+		}
+
+		.add-hotkey {
+			font-size: 0.5625rem;
+			padding: 0.0625rem 0.25rem;
+		}
+	}
 </style>
