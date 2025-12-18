@@ -432,7 +432,7 @@
 
 	.h-bar-value {
 		font-size: 0.6875rem;
-		font-family: 'JetBrains Mono', monospace;
+		font-family: 'IBM Plex Mono', monospace;
 		color: var(--text-tertiary);
 		width: 24px;
 		text-align: right;

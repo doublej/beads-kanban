@@ -199,7 +199,7 @@
 		background: rgba(255, 255, 255, 0.1);
 		padding: 0.125rem 0.375rem;
 		border-radius: 4px;
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
 		font-size: 0.875em;
 	}
 

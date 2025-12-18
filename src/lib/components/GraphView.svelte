@@ -216,7 +216,7 @@
 	}
 
 	.ascii-graph {
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
 		font-size: 0.8125rem;
 		line-height: 1.4;
 		color: var(--text-secondary);
@@ -248,11 +248,11 @@
 	}
 
 	.legend-icon {
-		font-family: 'JetBrains Mono', monospace;
+		font-family: 'IBM Plex Mono', monospace;
 	}
 
 	.legend-arrow {
-		font-family: 'JetBrains Mono', monospace;
+		font-family: 'IBM Plex Mono', monospace;
 		letter-spacing: -0.2em;
 	}
 
@@ -301,7 +301,7 @@
 	}
 
 	.dep-id {
-		font-family: 'JetBrains Mono', monospace;
+		font-family: 'IBM Plex Mono', monospace;
 		color: var(--text-tertiary);
 	}
 

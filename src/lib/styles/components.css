@@ -1,5 +1,5 @@
 /* ===== FONTS ===== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&display=swap');
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DESIGN SYSTEM TOKENS
@@ -61,7 +61,7 @@
 
 	/* ─── Typography ─── */
 	--font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-	--font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+	--font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
 	--font-display: 'Plus Jakarta Sans', var(--font-sans);
 }
 

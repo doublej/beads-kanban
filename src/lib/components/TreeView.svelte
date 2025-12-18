@@ -185,7 +185,7 @@
 	.tree-content {
 		flex: 1;
 		overflow-y: auto;
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
 		font-size: 0.8125rem;
 	}
 

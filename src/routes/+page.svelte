@@ -2063,7 +2063,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 {/snippet}
 
 <style>
-	@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@700;800&display=swap');
+	@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap');
 
 	:root {
 		--bg-primary: #3f3f46;
@@ -2830,7 +2830,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	.option-badge {
 		margin-left: auto;
 		padding: 2px 5px;
-		font: 500 9px/1 'JetBrains Mono', ui-monospace, monospace;
+		font: 500 9px/1 'IBM Plex Mono', ui-monospace, monospace;
 		color: var(--text-tertiary);
 		background: rgba(255, 255, 255, 0.06);
 		border-radius: 3px;
@@ -2888,7 +2888,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	.agent-name-input {
 		width: 120px;
 		padding: 6px 10px;
-		font: 11px/1 'JetBrains Mono', ui-monospace, monospace;
+		font: 11px/1 'IBM Plex Mono', ui-monospace, monospace;
 		background: rgba(255, 255, 255, 0.06);
 		border: 1px solid rgba(99, 102, 241, 0.3);
 		border-radius: 5px;
@@ -3006,7 +3006,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	.picker-search {
 		flex: 1;
 		padding: 0;
-		font: 12px/1 'JetBrains Mono', ui-monospace, monospace;
+		font: 12px/1 'IBM Plex Mono', ui-monospace, monospace;
 		background: transparent;
 		border: none;
 		color: var(--text-primary);
@@ -3021,7 +3021,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	}
 
 	.picker-count {
-		font: 600 10px/1 'JetBrains Mono', monospace;
+		font: 600 10px/1 'IBM Plex Mono', monospace;
 		color: rgba(99, 102, 241, 0.8);
 		background: rgba(99, 102, 241, 0.15);
 		padding: 3px 8px;
@@ -3102,7 +3102,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	}
 
 	.picker-item-name {
-		font: 600 12px/1 'JetBrains Mono', ui-monospace, monospace;
+		font: 600 12px/1 'IBM Plex Mono', ui-monospace, monospace;
 		color: var(--text-primary);
 	}
 
@@ -3116,7 +3116,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	}
 
 	.picker-item-preview {
-		font: 400 10px/1.3 'JetBrains Mono', monospace;
+		font: 400 10px/1.3 'IBM Plex Mono', monospace;
 		color: var(--text-tertiary);
 		white-space: nowrap;
 		overflow: hidden;
@@ -3132,7 +3132,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	}
 
 	.picker-item-time {
-		font: 500 10px/1 'JetBrains Mono', monospace;
+		font: 500 10px/1 'IBM Plex Mono', monospace;
 		color: var(--text-tertiary);
 		background: rgba(255, 255, 255, 0.05);
 		padding: 3px 6px;
@@ -3231,7 +3231,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		border: none;
 		border-radius: 3px;
 		color: var(--text-tertiary);
-		font: 11px/1 'JetBrains Mono', ui-monospace, monospace;
+		font: 11px/1 'IBM Plex Mono', ui-monospace, monospace;
 		cursor: pointer;
 		transition: all 80ms ease;
 		white-space: nowrap;
