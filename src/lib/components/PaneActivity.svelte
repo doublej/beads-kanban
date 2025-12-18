@@ -774,82 +774,43 @@
 		text-overflow: ellipsis;
 	}
 
-	/* Ticket link - distinctive pill with gradient accent */
+	/* Ticket link - minimal utilitarian chip */
 	.ticket-link {
-		position: relative;
 		display: flex;
 		align-items: center;
-		gap: 5px;
-		padding: 3px 10px 3px 7px;
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
-		border: 1px solid rgba(139, 92, 246, 0.25);
-		border-radius: 6px;
+		gap: 4px;
+		height: 20px;
+		padding: 0 8px;
+		background: rgba(99, 102, 241, 0.1);
+		border: none;
+		border-radius: 4px;
 		font: 600 9px/1 'JetBrains Mono', ui-monospace, monospace;
 		letter-spacing: 0.02em;
-		color: #a78bfa;
+		color: #6366f1;
 		cursor: pointer;
-		transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+		transition: background 0.15s ease;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		max-width: 160px;
-		box-shadow: 0 1px 3px rgba(139, 92, 246, 0.1);
-	}
-
-	.ticket-link::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(99, 102, 241, 0.1) 100%);
-		border-radius: inherit;
-		opacity: 0;
-		transition: opacity 0.2s ease;
 	}
 
 	.ticket-link:hover {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(139, 92, 246, 0.14) 100%);
-		border-color: rgba(139, 92, 246, 0.4);
-		color: #c4b5fd;
-		transform: translateY(-1px);
-		box-shadow: 0 3px 8px rgba(139, 92, 246, 0.2);
-	}
-
-	.ticket-link:hover::before {
-		opacity: 1;
-	}
-
-	.ticket-link:active {
-		transform: translateY(0);
-		box-shadow: 0 1px 2px rgba(139, 92, 246, 0.15);
+		background: rgba(99, 102, 241, 0.18);
 	}
 
 	.ticket-link svg {
-		position: relative;
 		flex-shrink: 0;
-		opacity: 0.8;
-		transition: transform 0.2s ease;
-	}
-
-	.ticket-link:hover svg {
-		transform: scale(1.1);
-	}
-
-	.ticket-link span {
-		position: relative;
+		opacity: 0.7;
 	}
 
 	:global(.app.light) .ticket-link {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.06) 100%);
-		border-color: rgba(99, 102, 241, 0.2);
-		color: #7c3aed;
-		box-shadow: 0 1px 3px rgba(99, 102, 241, 0.08);
+		background: rgba(99, 102, 241, 0.08);
+		color: #4f46e5;
 	}
 
 	:global(.app.light) .ticket-link:hover {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
-		border-color: rgba(99, 102, 241, 0.3);
-		color: #6d28d9;
-		box-shadow: 0 3px 8px rgba(99, 102, 241, 0.15);
+		background: rgba(99, 102, 241, 0.15);
 	}
 
 	.session-id {
