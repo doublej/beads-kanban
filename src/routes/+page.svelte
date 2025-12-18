@@ -1885,6 +1885,102 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 </div>
 {/if}
 
+<!-- Session Picker Modal -->
+{#if showSessionPicker}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="session-picker-overlay" onclick={() => showSessionPicker = false}>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="session-picker-modal" onclick={(e) => e.stopPropagation()}>
+			<header class="picker-header">
+				<div class="picker-title-row">
+					<svg viewBox="0 0 16 16" width="16" height="16" class="picker-icon">
+						<path d="M3 8a5 5 0 019-2M13 8a5 5 0 01-9 2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+						<path d="M12 3v3h-3M4 13v-3h3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+					</svg>
+					<h3>Load Session</h3>
+				</div>
+				<div class="picker-search-row">
+					<svg viewBox="0 0 16 16" width="12" height="12" class="search-icon">
+						<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+						<path d="M10.5 10.5l3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+					</svg>
+					<input
+						type="text"
+						class="picker-search"
+						placeholder="Search sessions..."
+						bind:value={sessionSearchQuery}
+					/>
+					<span class="picker-count">{searchedSessions().length}</span>
+				</div>
+				<button class="picker-close" onclick={() => showSessionPicker = false}>
+					<svg viewBox="0 0 14 14" width="14" height="14">
+						<path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+					</svg>
+				</button>
+			</header>
+			{#if loadingSdkSessions}
+				<div class="picker-state">
+					<span class="spinner"></span>
+					<span>Loading sessions...</span>
+				</div>
+			{:else if filteredSessions.length === 0}
+				<div class="picker-state empty">
+					<svg viewBox="0 0 24 24" width="24" height="24" class="empty-icon">
+						<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+						<path d="M12 8v4M12 15v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+					</svg>
+					<span>No saved sessions</span>
+				</div>
+			{:else if searchedSessions().length === 0}
+				<div class="picker-state empty">
+					<span>No matches for "{sessionSearchQuery}"</span>
+				</div>
+			{:else}
+				<div class="picker-list">
+					{#each searchedSessions() as session, i}
+						{@const timeAgo = (() => {
+							const diff = Date.now() - new Date(session.timestamp).getTime();
+							const mins = Math.floor(diff / 60000);
+							const hours = Math.floor(diff / 3600000);
+							const days = Math.floor(diff / 86400000);
+							if (mins < 60) return `${mins}m`;
+							if (hours < 24) return `${hours}h`;
+							if (days < 7) return `${days}d`;
+							return new Date(session.timestamp).toLocaleDateString('en', { month: 'short', day: 'numeric' });
+						})()}
+						<button
+							class="picker-item"
+							style="animation-delay: {i * 25}ms"
+							onclick={() => {
+								const name = session.agentName || session.sessionId.slice(0, 8);
+								addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, session.sessionId);
+								expandedPanes.add(name);
+								expandedPanes = new Set(expandedPanes);
+								showSessionPicker = false;
+							}}
+						>
+							<div class="picker-item-main">
+								<span class="picker-item-name">{session.agentName || 'unnamed'}</span>
+								{#if session.summary}
+									<span class="picker-item-summary">{session.summary}</span>
+								{:else if session.preview.length > 0}
+									<span class="picker-item-preview">{session.preview[0].slice(0, 50)}</span>
+								{/if}
+							</div>
+							<div class="picker-item-meta">
+								<span class="picker-item-time">{timeAgo}</span>
+								<svg viewBox="0 0 16 16" width="12" height="12" class="picker-arrow">
+									<path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+								</svg>
+							</div>
+						</button>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	</div>
+{/if}
+
 <FlyingCardComponent {teleports} />
 </div>
 
@@ -2376,10 +2472,6 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		border-color: rgba(0, 0, 0, 0.06);
 	}
 
-	.agent-add-form {
-		flex-shrink: 0;
-	}
-
 	.agent-bar-spacer {
 		flex: 1;
 		min-width: 0.5rem;
@@ -2403,112 +2495,359 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		z-index: 9999;
 	}
 
-	.session-picker-container {
+	/* ===== Agent Launcher ===== */
+	.agent-launcher {
 		position: relative;
 		flex-shrink: 0;
 	}
 
-	.session-picker-btn {
-		width: 28px;
-		height: 22px;
-		padding: 0;
-		background: rgba(255, 255, 255, 0.05);
+	.launcher-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 5px 10px 5px 8px;
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.08) 100%);
+		border: 1px solid rgba(99, 102, 241, 0.25);
+		border-radius: 6px;
+		color: var(--text-primary);
+		font: 500 11px/1 'JetBrains Mono', ui-monospace, monospace;
+		cursor: pointer;
+		transition: all 120ms ease;
+	}
+
+	.launcher-btn:hover {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0.15) 100%);
+		border-color: rgba(99, 102, 241, 0.4);
+		transform: translateY(-1px);
+	}
+
+	.launcher-btn.active {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(99, 102, 241, 0.2) 100%);
+		border-color: rgba(99, 102, 241, 0.5);
+	}
+
+	.launcher-icon {
+		color: rgba(99, 102, 241, 0.9);
+	}
+
+	.launcher-label {
+		letter-spacing: 0.02em;
+	}
+
+	.launcher-caret {
+		color: var(--text-tertiary);
+		transition: transform 120ms ease;
+	}
+
+	.launcher-caret.open {
+		transform: rotate(180deg);
+	}
+
+	.launcher-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 999;
+	}
+
+	.launcher-menu {
+		position: absolute;
+		bottom: calc(100% + 6px);
+		left: 0;
+		min-width: 180px;
+		padding: 4px;
+		background: var(--bg-secondary, #1a1a1f);
 		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 4px;
-		color: var(--text-secondary);
-		font-size: 14px;
+		border-radius: 8px;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+		z-index: 1000;
+		animation: menuIn 120ms ease-out;
+	}
+
+	@keyframes menuIn {
+		from { opacity: 0; transform: translateY(4px) scale(0.96); }
+		to { opacity: 1; transform: translateY(0) scale(1); }
+	}
+
+	.launcher-option {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		width: 100%;
+		padding: 10px 12px;
+		background: transparent;
+		border: none;
+		border-radius: 6px;
+		color: var(--text-primary);
+		font: 500 12px/1 system-ui;
+		text-align: left;
 		cursor: pointer;
 		transition: all 80ms ease;
 	}
 
-	.session-picker-btn:hover {
-		background: rgba(255, 255, 255, 0.1);
-		color: var(--text-primary);
+	.launcher-option:hover {
+		background: rgba(99, 102, 241, 0.12);
 	}
 
-	.session-picker-dropdown {
-		position: absolute;
-		bottom: 100%;
-		left: 0;
-		margin-bottom: 6px;
-		width: 340px;
-		max-height: 480px;
-		background: var(--bg-secondary);
-		border: 1px solid rgba(255, 255, 255, 0.12);
-		border-radius: 8px;
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
-		z-index: 1000;
-		overflow: hidden;
+	.launcher-option svg {
+		color: var(--text-secondary);
+		flex-shrink: 0;
 	}
 
-	.session-picker-header {
+	.launcher-option:hover svg {
+		color: rgba(99, 102, 241, 0.9);
+	}
+
+	.option-label {
+		flex: 1;
+	}
+
+	.option-hint {
+		font: 400 10px/1 'JetBrains Mono', monospace;
+		color: var(--text-tertiary);
+	}
+
+	.app.light .launcher-btn {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.06) 100%);
+		border-color: rgba(99, 102, 241, 0.2);
+	}
+
+	.app.light .launcher-btn:hover {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.1) 100%);
+	}
+
+	.app.light .launcher-menu {
+		background: #fff;
+		border-color: rgba(0, 0, 0, 0.1);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+	}
+
+	.app.light .launcher-option:hover {
+		background: rgba(99, 102, 241, 0.08);
+	}
+
+	/* ===== Agent Name Input ===== */
+	.agent-name-form {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: 0.5rem;
-		padding: 0.5rem 0.625rem;
-		background: rgba(255, 255, 255, 0.03);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		gap: 4px;
+		animation: slideIn 150ms ease-out;
 	}
 
-	.session-search-input {
-		flex: 1;
-		padding: 0.375rem 0.5rem;
-		font: 11px/1.2 'JetBrains Mono', ui-monospace, monospace;
+	@keyframes slideIn {
+		from { opacity: 0; transform: translateX(-8px); }
+		to { opacity: 1; transform: translateX(0); }
+	}
+
+	.agent-name-input {
+		width: 120px;
+		padding: 6px 10px;
+		font: 11px/1 'JetBrains Mono', ui-monospace, monospace;
 		background: rgba(255, 255, 255, 0.06);
-		border: 1px solid transparent;
-		border-radius: 4px;
+		border: 1px solid rgba(99, 102, 241, 0.3);
+		border-radius: 5px;
 		color: var(--text-primary);
 		transition: all 100ms ease;
 	}
 
-	.session-search-input:focus {
+	.agent-name-input:focus {
 		outline: none;
 		background: rgba(255, 255, 255, 0.1);
-		border-color: rgba(99, 102, 241, 0.4);
+		border-color: rgba(99, 102, 241, 0.6);
+		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
 	}
 
-	.session-search-input::placeholder {
+	.agent-name-input::placeholder {
 		color: var(--text-tertiary);
-		opacity: 0.6;
+		font-style: italic;
 	}
 
-	:global(.app.light) .session-search-input {
-		background: rgba(0, 0, 0, 0.04);
-	}
-
-	:global(.app.light) .session-search-input:focus {
-		background: rgba(0, 0, 0, 0.06);
-	}
-
-	.session-picker-count {
-		font: 500 9px/1 'JetBrains Mono', monospace;
-		color: var(--text-tertiary);
-		background: rgba(99, 102, 241, 0.2);
-		padding: 2px 6px;
-		border-radius: 10px;
-		white-space: nowrap;
-	}
-
-	.session-picker-list {
-		max-height: 420px;
-		overflow-y: auto;
-		padding: 0.375rem;
-	}
-
-	.session-picker-empty {
+	.agent-name-submit,
+	.agent-name-cancel {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.5rem;
-		padding: 1.5rem 0.75rem;
-		font: 11px/1.4 system-ui;
+		width: 24px;
+		height: 24px;
+		padding: 0;
+		border: none;
+		border-radius: 4px;
+		cursor: pointer;
+		transition: all 80ms ease;
+	}
+
+	.agent-name-submit {
+		background: rgba(34, 197, 94, 0.15);
+		color: #22c55e;
+	}
+
+	.agent-name-submit:hover:not(:disabled) {
+		background: rgba(34, 197, 94, 0.25);
+	}
+
+	.agent-name-submit:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
+	}
+
+	.agent-name-cancel {
+		background: rgba(239, 68, 68, 0.1);
 		color: var(--text-tertiary);
 	}
 
-	.session-picker-empty .spinner {
-		width: 12px;
-		height: 12px;
+	.agent-name-cancel:hover {
+		background: rgba(239, 68, 68, 0.2);
+		color: #ef4444;
+	}
+
+	.app.light .agent-name-input {
+		background: rgba(0, 0, 0, 0.04);
+		border-color: rgba(99, 102, 241, 0.25);
+	}
+
+	.app.light .agent-name-input:focus {
+		background: rgba(0, 0, 0, 0.06);
+	}
+
+	/* ===== Session Picker Modal ===== */
+	.session-picker-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.6);
+		backdrop-filter: blur(4px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 10001;
+		animation: overlayIn 150ms ease-out;
+	}
+
+	@keyframes overlayIn {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+
+	.session-picker-modal {
+		width: 400px;
+		max-width: 90vw;
+		max-height: 80vh;
+		background: var(--bg-secondary, #1a1a1f);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 12px;
+		box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+		animation: modalIn 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+	}
+
+	@keyframes modalIn {
+		from { opacity: 0; transform: scale(0.92) translateY(20px); }
+		to { opacity: 1; transform: scale(1) translateY(0); }
+	}
+
+	.picker-header {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		grid-template-rows: auto auto;
+		gap: 10px;
+		padding: 16px;
+		background: rgba(255, 255, 255, 0.02);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
+	.picker-title-row {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		grid-column: 1;
+	}
+
+	.picker-title-row h3 {
+		font: 600 14px/1 system-ui;
+		color: var(--text-primary);
+		margin: 0;
+	}
+
+	.picker-icon {
+		color: rgba(99, 102, 241, 0.8);
+	}
+
+	.picker-close {
+		grid-column: 2;
+		grid-row: 1;
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		background: transparent;
+		border: none;
+		border-radius: 6px;
+		color: var(--text-tertiary);
+		cursor: pointer;
+		transition: all 80ms ease;
+	}
+
+	.picker-close:hover {
+		background: rgba(239, 68, 68, 0.15);
+		color: #ef4444;
+	}
+
+	.picker-search-row {
+		grid-column: 1 / -1;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 12px;
+		background: rgba(255, 255, 255, 0.04);
+		border-radius: 6px;
+	}
+
+	.search-icon {
+		color: var(--text-tertiary);
+		flex-shrink: 0;
+	}
+
+	.picker-search {
+		flex: 1;
+		padding: 0;
+		font: 12px/1 'JetBrains Mono', ui-monospace, monospace;
+		background: transparent;
+		border: none;
+		color: var(--text-primary);
+	}
+
+	.picker-search:focus {
+		outline: none;
+	}
+
+	.picker-search::placeholder {
+		color: var(--text-tertiary);
+	}
+
+	.picker-count {
+		font: 600 10px/1 'JetBrains Mono', monospace;
+		color: rgba(99, 102, 241, 0.8);
+		background: rgba(99, 102, 241, 0.15);
+		padding: 3px 8px;
+		border-radius: 10px;
+	}
+
+	.picker-state {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 12px;
+		padding: 48px 24px;
+		color: var(--text-tertiary);
+		font: 12px/1.4 system-ui;
+	}
+
+	.picker-state .spinner {
+		width: 20px;
+		height: 20px;
 		border: 2px solid rgba(99, 102, 241, 0.2);
 		border-top-color: rgba(99, 102, 241, 0.8);
 		border-radius: 50%;
@@ -2519,183 +2858,215 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		to { transform: rotate(360deg); }
 	}
 
-	.session-card {
-		width: 100%;
-		padding: 0.625rem 0.75rem;
-		margin-bottom: 0.25rem;
-		background: rgba(255, 255, 255, 0.02);
-		border: 1px solid rgba(255, 255, 255, 0.06);
-		border-radius: 6px;
-		text-align: left;
-		cursor: pointer;
-		transition: all 100ms ease;
-	}
-
-	.session-card:last-child {
-		margin-bottom: 0;
-	}
-
-	.session-card:hover {
-		background: rgba(99, 102, 241, 0.12);
-		border-color: rgba(99, 102, 241, 0.3);
-		transform: translateY(-1px);
-	}
-
-	.session-card-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: 0.375rem;
-	}
-
-	.session-card-name {
-		font: 600 11px/1 'JetBrains Mono', ui-monospace, monospace;
-		color: var(--text-primary);
-	}
-
-	.session-card-time {
-		font: 500 8px/1 'JetBrains Mono', monospace;
+	.picker-state.empty .empty-icon {
 		color: var(--text-tertiary);
-		background: rgba(255, 255, 255, 0.06);
-		padding: 2px 5px;
-		border-radius: 3px;
-	}
-
-	.session-card-summary {
-		font: 500 9px/1.3 system-ui;
-		color: rgba(99, 102, 241, 0.9);
-		margin-bottom: 0.375rem;
-		padding: 3px 6px;
-		background: rgba(99, 102, 241, 0.1);
-		border-radius: 3px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.session-card-transcript {
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-		margin-bottom: 0.25rem;
-		max-height: 120px;
-		overflow: hidden;
-	}
-
-	.transcript-line {
-		font: 8px/1.35 'JetBrains Mono', ui-monospace, monospace;
-		color: var(--text-secondary);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		padding: 1px 0;
-		opacity: 0.8;
-	}
-
-	.transcript-line.assistant {
-		color: var(--text-tertiary);
-		opacity: 0.6;
-		padding-left: 6px;
-	}
-
-	.transcript-line.empty {
-		color: var(--text-tertiary);
-		font-style: italic;
 		opacity: 0.5;
 	}
 
-	.session-card-footer {
+	.picker-list {
+		flex: 1;
+		overflow-y: auto;
+		padding: 8px;
+	}
+
+	.picker-item {
 		display: flex;
-		justify-content: flex-end;
-		margin-top: 0.25rem;
-		padding-top: 0.25rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.04);
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		padding: 12px 14px;
+		margin-bottom: 4px;
+		background: rgba(255, 255, 255, 0.02);
+		border: 1px solid rgba(255, 255, 255, 0.04);
+		border-radius: 8px;
+		cursor: pointer;
+		transition: all 100ms ease;
+		animation: itemIn 150ms ease-out backwards;
 	}
 
-	.session-card-id {
-		font: 7px/1 'JetBrains Mono', ui-monospace, monospace;
+	@keyframes itemIn {
+		from { opacity: 0; transform: translateY(8px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	.picker-item:hover {
+		background: rgba(99, 102, 241, 0.1);
+		border-color: rgba(99, 102, 241, 0.25);
+		transform: translateX(2px);
+	}
+
+	.picker-item:last-child {
+		margin-bottom: 0;
+	}
+
+	.picker-item-main {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		text-align: left;
+		min-width: 0;
+	}
+
+	.picker-item-name {
+		font: 600 12px/1 'JetBrains Mono', ui-monospace, monospace;
+		color: var(--text-primary);
+	}
+
+	.picker-item-summary {
+		font: 400 10px/1.3 system-ui;
+		color: rgba(99, 102, 241, 0.8);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 280px;
+	}
+
+	.picker-item-preview {
+		font: 400 10px/1.3 'JetBrains Mono', monospace;
 		color: var(--text-tertiary);
-		opacity: 0.4;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 280px;
 	}
 
+	.picker-item-meta {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-shrink: 0;
+	}
+
+	.picker-item-time {
+		font: 500 10px/1 'JetBrains Mono', monospace;
+		color: var(--text-tertiary);
+		background: rgba(255, 255, 255, 0.05);
+		padding: 3px 6px;
+		border-radius: 4px;
+	}
+
+	.picker-arrow {
+		color: var(--text-tertiary);
+		opacity: 0;
+		transition: all 100ms ease;
+	}
+
+	.picker-item:hover .picker-arrow {
+		opacity: 1;
+		transform: translateX(2px);
+		color: rgba(99, 102, 241, 0.8);
+	}
+
+	.app.light .session-picker-overlay {
+		background: rgba(0, 0, 0, 0.4);
+	}
+
+	.app.light .session-picker-modal {
+		background: #fff;
+		border-color: rgba(0, 0, 0, 0.1);
+		box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
+	}
+
+	.app.light .picker-header {
+		background: rgba(0, 0, 0, 0.02);
+		border-color: rgba(0, 0, 0, 0.06);
+	}
+
+	.app.light .picker-search-row {
+		background: rgba(0, 0, 0, 0.03);
+	}
+
+	.app.light .picker-item {
+		background: rgba(0, 0, 0, 0.02);
+		border-color: rgba(0, 0, 0, 0.04);
+	}
+
+	.app.light .picker-item:hover {
+		background: rgba(99, 102, 241, 0.08);
+	}
+
+	/* ===== Resume Prompt ===== */
 	.resume-prompt {
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
-		padding: 0.25rem 0.5rem;
-		background: rgba(99, 102, 241, 0.15);
-		border-radius: 4px;
-		font: 11px/1 'JetBrains Mono', ui-monospace, monospace;
+		gap: 8px;
+		padding: 6px 12px;
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.08) 100%);
+		border: 1px solid rgba(99, 102, 241, 0.2);
+		border-radius: 6px;
+		animation: slideIn 150ms ease-out;
+	}
+
+	.resume-icon {
+		color: rgba(99, 102, 241, 0.8);
+		flex-shrink: 0;
 	}
 
 	.resume-text {
+		font: 11px/1.2 system-ui;
 		color: var(--text-secondary);
 	}
 
+	.resume-text strong {
+		color: var(--text-primary);
+		font-weight: 600;
+	}
+
 	.resume-btn {
-		padding: 0.125rem 0.375rem;
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 5px 10px;
 		font: 600 10px/1 system-ui;
 		border: none;
-		border-radius: 3px;
+		border-radius: 4px;
 		cursor: pointer;
 		transition: all 80ms ease;
 	}
 
+	.resume-btn svg {
+		flex-shrink: 0;
+	}
+
 	.resume-btn.yes {
-		background: rgba(99, 102, 241, 0.8);
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.9) 0%, rgba(99, 102, 241, 0.7) 100%);
 		color: white;
+		box-shadow: 0 1px 3px rgba(99, 102, 241, 0.3);
 	}
 
 	.resume-btn.yes:hover {
-		background: #6366f1;
+		background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+		transform: translateY(-1px);
 	}
 
 	.resume-btn.no {
-		background: rgba(255, 255, 255, 0.1);
+		background: rgba(255, 255, 255, 0.08);
 		color: var(--text-secondary);
 	}
 
 	.resume-btn.no:hover {
-		background: rgba(255, 255, 255, 0.15);
-	}
-
-	.resume-btn.cancel {
-		background: transparent;
-		color: var(--text-tertiary);
-		padding: 0.125rem 0.25rem;
-	}
-
-	.resume-btn.cancel:hover {
-		color: var(--text-secondary);
-	}
-
-	.agent-add-input {
-		width: 72px;
-		padding: 0.25rem 0.375rem;
-		font: 11px/1 'JetBrains Mono', ui-monospace, monospace;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid transparent;
-		border-radius: 3px;
+		background: rgba(255, 255, 255, 0.12);
 		color: var(--text-primary);
 	}
 
-	.agent-add-input:focus {
-		outline: none;
-		background: rgba(255, 255, 255, 0.08);
-		border-color: rgba(99, 102, 241, 0.4);
-	}
-
-	.agent-add-input::placeholder {
+	.resume-btn.cancel {
+		width: 24px;
+		height: 24px;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
 		color: var(--text-tertiary);
-		opacity: 0.6;
 	}
 
-	.app.light .agent-add-input {
-		background: rgba(0, 0, 0, 0.03);
+	.resume-btn.cancel:hover {
+		background: rgba(239, 68, 68, 0.15);
+		color: #ef4444;
 	}
 
-	.app.light .agent-add-input:focus {
-		background: rgba(0, 0, 0, 0.05);
+	.app.light .resume-prompt {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.05) 100%);
 	}
 
 	.agent-tabs {
