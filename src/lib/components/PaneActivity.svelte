@@ -29,6 +29,7 @@
 		onFetchSessions?: () => Promise<SdkSessionInfo[]>;
 		onResumeSession?: (name: string, sessionId: string) => void;
 		onMarkAsRead?: (name: string) => void;
+		onOpenTicket?: (ticketId: string) => void;
 	}
 
 	let {
@@ -56,8 +57,17 @@
 		onCompactSession,
 		onFetchSessions,
 		onResumeSession,
-		onMarkAsRead
+		onMarkAsRead,
+		onOpenTicket
 	}: Props = $props();
+
+	// Extract ticket ID from agent pane name (e.g., "beads-kanban-5rzv-agent" -> "beads-kanban-5rzv")
+	function getTicketIdFromPaneName(name: string): string | null {
+		if (name.endsWith('-agent')) {
+			return name.slice(0, -6); // Remove "-agent" suffix
+		}
+		return null;
+	}
 
 	let messagesRefs = $state<Record<string, HTMLDivElement | null>>({});
 	let inputRefs = $state<Record<string, HTMLInputElement | null>>({});
@@ -208,7 +218,22 @@
 
 				<!-- Centered title -->
 				<div class="window-title-center">
-					<span class="agent-name">{pane.name}</span>
+					{@const ticketId = getTicketIdFromPaneName(pane.name)}
+					{#if ticketId && onOpenTicket}
+						<button
+							class="ticket-link"
+							onclick={(e) => { e.stopPropagation(); onOpenTicket(ticketId); }}
+							title="Open ticket {ticketId}"
+						>
+							<svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor">
+								<path d="M2 2.5A2.5 2.5 0 014.5 0h7A2.5 2.5 0 0114 2.5v11a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 012 13.5v-11zM4.5 1A1.5 1.5 0 003 2.5v11A1.5 1.5 0 004.5 15h7a1.5 1.5 0 001.5-1.5v-11A1.5 1.5 0 0011.5 1h-7z"/>
+								<path d="M5 4h6v1H5V4zm0 2.5h6v1H5v-1zm0 2.5h4v1H5V9z"/>
+							</svg>
+							<span>{ticketId}</span>
+						</button>
+					{:else}
+						<span class="agent-name">{pane.name}</span>
+					{/if}
 					{#if pane.sdkSessionId}
 						<span class="session-id" class:compacted={pane.compacted} title="{pane.sdkSessionId}&#10;{pane.cwd || 'no cwd'}">
 							{pane.sdkSessionId.slice(0, 6)}
@@ -587,8 +612,14 @@
 	}
 
 	.agent-window.streaming {
-		border-color: rgba(245, 158, 11, 0.4);
-		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(245, 158, 11, 0.15);
+		border-color: rgba(99, 102, 241, 0.35);
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(99, 102, 241, 0.15);
+		animation: streamPulse 2s ease-in-out infinite;
+	}
+
+	@keyframes streamPulse {
+		0%, 100% { border-color: rgba(99, 102, 241, 0.25); }
+		50% { border-color: rgba(99, 102, 241, 0.45); }
 	}
 
 	.agent-window.dragging {
@@ -616,8 +647,8 @@
 	}
 
 	.agent-window.active.streaming {
-		border-color: rgba(245, 158, 11, 0.5);
-		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(245, 158, 11, 0.3);
+		border-color: rgba(99, 102, 241, 0.5);
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(99, 102, 241, 0.25);
 	}
 
 	:global(.app.light) .agent-window {
@@ -741,6 +772,46 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.ticket-link {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 6px;
+		background: rgba(59, 130, 246, 0.1);
+		border: 1px solid rgba(59, 130, 246, 0.2);
+		border-radius: 4px;
+		font: 500 10px/1 'JetBrains Mono', ui-monospace, monospace;
+		color: rgba(96, 165, 250, 0.9);
+		cursor: pointer;
+		transition: all 0.15s ease;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 140px;
+	}
+
+	.ticket-link:hover {
+		background: rgba(59, 130, 246, 0.18);
+		border-color: rgba(59, 130, 246, 0.35);
+		color: #60a5fa;
+	}
+
+	.ticket-link svg {
+		flex-shrink: 0;
+		opacity: 0.7;
+	}
+
+	:global(.app.light) .ticket-link {
+		background: rgba(37, 99, 235, 0.08);
+		border-color: rgba(37, 99, 235, 0.15);
+		color: #2563eb;
+	}
+
+	:global(.app.light) .ticket-link:hover {
+		background: rgba(37, 99, 235, 0.15);
+		border-color: rgba(37, 99, 235, 0.25);
 	}
 
 	.session-id {
@@ -1007,12 +1078,12 @@
 	}
 
 	.msg.tool {
-		background: rgba(245, 158, 11, 0.08);
+		background: rgba(34, 211, 238, 0.06);
 		opacity: 0.8;
 	}
 
 	.msg.streaming {
-		background: rgba(245, 158, 11, 0.1);
+		background: rgba(99, 102, 241, 0.08);
 	}
 
 	:global(.app.light) .msg.user {
@@ -1024,7 +1095,7 @@
 	}
 
 	:global(.app.light) .msg.tool {
-		background: rgba(245, 158, 11, 0.08);
+		background: rgba(34, 211, 238, 0.06);
 	}
 
 	.role-tag {
@@ -1039,7 +1110,7 @@
 	}
 
 	.msg.tool .role-tag {
-		color: #f59e0b;
+		color: #22d3ee;
 	}
 
 	/* Clickable tool messages */
@@ -1049,13 +1120,13 @@
 	}
 
 	.msg.clickable:hover {
-		background: rgba(245, 158, 11, 0.08);
+		background: rgba(34, 211, 238, 0.08);
 	}
 
 	.collapse-icon {
 		width: 8px;
 		height: 8px;
-		color: #f59e0b;
+		color: #22d3ee;
 		flex-shrink: 0;
 		opacity: 0.7;
 		transition: opacity 80ms ease;
@@ -1082,7 +1153,7 @@
 	}
 
 	.tool-name {
-		color: #f59e0b;
+		color: #22d3ee;
 		font-weight: 500;
 	}
 
@@ -1114,7 +1185,7 @@
 	}
 
 	.tool-header {
-		color: #f59e0b;
+		color: #22d3ee;
 		font-weight: 600;
 		font-size: 11px;
 	}
@@ -1153,7 +1224,7 @@
 	}
 
 	.tool-pending .tool-label {
-		color: #f59e0b;
+		color: #22d3ee;
 		opacity: 0.7;
 		animation: pulse 1.2s ease-in-out infinite;
 	}
@@ -1178,7 +1249,7 @@
 		display: inline-block;
 		width: 1px;
 		height: 1em;
-		background: #f59e0b;
+		background: #6366f1;
 		animation: blink 0.6s step-end infinite;
 		vertical-align: text-bottom;
 		margin-left: 1px;
