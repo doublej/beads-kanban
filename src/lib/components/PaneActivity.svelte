@@ -268,11 +268,16 @@
 				{#each pane.messages.slice(size === 'large' ? -200 : size === 'medium' ? -80 : -40) as msg, i}
 					{@const toolKey = `${pane.name}-${i}`}
 					{@const isCollapsed = msg.role === 'tool' && (toolsExpandedByDefault ? collapsedTools.has(toolKey) : !collapsedTools.has(toolKey))}
-					<div class="msg {msg.role}" class:collapsed={isCollapsed}>
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<div
+						class="msg {msg.role}"
+						class:collapsed={isCollapsed}
+						class:clickable={msg.role === 'tool'}
+						onclick={msg.role === 'tool' ? () => toggleToolCollapse(toolKey) : undefined}
+					>
 						{#if msg.role === 'tool'}
-							<button class="collapse-toggle" onclick={() => toggleToolCollapse(toolKey)} title={isCollapsed ? 'Expand' : 'Collapse'}>
-								<span class="toggle-icon">{isCollapsed ? '▶' : '▼'}</span>
-							</button>
+							<span class="collapse-icon">{isCollapsed ? '▶' : '▼'}</span>
 						{:else}
 							<span class="role-tag">{msg.role === 'user' ? '>' : '<'}</span>
 						{/if}
@@ -901,14 +906,19 @@
 		color: #f59e0b;
 	}
 
-	/* Collapse toggle for tool messages */
-	.collapse-toggle {
-		background: none;
-		border: none;
-		padding: 0;
+	/* Clickable tool messages */
+	.msg.clickable {
+		cursor: pointer;
+		transition: background 100ms ease;
+	}
+
+	.msg.clickable:hover {
+		background: rgba(245, 158, 11, 0.08);
+	}
+
+	.collapse-icon {
 		width: 1ch;
 		color: #f59e0b;
-		cursor: pointer;
 		font-size: 8px;
 		line-height: 1;
 		flex-shrink: 0;
@@ -916,16 +926,16 @@
 		transition: opacity 80ms ease;
 	}
 
-	.collapse-toggle:hover {
+	.msg.clickable:hover .collapse-icon {
 		opacity: 1;
 	}
 
-	.toggle-icon {
-		display: inline-block;
+	.msg.collapsed {
+		opacity: 0.7;
 	}
 
-	.msg.collapsed {
-		opacity: 0.6;
+	.msg.collapsed:hover {
+		opacity: 1;
 	}
 
 	.collapsed-preview {
