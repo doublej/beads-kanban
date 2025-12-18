@@ -1793,6 +1793,18 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 				</button>
 			{/each}
 		</div>
+		<div class="agent-bar-spacer"></div>
+		<div class="agent-bar-status">
+			<StatusBar
+				dataStatus={loadingStatus}
+				agentConnected={wsConnected}
+				agentCount={wsPanes.size}
+				{agentEnabled}
+				light={!isDarkMode}
+				onstartAgent={startAgentServer}
+				onrestartAgent={restartAgentServer}
+			/>
+		</div>
 	</div>
 
 	<PaneActivity
@@ -1848,7 +1860,8 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 
 <InitialLoader status={loadingStatus} visible={!initialLoaded} />
 
-<div class="status-bar-container" class:light={!isDarkMode}>
+{#if !wsConnected}
+<div class="status-bar-fallback" class:light={!isDarkMode}>
 	<StatusBar
 		dataStatus={loadingStatus}
 		agentConnected={wsConnected}
@@ -1859,6 +1872,8 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		onrestartAgent={restartAgentServer}
 	/>
 </div>
+{/if}
+
 
 {#snippet detailPanel()}
 	<DetailPanel
@@ -2334,6 +2349,29 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		flex-shrink: 0;
 	}
 
+	.agent-bar-spacer {
+		flex: 1;
+		min-width: 0.5rem;
+	}
+
+	.agent-bar-status {
+		flex-shrink: 0;
+		margin-left: auto;
+	}
+
+	.agent-bar-status :global(.status-bar) {
+		background: transparent;
+		border: none;
+		padding: 0;
+	}
+
+	.status-bar-fallback {
+		position: fixed;
+		bottom: 12px;
+		right: 12px;
+		z-index: 9999;
+	}
+
 	.session-picker-container {
 		position: relative;
 		flex-shrink: 0;
@@ -2772,10 +2810,4 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		to { opacity: 1; transform: translateY(0) scale(1); }
 	}
 
-	.status-bar-container {
-		position: fixed;
-		bottom: 12px;
-		right: 12px;
-		z-index: 9999;
-	}
 </style>
