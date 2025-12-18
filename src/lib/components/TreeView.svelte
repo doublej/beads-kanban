@@ -109,7 +109,6 @@
 
 <div class="tree-view">
 	<div class="tree-header">
-		<span class="tree-title">Issue Hierarchy</span>
 		<span class="tree-count">{issues.length} issues</span>
 		{#if oncreate}
 			<button class="create-btn" onclick={oncreate}>
@@ -176,12 +175,6 @@
 		border: 0.5px solid rgba(99, 102, 241, 0.3);
 		border-radius: 3px;
 		color: var(--text-secondary);
-	}
-
-	.tree-title {
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: var(--text-primary);
 	}
 
 	.tree-count {

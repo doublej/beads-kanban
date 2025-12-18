@@ -101,7 +101,6 @@
 
 <div class="stats-view">
 	<div class="stats-header">
-		<span class="stats-title">Statistics Dashboard</span>
 		<span class="stats-count">{issues.length} total issues</span>
 	</div>
 
@@ -254,12 +253,6 @@
 		padding-bottom: 1rem;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 		margin-bottom: 1rem;
-	}
-
-	.stats-title {
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: var(--text-primary);
 	}
 
 	.stats-count {

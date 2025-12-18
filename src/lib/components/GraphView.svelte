@@ -133,7 +133,6 @@
 
 <div class="graph-view">
 	<div class="graph-header">
-		<span class="graph-title">Dependency Graph</span>
 		<span class="graph-count">{graph.nodes.length} nodes, {graph.edges.length} edges</span>
 	</div>
 
@@ -201,12 +200,6 @@
 		gap: 0.75rem;
 		padding-bottom: 1rem;
 		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-
-	.graph-title {
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: var(--text-primary);
 	}
 
 	.graph-count {
