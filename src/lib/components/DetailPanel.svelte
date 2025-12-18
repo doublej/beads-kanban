@@ -30,6 +30,7 @@
 		oncreate: () => void;
 		oncreateandstartagent?: () => void;
 		onstartagent?: (issue: Issue) => void;
+		onviewchat?: (agentName: string) => void;
 		ondelete: (id: string) => void;
 		onsave: (id: string, updates: Partial<Issue>) => void;
 		onaddcomment: () => void;
@@ -71,6 +72,7 @@
 		oncreate,
 		oncreateandstartagent,
 		onstartagent,
+		onviewchat,
 		ondelete,
 		onsave,
 		onaddcomment,
@@ -140,6 +142,13 @@
 		editingIssue.assignee.toLowerCase() === 'claude' ||
 		editingIssue.assignee.startsWith('@')
 	));
+
+	// Check if there's an active agent chat for this issue (pane name is "{issue-id}-agent")
+	const activeAgentPane = $derived(() => {
+		if (!editingIssue) return null;
+		const expectedPaneName = `${editingIssue.id}-agent`;
+		return activeAgents.includes(expectedPaneName) ? expectedPaneName : null;
+	});
 </script>
 
 <aside
@@ -281,6 +290,12 @@
 									<span class="working-dot"></span>
 								{/if}
 							</span>
+							{#if activeAgentPane() && onviewchat}
+								<button class="chat-link" onclick={() => onviewchat(activeAgentPane()!)} title="View chat session">
+									<Icon name="message" size={10} />
+									<span>Chat</span>
+								</button>
+							{/if}
 						{:else}
 							<span class="spec assignee human">
 								<span class="avatar-dot"></span>
@@ -711,6 +726,38 @@
 		height: 7px;
 		border-radius: 50%;
 		background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+	}
+
+	/* Chat link button next to agent assignee */
+	.chat-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 3px;
+		padding: 0.125rem 0.375rem;
+		background: rgba(59, 130, 246, 0.1);
+		border: 1px solid rgba(59, 130, 246, 0.2);
+		border-radius: 4px;
+		font-size: 0.625rem;
+		font-weight: 500;
+		color: #60a5fa;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.chat-link:hover {
+		background: rgba(59, 130, 246, 0.18);
+		border-color: rgba(59, 130, 246, 0.35);
+	}
+
+	:global(.app.light) .chat-link {
+		background: rgba(37, 99, 235, 0.08);
+		border-color: rgba(37, 99, 235, 0.15);
+		color: #2563eb;
+	}
+
+	:global(.app.light) .chat-link:hover {
+		background: rgba(37, 99, 235, 0.15);
+		border-color: rgba(37, 99, 235, 0.25);
 	}
 
 	.working-dot {
