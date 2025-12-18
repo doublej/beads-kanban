@@ -1928,7 +1928,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 					/>
 					<span class="picker-count">{searchedSessions().length}</span>
 				</div>
-				<button class="picker-close" onclick={() => showSessionPicker = false}>
+				<button class="cta cta-icon danger picker-close-override" onclick={() => showSessionPicker = false}>
 					<svg viewBox="0 0 14 14" width="14" height="14">
 						<path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 					</svg>
@@ -2966,26 +2966,11 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		color: rgba(99, 102, 241, 0.8);
 	}
 
-	.picker-close {
+	.picker-close-override {
 		grid-column: 2;
 		grid-row: 1;
 		width: 28px;
 		height: 28px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0;
-		background: transparent;
-		border: none;
-		border-radius: 6px;
-		color: var(--text-tertiary);
-		cursor: pointer;
-		transition: all 80ms ease;
-	}
-
-	.picker-close:hover {
-		background: rgba(239, 68, 68, 0.15);
-		color: #ef4444;
 	}
 
 	.picker-search-row {
