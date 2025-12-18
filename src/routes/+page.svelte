@@ -76,6 +76,7 @@
 	let dropTargetColumn = $state<string | null>(null);
 	let isDarkMode = $state(true);
 	let colorScheme = $state('default');
+	let notificationsEnabled = $state(false);
 	let themeTransitionActive = $state(false);
 	let themeTransitionToLight = $state(false);
 	let comments = $state<{ id: number; author: string; text: string; created_at: string }[]>([]);
@@ -473,10 +474,19 @@
 			const statusChanges: {id: string; fromPos: {x: number; y: number; w: number; h: number}; newStatus: string; height: number}[] = [];
 			data.issues.forEach((issue: Issue) => {
 				const oldIssue = oldIssuesMap.get(issue.id);
-				if (oldIssue && oldIssue.status !== issue.status) {
+				if (!oldIssue) {
+					// New issue created
+					sendNotification('New Issue Created', issue.title);
+				} else if (oldIssue.status !== issue.status) {
 					const fromPos = getCardPosition(issue.id);
 					if (fromPos) {
 						statusChanges.push({ id: issue.id, fromPos, newStatus: issue.status, height: fromPos.h });
+					}
+					// Notify on blocking events
+					if (issue.status === 'blocked' && oldIssue.status !== 'blocked') {
+						sendNotification('Issue Blocked', `${issue.title} is now blocked`);
+					} else if (issue.status !== 'blocked' && oldIssue.status === 'blocked') {
+						sendNotification('Issue Unblocked', `${issue.title} is no longer blocked`);
 					}
 				}
 			});
@@ -1096,6 +1106,31 @@
 		themeTransitionActive = false;
 	}
 
+	async function toggleNotifications() {
+		if (notificationsEnabled) {
+			notificationsEnabled = false;
+			return;
+		}
+		if (!browser) return;
+		if (!('Notification' in window)) return;
+
+		if (Notification.permission === 'granted') {
+			notificationsEnabled = true;
+		} else if (Notification.permission !== 'denied') {
+			const permission = await Notification.requestPermission();
+			if (permission === 'granted') {
+				notificationsEnabled = true;
+			}
+		}
+	}
+
+	function sendNotification(title: string, body: string) {
+		if (!notificationsEnabled || !browser) return;
+		if (!('Notification' in window)) return;
+		if (Notification.permission !== 'granted') return;
+		new Notification(title, { body, icon: '/favicon.png' });
+	}
+
 	$effect(() => {
 		if (browser) {
 			const saved = localStorage.getItem('theme');
@@ -1118,6 +1153,8 @@
 			if (savedAgentPort) agentPort = Number(savedAgentPort);
 			const savedColorScheme = localStorage.getItem('colorScheme');
 			if (savedColorScheme) colorScheme = savedColorScheme;
+			const savedNotifications = localStorage.getItem('notificationsEnabled');
+			if (savedNotifications) notificationsEnabled = savedNotifications === 'true';
 		}
 	});
 
@@ -1136,6 +1173,9 @@
 	});
 	$effect(() => {
 		if (browser) localStorage.setItem('colorScheme', colorScheme);
+	});
+	$effect(() => {
+		if (browser) localStorage.setItem('notificationsEnabled', String(notificationsEnabled));
 	});
 
 	$effect(() => {
@@ -1288,8 +1328,10 @@
 	bind:agentPort
 	{isDarkMode}
 	{colorScheme}
+	{notificationsEnabled}
 	ontoggleTheme={toggleTheme}
 	onsetColorScheme={(scheme) => colorScheme = scheme}
+	ontoggleNotifications={toggleNotifications}
 />
 	<Header
 		bind:searchQuery

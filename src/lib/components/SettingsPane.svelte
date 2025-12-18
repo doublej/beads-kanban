@@ -11,8 +11,10 @@
 		agentHost: string;
 		agentPort: number;
 		colorScheme: string;
+		notificationsEnabled: boolean;
 		ontoggleTheme: () => void;
 		onsetColorScheme: (scheme: string) => void;
+		ontoggleNotifications: () => void;
 	}
 
 	let {
@@ -23,8 +25,10 @@
 		agentHost = $bindable(),
 		agentPort = $bindable(),
 		colorScheme,
+		notificationsEnabled,
 		ontoggleTheme,
-		onsetColorScheme
+		onsetColorScheme,
+		ontoggleNotifications
 	}: Props = $props();
 
 	const colorSchemes = [
@@ -278,6 +282,17 @@
 							<span class="scheme-name">{scheme.name}</span>
 						</button>
 					{/each}
+				</div>
+				<div class="setting-row" style="margin-top: 0.75rem">
+					<div class="setting-info">
+						<span class="setting-name">Notifications</span>
+						<span class="setting-desc">Alert on blocking events</span>
+					</div>
+					<button class="toggle-switch" onclick={ontoggleNotifications}>
+						<span class="toggle-track" class:active={notificationsEnabled}>
+							<span class="toggle-thumb"></span>
+						</span>
+					</button>
 				</div>
 			</section>
 
