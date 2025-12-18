@@ -18,7 +18,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ error: 'Title required' }, { status: 400 });
 	}
 
-	let cmd = `bd ${getBdDbFlag()} create "${title.replace(/"/g, '\\"')}"`;
+	let cmd = `bd ${getBdDbFlag()} create "${title.replace(/"/g, '\\"')}" --json`;
 	if (description) cmd += ` --description "${description.replace(/"/g, '\\"')}"`;
 	if (priority !== undefined) cmd += ` --priority ${priority}`;
 	if (issue_type) cmd += ` --type ${issue_type}`;
@@ -28,8 +28,9 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	try {
 		const { stdout, stderr } = await execAsync(cmd);
-		// stderr may contain warnings (not errors) - only fail on actual command failure
-		return json({ success: true, message: stdout.trim(), warning: stderr || undefined });
+		// Parse JSON output to get the new issue ID
+		const created = JSON.parse(stdout.trim());
+		return json({ success: true, id: created.id, issue: created, warning: stderr || undefined });
 	} catch (err: unknown) {
 		const error = err as { stderr?: string; message?: string };
 		return json({ error: error.stderr || error.message || 'Failed to create issue' }, { status: 500 });

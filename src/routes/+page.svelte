@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { untrack } from 'svelte';
-	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, type Pane } from '$lib/wsStore.svelte';
+	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, killSession, clearAllSessions, endSession, clearSession, continueSession, compactSession, getPersistedSdkSessionId, getAllPersistedSessions, deletePersistedSession, fetchSdkSessions, type Pane, type SdkSessionInfo } from '$lib/wsStore.svelte';
 	import type { Issue, Comment, Attachment, CardPosition, FlyingCard, ContextMenuState, RopeDragState, SortBy, PaneSize, ViewMode, LoadingStatus as LoadingStatusType, Project } from '$lib/types';
 	import {
 		columns,
@@ -88,6 +88,10 @@
 	let loadingAttachments = $state(false);
 	let showPaneActivity = $state(true);
 	let newPaneName = $state('');
+	let resumePrompt = $state<{ name: string; sessionId: string } | null>(null);
+	let showSessionPicker = $state(false);
+	let sdkSessions = $state<SdkSessionInfo[]>([]);
+	let loadingSdkSessions = $state(false);
 	let paneMessageInputs = $state<Record<string, string>>({});
 	let expandedPanes = $state<Set<string>>(new Set());
 	let paneSizes = $state<Record<string, 'compact' | 'medium' | 'large'>>({});
@@ -95,8 +99,9 @@
 	let paneCustomSizes = $state<Record<string, { w: number; h: number }>>({});
 	let draggingPane = $state<string | null>(null);
 	let resizingPane = $state<string | null>(null);
+	let resizeEdge = $state<'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null>(null);
 	let dragOffset = $state({ x: 0, y: 0 });
-	let resizeStart = $state({ x: 0, y: 0, w: 0, h: 0 });
+	let resizeStart = $state({ x: 0, y: 0, w: 0, h: 0, px: 0, py: 0 });
 	let contextMenu = $state<{ x: number; y: number; issue: Issue } | null>(null);
 	let collapsedColumns = $state<Set<string>>(new Set());
 	let columnSortBy = $state<Record<string, 'priority' | 'created' | 'title'>>({});
@@ -112,6 +117,9 @@
 	let agentEnabled = $state(true);
 	let agentHost = $state('localhost');
 	let agentPort = $state(8765);
+	let agentFirstMessage = $state('You are an agent named "{name}". Await further instructions.');
+	let agentSystemPrompt = $state('');
+	let agentToolsExpanded = $state(false);
 	let teleports = $state<{id: string; from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; startTime: number}[]>([]);
 	let placeholders = $state<{id: string; targetColumn: string; height: number}[]>([]);
 	let cardRefs = $state<Map<string, HTMLElement>>(new Map());
@@ -220,6 +228,20 @@
 		}
 	}
 
+	async function restartAgentServer() {
+		try {
+			disconnect();
+			await fetch('/api/agent', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'restart' })
+			});
+			setTimeout(() => connect(), 800);
+		} catch (err) {
+			console.error('Failed to restart agent server:', err);
+		}
+	}
+
 	function toggleColumnCollapse(key: string) {
 		const next = new Set(collapsedColumns);
 		if (next.has(key)) {
@@ -251,9 +273,9 @@
 	}
 
 	function startDrag(e: MouseEvent, name: string) {
-		if ((e.target as HTMLElement).closest('.window-btn, .chat-input, button')) return;
+		if ((e.target as HTMLElement).closest('.ctrl-btn, .msg-input, button')) return;
 		e.preventDefault();
-		const el = (e.currentTarget as HTMLElement).closest('.chat-window') as HTMLElement;
+		const el = (e.currentTarget as HTMLElement).closest('.agent-window') as HTMLElement;
 		const rect = el.getBoundingClientRect();
 		draggingPane = name;
 		dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -263,32 +285,118 @@
 		}
 	}
 
-	function startResize(e: MouseEvent, name: string) {
+	function startResize(e: MouseEvent, name: string, edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw') {
 		e.preventDefault();
 		e.stopPropagation();
 		resizingPane = name;
+		resizeEdge = edge;
 		const el = document.querySelector(`[data-pane="${name}"]`) as HTMLElement;
 		const rect = el.getBoundingClientRect();
-		resizeStart = { x: e.clientX, y: e.clientY, w: rect.width, h: rect.height };
-		// Initialize custom size
+		resizeStart = { x: e.clientX, y: e.clientY, w: rect.width, h: rect.height, px: rect.left, py: rect.top };
+		// Initialize position/size if not customized
+		if (!panePositions[name]) {
+			panePositions = { ...panePositions, [name]: { x: rect.left, y: rect.top } };
+		}
 		if (!paneCustomSizes[name]) {
 			paneCustomSizes = { ...paneCustomSizes, [name]: { w: rect.width, h: rect.height } };
 		}
 	}
 
-	function handleMouseMove(e: MouseEvent) {
+	// Document-level handlers for smooth drag/resize (prevents losing grip)
+	function handleDocumentMouseMove(e: MouseEvent) {
 		if (draggingPane) {
-			const x = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffset.x));
-			const y = Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragOffset.y));
-			panePositions = { ...panePositions, [draggingPane]: { x, y } };
+			e.preventDefault();
+			const el = document.querySelector(`[data-pane="${draggingPane}"]`) as HTMLElement;
+			if (el) {
+				const x = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffset.x));
+				const y = Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragOffset.y));
+				// Direct DOM update for smooth dragging
+				el.style.left = `${x}px`;
+				el.style.top = `${y}px`;
+				el.style.position = 'fixed';
+				// Store for state sync on mouseup
+				panePositions[draggingPane] = { x, y };
+			}
+		}
+		if (resizingPane && resizeEdge) {
+			e.preventDefault();
+			const el = document.querySelector(`[data-pane="${resizingPane}"]`) as HTMLElement;
+			if (el) {
+				const dx = e.clientX - resizeStart.x;
+				const dy = e.clientY - resizeStart.y;
+				let w = resizeStart.w, h = resizeStart.h, x = resizeStart.px, y = resizeStart.py;
+
+				// Handle horizontal resize
+				if (resizeEdge.includes('e')) {
+					w = Math.max(280, Math.min(window.innerWidth - x - 10, resizeStart.w + dx));
+				}
+				if (resizeEdge.includes('w')) {
+					const newW = Math.max(280, resizeStart.w - dx);
+					const maxW = resizeStart.px + resizeStart.w - 10;
+					w = Math.min(newW, maxW);
+					x = resizeStart.px + resizeStart.w - w;
+				}
+
+				// Handle vertical resize
+				if (resizeEdge.includes('s')) {
+					h = Math.max(200, Math.min(window.innerHeight - y - 50, resizeStart.h + dy));
+				}
+				if (resizeEdge === 'n' || resizeEdge === 'ne' || resizeEdge === 'nw') {
+					const newH = Math.max(200, resizeStart.h - dy);
+					const maxH = resizeStart.py + resizeStart.h - 10;
+					h = Math.min(newH, maxH);
+					y = resizeStart.py + resizeStart.h - h;
+				}
+
+				// Direct DOM update for smooth resizing
+				el.style.width = `${w}px`;
+				el.style.height = `${h}px`;
+				el.style.left = `${x}px`;
+				el.style.top = `${y}px`;
+				el.style.position = 'fixed';
+				// Store for state sync on mouseup
+				paneCustomSizes[resizingPane] = { w, h };
+				panePositions[resizingPane] = { x, y };
+			}
+		}
+	}
+
+	function handleDocumentMouseUp() {
+		if (draggingPane) {
+			// Force reactivity update
+			panePositions = { ...panePositions };
 		}
 		if (resizingPane) {
-			const dw = e.clientX - resizeStart.x;
-			const dh = e.clientY - resizeStart.y;
-			const w = Math.max(280, Math.min(window.innerWidth - 40, resizeStart.w + dw));
-			const h = Math.max(200, Math.min(window.innerHeight - 100, resizeStart.h + dh));
-			paneCustomSizes = { ...paneCustomSizes, [resizingPane]: { w, h } };
+			// Force reactivity update
+			paneCustomSizes = { ...paneCustomSizes };
+			panePositions = { ...panePositions };
 		}
+		draggingPane = null;
+		resizingPane = null;
+		resizeEdge = null;
+	}
+
+	// Attach document-level listeners when dragging/resizing
+	$effect(() => {
+		if (!browser) return;
+		const isDraggingOrResizing = draggingPane !== null || resizingPane !== null;
+		if (isDraggingOrResizing) {
+			document.addEventListener('mousemove', handleDocumentMouseMove, { passive: false });
+			document.addEventListener('mouseup', handleDocumentMouseUp);
+			const cursorMap: Record<string, string> = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' };
+			document.body.style.cursor = draggingPane ? 'grabbing' : (resizeEdge ? cursorMap[resizeEdge] : '');
+			document.body.style.userSelect = 'none';
+			return () => {
+				document.removeEventListener('mousemove', handleDocumentMouseMove);
+				document.removeEventListener('mouseup', handleDocumentMouseUp);
+				document.body.style.cursor = '';
+				document.body.style.userSelect = '';
+			};
+		}
+	});
+
+	function handleMouseMove(e: MouseEvent) {
+		// Only handle ropeDrag here - pane drag/resize use document listeners
 		if (ropeDrag) {
 			ropeDrag = { ...ropeDrag, currentX: e.clientX, currentY: e.clientY };
 			// Find card under cursor - get all elements at point and find card
@@ -308,8 +416,6 @@
 			pendingDep = { fromId: ropeDrag.fromId, toId: ropeDrag.targetId };
 		}
 		ropeDrag = null;
-		draggingPane = null;
-		resizingPane = null;
 	}
 
 	async function confirmDependency(depType: string) {
@@ -386,10 +492,22 @@
 		return !!(panePositions[name] || paneCustomSizes[name]);
 	}
 
-	const wsPanes = $derived(getPanes());
-	const wsConnected = $derived(isConnected());
+	// Reactive polling for cross-module state (Svelte 5 doesn't track $state across modules in $derived)
+	let wsConnected = $state(false);
+	let wsPanes = $state<Map<string, Pane>>(new Map());
+
+	$effect(() => {
+		const poll = () => {
+			wsConnected = isConnected();
+			wsPanes = getPanes();
+		};
+		poll();
+		const id = setInterval(poll, 100);
+		return () => clearInterval(id);
+	});
 
 	const panelOpen = $derived(editingIssue !== null || isCreating);
+	const activeAgentNames = $derived([...wsPanes.keys()]);
 
 	function issueMatchesTimeFilter(issue: Issue): boolean {
 		if (filterTime === 'all') return true;
@@ -651,6 +769,57 @@
 		await res.json();
 		// SSE will replace temp issue with real one on next poll
 		fetchMutations();
+	}
+
+	async function createIssueAndStartAgent() {
+		if (!createForm.title.trim()) return;
+		// Optimistic update
+		const tempId = `temp-${Date.now()}`;
+		const tempIssue: Issue = {
+			id: tempId,
+			title: createForm.title,
+			description: createForm.description,
+			status: 'open',
+			priority: createForm.priority as Issue['priority'],
+			issue_type: createForm.issue_type,
+			labels: [],
+			dependencies: [],
+			dependents: [],
+			created_at: new Date().toISOString(),
+			updated_at: new Date().toISOString()
+		};
+		issues = [tempIssue, ...issues];
+		animatingIds = new Set([...animatingIds, tempId]);
+		setTimeout(() => {
+			animatingIds = new Set([...animatingIds].filter(x => x !== tempId));
+		}, 600);
+		const savedForm = { ...createForm };
+		createForm = { title: '', description: '', priority: 2, issue_type: 'task', deps: [] };
+		isCreating = false;
+
+		// Create the issue and get the real ID
+		const res = await fetch('/api/issues', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ title: savedForm.title, description: savedForm.description, priority: savedForm.priority, issue_type: savedForm.issue_type })
+		});
+		const data = await res.json();
+		fetchMutations();
+
+		// Start agent with ticket-specific briefing
+		if (data.id) {
+			const agentName = `${data.id}-agent`;
+			const briefing = `You are agent "${agentName}" assigned to ticket ${data.id}.
+
+## Your Task
+Work on this ticket:
+- **ID**: ${data.id}
+- **Title**: ${savedForm.title}
+${savedForm.description ? `- **Description**: ${savedForm.description}` : ''}
+
+Start by claiming the ticket (set status to in_progress), then implement the required changes.`;
+			addPane(agentName, currentProjectPath, briefing, agentSystemPrompt);
+		}
 	}
 
 	function openCreatePanel() {
@@ -1161,6 +1330,12 @@
 			if (savedAgentHost) agentHost = savedAgentHost;
 			const savedAgentPort = localStorage.getItem('agentPort');
 			if (savedAgentPort) agentPort = Number(savedAgentPort);
+			const savedAgentFirstMessage = localStorage.getItem('agentFirstMessage');
+			if (savedAgentFirstMessage) agentFirstMessage = savedAgentFirstMessage;
+			const savedAgentSystemPrompt = localStorage.getItem('agentSystemPrompt');
+			if (savedAgentSystemPrompt) agentSystemPrompt = savedAgentSystemPrompt;
+			const savedAgentToolsExpanded = localStorage.getItem('agentToolsExpanded');
+			if (savedAgentToolsExpanded) agentToolsExpanded = savedAgentToolsExpanded === 'true';
 			const savedColorScheme = localStorage.getItem('colorScheme');
 			if (savedColorScheme) colorScheme = savedColorScheme;
 			const savedNotifications = localStorage.getItem('notificationsEnabled');
@@ -1180,6 +1355,15 @@
 	});
 	$effect(() => {
 		if (browser) localStorage.setItem('agentPort', String(agentPort));
+	});
+	$effect(() => {
+		if (browser) localStorage.setItem('agentFirstMessage', agentFirstMessage);
+	});
+	$effect(() => {
+		if (browser) localStorage.setItem('agentSystemPrompt', agentSystemPrompt);
+	});
+	$effect(() => {
+		if (browser) localStorage.setItem('agentToolsExpanded', String(agentToolsExpanded));
 	});
 	$effect(() => {
 		if (browser) localStorage.setItem('colorScheme', colorScheme);
@@ -1336,6 +1520,9 @@
 	bind:agentEnabled
 	bind:agentHost
 	bind:agentPort
+	bind:agentFirstMessage
+	bind:agentSystemPrompt
+	bind:agentToolsExpanded
 	{isDarkMode}
 	{colorScheme}
 	{notificationsEnabled}
@@ -1448,34 +1635,122 @@
 		</div>
 	{/if}
 
-<!-- Chat Bar - Pinned to bottom (only when ws connected) -->
+<!-- Agent Bar - Pinned to bottom -->
 {#if wsConnected}
-<div class="chat-bar" class:has-panes={wsPanes.size > 0}>
-	<div class="chat-bar-inner">
-		<!-- Connection indicator -->
-		<div class="chat-bar-status" class:connected={wsConnected}>
-			<span class="status-dot"></span>
-			<span class="status-text">{wsConnected ? 'Connected' : 'Offline'}</span>
-		</div>
-
-		<!-- Add pane button -->
-		<form class="chat-add-form" onsubmit={(e) => { e.preventDefault(); if (newPaneName.trim()) { addPane(newPaneName.trim()); newPaneName = ''; expandedPanes.add(newPaneName.trim()); expandedPanes = new Set(expandedPanes); } }}>
-			<input type="text" bind:value={newPaneName} placeholder="Add agent..." class="chat-add-input" disabled={!wsConnected} />
-			<button type="submit" class="chat-add-btn" disabled={!wsConnected || !newPaneName.trim()}>+</button>
+<div class="agent-bar" class:has-panes={wsPanes.size > 0}>
+	<div class="agent-bar-inner">
+		<form class="agent-add-form" onsubmit={(e) => {
+			e.preventDefault();
+			const name = newPaneName.trim();
+			if (!name) return;
+			const persistedId = getPersistedSdkSessionId(name);
+			if (persistedId) {
+				resumePrompt = { name, sessionId: persistedId };
+			} else {
+				addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt);
+				expandedPanes.add(name);
+				expandedPanes = new Set(expandedPanes);
+			}
+			newPaneName = '';
+		}}>
+			<input type="text" bind:value={newPaneName} placeholder="+ agent" class="agent-add-input" />
 		</form>
-
-		<!-- Pane tabs -->
-		<div class="chat-tabs">
+		<div class="session-picker-container">
+			<button class="session-picker-btn" onclick={async () => {
+				if (!showSessionPicker) {
+					loadingSdkSessions = true;
+					sdkSessions = await fetchSdkSessions(currentProjectPath);
+					loadingSdkSessions = false;
+				}
+				showSessionPicker = !showSessionPicker;
+			}} title="Saved sessions">
+				⟳
+			</button>
+			{#if showSessionPicker}
+				<div class="session-picker-dropdown">
+					<div class="session-picker-header">
+						<span class="session-picker-title">Recent Sessions</span>
+						<span class="session-picker-count">{sdkSessions.length}</span>
+					</div>
+					{#if loadingSdkSessions}
+						<div class="session-picker-empty">
+							<span class="spinner"></span>
+							Loading sessions...
+						</div>
+					{:else if sdkSessions.length === 0}
+						<div class="session-picker-empty">No saved sessions found</div>
+					{:else}
+						<div class="session-picker-list">
+							{#each sdkSessions as session}
+								{@const timeAgo = (() => {
+									const diff = Date.now() - new Date(session.timestamp).getTime();
+									const mins = Math.floor(diff / 60000);
+									const hours = Math.floor(diff / 3600000);
+									const days = Math.floor(diff / 86400000);
+									if (mins < 60) return `${mins}m ago`;
+									if (hours < 24) return `${hours}h ago`;
+									if (days < 7) return `${days}d ago`;
+									return new Date(session.timestamp).toLocaleDateString();
+								})()}
+								<button class="session-card" onclick={() => {
+									const name = session.agentId || session.sessionId.slice(0, 8);
+									addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, session.sessionId);
+									expandedPanes.add(name);
+									expandedPanes = new Set(expandedPanes);
+									showSessionPicker = false;
+								}}>
+									<div class="session-card-header">
+										<span class="session-card-name">{session.agentId || session.sessionId.slice(0, 8)}</span>
+										<span class="session-card-time">{timeAgo}</span>
+									</div>
+									{#if session.firstMessage}
+										<div class="session-card-preview">{session.firstMessage}</div>
+									{:else}
+										<div class="session-card-preview empty">No message preview</div>
+									{/if}
+									<div class="session-card-id">{session.sessionId.slice(0, 12)}...</div>
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
+		{#if resumePrompt}
+			<div class="resume-prompt">
+				<span class="resume-text">Resume "{resumePrompt.name}"?</span>
+				<button class="resume-btn yes" onclick={() => {
+					if (resumePrompt) {
+						addPane(resumePrompt.name, currentProjectPath, agentFirstMessage, agentSystemPrompt, resumePrompt.sessionId);
+						expandedPanes.add(resumePrompt.name);
+						expandedPanes = new Set(expandedPanes);
+						resumePrompt = null;
+					}
+				}}>Yes</button>
+				<button class="resume-btn no" onclick={() => {
+					if (resumePrompt) {
+						addPane(resumePrompt.name, currentProjectPath, agentFirstMessage, agentSystemPrompt);
+						expandedPanes.add(resumePrompt.name);
+						expandedPanes = new Set(expandedPanes);
+						resumePrompt = null;
+					}
+				}}>Fresh</button>
+				<button class="resume-btn cancel" onclick={() => { resumePrompt = null; }}>×</button>
+			</div>
+		{/if}
+		<div class="agent-tabs">
 			{#each [...wsPanes.values()] as pane}
 				<button
-					class="chat-tab"
-					class:expanded={expandedPanes.has(pane.name)}
+					class="agent-tab"
+					class:active={expandedPanes.has(pane.name)}
 					class:streaming={pane.streaming}
 					onclick={() => { if (expandedPanes.has(pane.name)) { expandedPanes.delete(pane.name); } else { expandedPanes.add(pane.name); } expandedPanes = new Set(expandedPanes); }}
 				>
-					<span class="tab-indicator"></span>
+					<span class="tab-dot" class:live={pane.streaming}></span>
 					<span class="tab-name">{pane.name}</span>
-					<span class="tab-badge">{pane.messages.length}</span>
+					{#if pane.messages.length > 0}
+						<span class="tab-count">{pane.messages.length}</span>
+					{/if}
 				</button>
 			{/each}
 		</div>
@@ -1490,15 +1765,20 @@
 		bind:paneMessageInputs
 		{draggingPane}
 		{resizingPane}
-		disabled={true}
+		disabled={!wsConnected}
+		toolsExpandedByDefault={agentToolsExpanded}
 		onStartDrag={startDrag}
 		onStartResize={startResize}
 		onCyclePaneSize={cyclePaneSize}
 		onRemovePane={removePane}
 		onMinimizePane={(name) => { expandedPanes.delete(name); expandedPanes = new Set(expandedPanes); }}
-		onSendMessage={(name, msg) => sendToPane(name, msg)}
+		onSendMessage={(name, msg) => sendToPane(name, msg, currentProjectPath)}
 		onMouseMove={handleMouseMove}
 		onMouseUp={handleMouseUp}
+		onEndSession={endSession}
+		onClearSession={clearSession}
+		onContinueSession={continueSession}
+		onCompactSession={compactSession}
 	/>
 </div>
 {/if}
@@ -1516,6 +1796,7 @@
 		{agentEnabled}
 		light={!isDarkMode}
 		onstartAgent={startAgentServer}
+		onrestartAgent={restartAgentServer}
 	/>
 </div>
 
@@ -1525,6 +1806,8 @@
 		{isCreating}
 		bind:createForm
 		allIssues={issues}
+		activeAgents={activeAgentNames}
+		{agentEnabled}
 		{comments}
 		{copiedId}
 		bind:newLabelInput
@@ -1540,6 +1823,7 @@
 		{issueClosedExternally}
 		onclose={closePanel}
 		oncreate={createIssue}
+		oncreateandstartagent={createIssueAndStartAgent}
 		ondelete={(id) => deleteIssue(id)}
 		onsave={(id, updates) => updateIssue(id, updates)}
 		onaddcomment={addComment}
@@ -1956,9 +2240,9 @@
 	}
 
 	/* ============================================
-	   CHAT BAR - Pinned bottom chat interface
+	   AGENT BAR - Compact bottom bar
 	   ============================================ */
-	.chat-bar {
+	.agent-bar {
 		position: fixed;
 		bottom: 0;
 		left: 0;
@@ -1969,180 +2253,342 @@
 		pointer-events: none;
 	}
 
-	.chat-bar-inner {
+	.agent-bar-inner {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
-		padding: 0.5rem 1rem;
-		background: rgba(15, 15, 20, 0.95);
-		border-top: 1px solid rgba(255, 255, 255, 0.06);
-		backdrop-filter: blur(12px);
+		gap: 0.375rem;
+		margin: 0 8px 8px;
+		padding: 0.25rem 0.5rem;
+		background: var(--bg-secondary, rgba(20, 20, 24, 0.98));
+		border: 1px solid rgba(255, 255, 255, 0.04);
+		border-radius: 6px;
 		pointer-events: auto;
 	}
 
-	.app.light .chat-bar-inner {
-		background: rgba(255, 255, 255, 0.95);
-		border-top-color: rgba(0, 0, 0, 0.08);
+	.app.light .agent-bar-inner {
+		background: rgba(255, 255, 255, 0.98);
+		border-color: rgba(0, 0, 0, 0.06);
 	}
 
-	.chat-bar-status {
+	.agent-add-form {
+		flex-shrink: 0;
+	}
+
+	.session-picker-container {
+		position: relative;
+		flex-shrink: 0;
+	}
+
+	.session-picker-btn {
+		width: 28px;
+		height: 22px;
+		padding: 0;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 4px;
+		color: var(--text-secondary);
+		font-size: 14px;
+		cursor: pointer;
+		transition: all 80ms ease;
+	}
+
+	.session-picker-btn:hover {
+		background: rgba(255, 255, 255, 0.1);
+		color: var(--text-primary);
+	}
+
+	.session-picker-dropdown {
+		position: absolute;
+		bottom: 100%;
+		left: 0;
+		margin-bottom: 6px;
+		width: 280px;
+		max-height: 360px;
+		background: var(--bg-secondary);
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 8px;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+		z-index: 1000;
+		overflow: hidden;
+	}
+
+	.session-picker-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.625rem 0.75rem;
+		background: rgba(255, 255, 255, 0.03);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	.session-picker-title {
+		font: 600 11px/1 system-ui;
+		color: var(--text-secondary);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.session-picker-count {
+		font: 500 10px/1 'JetBrains Mono', monospace;
+		color: var(--text-tertiary);
+		background: rgba(99, 102, 241, 0.2);
+		padding: 2px 6px;
+		border-radius: 10px;
+	}
+
+	.session-picker-list {
+		max-height: 300px;
+		overflow-y: auto;
+		padding: 0.375rem;
+	}
+
+	.session-picker-empty {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		padding: 1.5rem 0.75rem;
+		font: 11px/1.4 system-ui;
+		color: var(--text-tertiary);
+	}
+
+	.session-picker-empty .spinner {
+		width: 12px;
+		height: 12px;
+		border: 2px solid rgba(99, 102, 241, 0.2);
+		border-top-color: rgba(99, 102, 241, 0.8);
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+
+	.session-card {
+		width: 100%;
+		padding: 0.625rem 0.75rem;
+		margin-bottom: 0.25rem;
+		background: rgba(255, 255, 255, 0.02);
+		border: 1px solid rgba(255, 255, 255, 0.06);
+		border-radius: 6px;
+		text-align: left;
+		cursor: pointer;
+		transition: all 100ms ease;
+	}
+
+	.session-card:last-child {
+		margin-bottom: 0;
+	}
+
+	.session-card:hover {
+		background: rgba(99, 102, 241, 0.12);
+		border-color: rgba(99, 102, 241, 0.3);
+		transform: translateY(-1px);
+	}
+
+	.session-card-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 0.375rem;
+	}
+
+	.session-card-name {
+		font: 600 12px/1 'JetBrains Mono', ui-monospace, monospace;
+		color: var(--text-primary);
+	}
+
+	.session-card-time {
+		font: 500 10px/1 system-ui;
+		color: var(--text-tertiary);
+		background: rgba(255, 255, 255, 0.05);
+		padding: 2px 6px;
+		border-radius: 3px;
+	}
+
+	.session-card-preview {
+		font: 11px/1.4 system-ui;
+		color: var(--text-secondary);
+		margin-bottom: 0.375rem;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.session-card-preview.empty {
+		color: var(--text-tertiary);
+		font-style: italic;
+	}
+
+	.session-card-id {
+		font: 9px/1 'JetBrains Mono', ui-monospace, monospace;
+		color: var(--text-tertiary);
+		opacity: 0.6;
+	}
+
+	.resume-prompt {
 		display: flex;
 		align-items: center;
 		gap: 0.375rem;
 		padding: 0.25rem 0.5rem;
-		border-radius: var(--radius-sm);
-		background: rgba(239, 68, 68, 0.1);
+		background: rgba(99, 102, 241, 0.15);
+		border-radius: 4px;
+		font: 11px/1 'JetBrains Mono', ui-monospace, monospace;
 	}
 
-	.chat-bar-status.connected {
-		background: rgba(16, 185, 129, 0.1);
-	}
-
-	.chat-bar-status .status-dot {
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: #ef4444;
-	}
-
-	.chat-bar-status.connected .status-dot {
-		background: #10b981;
-		box-shadow: 0 0 6px rgba(16, 185, 129, 0.5);
-	}
-
-	.chat-bar-status .status-text {
-		font-size: 0.6875rem;
-		font-family: 'JetBrains Mono', monospace;
+	.resume-text {
 		color: var(--text-secondary);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
 	}
 
-	.chat-add-form {
-		display: flex;
-		gap: 0.375rem;
-	}
-
-	.chat-add-input {
-		width: 120px;
-		padding: 0.375rem 0.625rem;
-		font-size: 0.75rem;
-		font-family: 'JetBrains Mono', monospace;
-		background: rgba(0, 0, 0, 0.3);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: var(--radius-sm);
-		color: var(--text-primary);
-		transition: all 0.15s ease;
-	}
-
-	.chat-add-input:focus {
-		outline: none;
-		border-color: rgba(99, 102, 241, 0.5);
-		width: 160px;
-	}
-
-	.chat-add-input::placeholder {
-		color: var(--text-tertiary);
-	}
-
-	.app.light .chat-add-input {
-		background: rgba(0, 0, 0, 0.04);
-		border-color: rgba(0, 0, 0, 0.1);
-	}
-
-	.chat-add-btn {
-		padding: 0.375rem 0.625rem;
-		font-size: 0.875rem;
-		font-weight: 600;
-		background: rgba(99, 102, 241, 0.2);
-		border: 1px solid rgba(99, 102, 241, 0.3);
-		border-radius: var(--radius-sm);
-		color: #6366f1;
+	.resume-btn {
+		padding: 0.125rem 0.375rem;
+		font: 600 10px/1 system-ui;
+		border: none;
+		border-radius: 3px;
 		cursor: pointer;
-		transition: all 0.15s ease;
+		transition: all 80ms ease;
 	}
 
-	.chat-add-btn:hover:not(:disabled) {
-		background: rgba(99, 102, 241, 0.3);
+	.resume-btn.yes {
+		background: rgba(99, 102, 241, 0.8);
+		color: white;
 	}
 
-	.chat-add-btn:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
+	.resume-btn.yes:hover {
+		background: #6366f1;
 	}
 
-	.chat-tabs {
+	.resume-btn.no {
+		background: rgba(255, 255, 255, 0.1);
+		color: var(--text-secondary);
+	}
+
+	.resume-btn.no:hover {
+		background: rgba(255, 255, 255, 0.15);
+	}
+
+	.resume-btn.cancel {
+		background: transparent;
+		color: var(--text-tertiary);
+		padding: 0.125rem 0.25rem;
+	}
+
+	.resume-btn.cancel:hover {
+		color: var(--text-secondary);
+	}
+
+	.agent-add-input {
+		width: 72px;
+		padding: 0.25rem 0.375rem;
+		font: 11px/1 'JetBrains Mono', ui-monospace, monospace;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid transparent;
+		border-radius: 3px;
+		color: var(--text-primary);
+	}
+
+	.agent-add-input:focus {
+		outline: none;
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(99, 102, 241, 0.4);
+	}
+
+	.agent-add-input::placeholder {
+		color: var(--text-tertiary);
+		opacity: 0.6;
+	}
+
+	.app.light .agent-add-input {
+		background: rgba(0, 0, 0, 0.03);
+	}
+
+	.app.light .agent-add-input:focus {
+		background: rgba(0, 0, 0, 0.05);
+	}
+
+	.agent-tabs {
 		display: flex;
-		gap: 0.375rem;
+		gap: 2px;
 		flex: 1;
 		overflow-x: auto;
 		scrollbar-width: none;
 	}
 
-	.chat-tabs::-webkit-scrollbar {
+	.agent-tabs::-webkit-scrollbar {
 		display: none;
 	}
 
-	.chat-tab {
+	.agent-tab {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.375rem 0.75rem;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.06);
-		border-radius: var(--radius-sm);
-		color: var(--text-secondary);
-		font-size: 0.75rem;
-		font-family: 'JetBrains Mono', monospace;
+		gap: 0.25rem;
+		padding: 0.25rem 0.5rem;
+		background: transparent;
+		border: none;
+		border-radius: 3px;
+		color: var(--text-tertiary);
+		font: 11px/1 'JetBrains Mono', ui-monospace, monospace;
 		cursor: pointer;
-		transition: all 0.15s ease;
+		transition: all 80ms ease;
 		white-space: nowrap;
 	}
 
-	.chat-tab:hover {
-		background: rgba(255, 255, 255, 0.08);
+	.agent-tab:hover {
+		background: rgba(255, 255, 255, 0.06);
 		color: var(--text-primary);
 	}
 
-	.chat-tab.expanded {
-		background: rgba(99, 102, 241, 0.15);
-		border-color: rgba(99, 102, 241, 0.3);
+	.agent-tab.active {
+		background: rgba(99, 102, 241, 0.12);
 		color: var(--text-primary);
 	}
 
-	.chat-tab.streaming {
-		border-color: rgba(245, 158, 11, 0.4);
+	.agent-tab.streaming {
+		color: var(--text-primary);
 	}
 
-	.chat-tab.streaming .tab-indicator {
-		background: #f59e0b;
-		box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
-		animation: pulse 1.5s ease-in-out infinite;
+	.app.light .agent-tab:hover {
+		background: rgba(0, 0, 0, 0.05);
 	}
 
-	.app.light .chat-tab {
-		background: rgba(0, 0, 0, 0.03);
-		border-color: rgba(0, 0, 0, 0.08);
+	.app.light .agent-tab.active {
+		background: rgba(99, 102, 241, 0.1);
 	}
 
-	.tab-indicator {
-		width: 6px;
-		height: 6px;
+	.tab-dot {
+		width: 5px;
+		height: 5px;
 		border-radius: 50%;
-		background: var(--text-tertiary);
+		background: currentColor;
+		opacity: 0.4;
+		flex-shrink: 0;
 	}
 
-	.tab-badge {
-		padding: 0.125rem 0.375rem;
-		background: rgba(255, 255, 255, 0.1);
-		border-radius: 9999px;
-		font-size: 0.625rem;
+	.tab-dot.live {
+		background: #f59e0b;
+		opacity: 1;
+		box-shadow: 0 0 4px rgba(245, 158, 11, 0.5);
+		animation: pulse 1.2s ease-in-out infinite;
+	}
+
+	.tab-name {
+		max-width: 80px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.tab-count {
+		font-size: 9px;
 		color: var(--text-tertiary);
+		opacity: 0.7;
 	}
 
-	.chat-tab.expanded .tab-badge {
-		background: rgba(99, 102, 241, 0.2);
+	.agent-tab.active .tab-count {
 		color: #6366f1;
+		opacity: 1;
 	}
 
 	@keyframes msgIn {

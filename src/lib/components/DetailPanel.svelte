@@ -11,6 +11,8 @@
 		isCreating: boolean;
 		createForm: { title: string; description: string; priority: number; issue_type: string; deps?: string[] };
 		allIssues?: Issue[];
+		activeAgents?: string[];
+		agentEnabled?: boolean;
 		comments: Comment[];
 		attachments: Attachment[];
 		loadingAttachments: boolean;
@@ -26,6 +28,7 @@
 		issueClosedExternally?: boolean;
 		onclose: () => void;
 		oncreate: () => void;
+		oncreateandstartagent?: () => void;
 		ondelete: (id: string) => void;
 		onsave: (id: string, updates: Partial<Issue>) => void;
 		onaddcomment: () => void;
@@ -48,6 +51,8 @@
 		isCreating,
 		createForm = $bindable(),
 		allIssues = [],
+		activeAgents = [],
+		agentEnabled = true,
 		comments,
 		attachments,
 		loadingAttachments,
@@ -63,6 +68,7 @@
 		issueClosedExternally = false,
 		onclose,
 		oncreate,
+		oncreateandstartagent,
 		ondelete,
 		onsave,
 		onaddcomment,
@@ -125,6 +131,13 @@
 		const depts = (editingIssue.dependents || []).map(d => ({ ...d, direction: 'blocking' as const }));
 		return [...deps, ...depts];
 	});
+
+	// Check if assignee is an agent
+	const isAgentAssignee = $derived(editingIssue?.assignee && (
+		editingIssue.assignee.toLowerCase().includes('agent') ||
+		editingIssue.assignee.toLowerCase() === 'claude' ||
+		editingIssue.assignee.startsWith('@')
+	));
 </script>
 
 <aside
@@ -197,12 +210,19 @@
 			</div>
 		</div>
 
-		<footer class="footer">
+		<footer class="footer footer-create">
 			<button class="btn-secondary" onclick={onclose}>Cancel</button>
-			<button class="btn-primary" onclick={oncreate}>
-				<Icon name="plus" size={16} strokeWidth={2.5} />Create
-				<kbd class="kbd">⌘↵</kbd>
-			</button>
+			<div class="footer-actions">
+				{#if agentEnabled && oncreateandstartagent}
+					<button class="btn-agent" onclick={oncreateandstartagent} title="Create issue and start agent">
+						<Icon name="agent" size={14} />Create + Agent
+					</button>
+				{/if}
+				<button class="btn-primary" onclick={oncreate}>
+					<Icon name="plus" size={16} strokeWidth={2.5} />Create
+					<kbd class="kbd">⌘↵</kbd>
+				</button>
+			</div>
 		</footer>
 
 	{:else if editingIssue}
@@ -237,28 +257,41 @@
 		<div class="body">
 			{#if !isEditMode}
 				<!-- VIEW MODE -->
-				<h1 class="title">{editingIssue.title}</h1>
-
-				<div class="meta-row">
-					<span class="meta-badge priority" style="--c: {priority.color}"><span class="dot"></span>{priority.label}</span>
-					<span class="meta-badge type"><Icon name={getTypeIcon(editingIssue.issue_type)} size={11} />{editingIssue.issue_type}</span>
+				<!-- Specs bar: compact row of all metadata -->
+				<div class="specs-bar">
+					<span class="spec priority" style="--c: {priority.color}"><span class="spec-dot"></span>{priority.label}</span>
+					<span class="spec type"><Icon name={getTypeIcon(editingIssue.issue_type)} size={10} />{editingIssue.issue_type}</span>
+					<span class="spec-divider"></span>
 					{#if editingIssue.created_at}
 						{@const ts = formatTimestamp(editingIssue.created_at)}
-						<span class="meta-time" title="{ts.absolute}">{ts.relative}</span>
+						<span class="spec time" title="{ts.absolute}">{ts.relative}</span>
+					{/if}
+					{#if editingIssue.assignee}
+						<span class="spec-divider"></span>
+						{#if isAgentAssignee}
+							<span class="spec assignee agent" class:working={editingIssue.status === 'in_progress'}>
+								<Icon name="agent" size={11} />
+								<span>{editingIssue.assignee}</span>
+								{#if editingIssue.status === 'in_progress'}
+									<span class="working-dot"></span>
+								{/if}
+							</span>
+						{:else}
+							<span class="spec assignee human">
+								<span class="avatar-dot"></span>
+								<span>{editingIssue.assignee}</span>
+							</span>
+						{/if}
 					{/if}
 				</div>
 
-				{#if editingIssue.description}
-					<section class="section">
-						<div class="section-head">
-							<span class="section-label">Description</span>
-							<button class="btn-copy-sm" class:copied={copiedId === `desc-${editingIssue.id}`} onclick={() => oncopyid(editingIssue.description, `desc-${editingIssue.id}`)}>
-								<Icon name={copiedId === `desc-${editingIssue.id}` ? 'check' : 'copy'} size={10} />
-							</button>
-						</div>
-						<p class="prose">{editingIssue.description}</p>
-					</section>
-				{/if}
+				<!-- Content block: title + description with typography focus -->
+				<article class="content-block">
+					<h1 class="issue-title">{editingIssue.title}</h1>
+					{#if editingIssue.description}
+						<p class="issue-description">{editingIssue.description}</p>
+					{/if}
+				</article>
 
 				{#if editingIssue.design}
 					<section class="section"><span class="section-label">Design</span><p class="prose">{editingIssue.design}</p></section>
@@ -350,6 +383,16 @@
 						{#if !editingIssue.notes && !editingIssue._showNotes}<button class="btn-add" onclick={() => editingIssue._showNotes = true}>+ Notes</button>{/if}
 					</div>
 				{/if}
+
+				<div class="field">
+					<label class="field-label">Assignee {#if activeAgents.length > 0}<span class="agent-hint">({activeAgents.length} agents)</span>{/if}</label>
+					<input type="text" class="input input-sm" bind:value={editingIssue.assignee} placeholder="e.g. agent1, @user, claude" list="assignee-agents" autocomplete="off" />
+					<datalist id="assignee-agents">
+						{#each activeAgents as agent}
+							<option value={agent} />
+						{/each}
+					</datalist>
+				</div>
 
 				<div class="field">
 					<label class="field-label">Labels</label>
@@ -557,45 +600,118 @@
 	}
 
 	/* ═══════════════════════════════════════════════════════════════
-	   VIEW MODE
+	   VIEW MODE - SPECS BAR
 	   ═══════════════════════════════════════════════════════════════ */
-	.title {
-		font-family: 'Plus Jakarta Sans', sans-serif;
-		font-size: 1.25rem;
-		font-weight: 700;
-		color: var(--text-primary);
-		line-height: 1.35;
-		margin-bottom: 0.75rem;
-		letter-spacing: -0.02em;
-	}
-
-	.meta-row {
+	.specs-bar {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.5rem;
+		padding: 0.625rem 0.75rem;
+		background: var(--bg-tertiary);
+		border-radius: 10px;
 		margin-bottom: 1.25rem;
 	}
 
-	.meta-badge {
+	.spec {
 		display: inline-flex;
 		align-items: center;
 		gap: 0.25rem;
-		padding: 0.1875rem 0.5rem;
-		border-radius: 6px;
-		font-size: 0.625rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.02em;
-	}
-	.meta-badge.priority { background: var(--c); color: white; }
-	.meta-badge.priority .dot { width: 5px; height: 5px; border-radius: 50%; background: white; opacity: 0.7; }
-	.meta-badge.type { background: var(--bg-elevated); color: var(--text-secondary); text-transform: capitalize; }
-
-	.meta-time {
 		font-size: 0.6875rem;
+		font-weight: 500;
+		color: var(--text-secondary);
+	}
+
+	.spec.priority {
+		color: var(--c);
+		font-weight: 600;
+	}
+
+	.spec-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--c);
+	}
+
+	.spec.type {
+		text-transform: capitalize;
 		color: var(--text-tertiary);
-		margin-left: auto;
+	}
+
+	.spec.time {
+		color: var(--text-tertiary);
+		font-size: 0.625rem;
+	}
+
+	.spec-divider {
+		width: 1px;
+		height: 12px;
+		background: var(--border-subtle);
+	}
+
+	/* Assignee within specs bar */
+	.spec.assignee {
+		gap: 0.375rem;
+	}
+
+	.spec.assignee.agent {
+		color: #10b981;
+	}
+
+	.spec.assignee.agent.working {
+		color: #10b981;
+	}
+
+	.spec.assignee.human {
+		color: var(--text-secondary);
+	}
+
+	.avatar-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+	}
+
+	.working-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #10b981;
+		animation: pulse-dot 1.5s ease-in-out infinite;
+	}
+
+	@keyframes pulse-dot {
+		0%, 100% { opacity: 1; transform: scale(1); }
+		50% { opacity: 0.5; transform: scale(0.8); }
+	}
+
+	/* ═══════════════════════════════════════════════════════════════
+	   VIEW MODE - CONTENT BLOCK (Title + Description)
+	   ═══════════════════════════════════════════════════════════════ */
+	.content-block {
+		margin-bottom: 1.5rem;
+	}
+
+	.issue-title {
+		font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+		font-size: 1.375rem;
+		font-weight: 700;
+		color: var(--text-primary);
+		line-height: 1.3;
+		letter-spacing: -0.025em;
+		margin-bottom: 0.75rem;
+	}
+
+	.issue-description {
+		font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+		font-size: 0.9375rem;
+		font-weight: 400;
+		color: var(--text-secondary);
+		line-height: 1.65;
+		white-space: pre-wrap;
+		word-break: break-word;
 	}
 
 	.section {
@@ -1147,6 +1263,36 @@
 
 	.btn-danger { background: rgba(239,68,68,0.12); color: #ef4444; }
 	.btn-danger:hover { background: rgba(239,68,68,0.2); }
+
+	.btn-agent {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0.5rem 0.875rem;
+		background: rgba(16, 185, 129, 0.15);
+		border: 1px solid rgba(16, 185, 129, 0.3);
+		border-radius: 10px;
+		font-family: inherit;
+		font-size: 0.75rem;
+		font-weight: 500;
+		color: #10b981;
+		cursor: pointer;
+		transition: all 150ms ease;
+	}
+	.btn-agent:hover {
+		background: rgba(16, 185, 129, 0.25);
+		border-color: rgba(16, 185, 129, 0.5);
+	}
+
+	.footer-create {
+		flex-wrap: wrap;
+	}
+
+	.footer-actions {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
 
 	.kbd {
 		font-family: 'JetBrains Mono', monospace;
