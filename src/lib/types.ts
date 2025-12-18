@@ -24,6 +24,7 @@ export interface Issue {
 	dependents?: Dependency[];
 	dependency_count?: number;
 	dependent_count?: number;
+	attachments?: Attachment[];
 	// UI state
 	_showDesign?: boolean;
 	_showAcceptance?: boolean;
@@ -34,6 +35,13 @@ export interface Comment {
 	id: number;
 	author: string;
 	text: string;
+	created_at: string;
+}
+
+export interface Attachment {
+	filename: string;
+	size: number;
+	mimetype: string;
 	created_at: string;
 }
 

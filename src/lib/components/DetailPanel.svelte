@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Issue, Comment } from '$lib/types';
+	import type { Issue, Comment, Attachment } from '$lib/types';
 	import { getPriorityConfig, getTypeIcon, getDepTypeConfig, formatTimestamp, formatDuration, getIssueColumn, columns } from '$lib/utils';
 	import Icon from './Icon.svelte';
 	import IssueSearch from './IssueSearch.svelte';
@@ -12,6 +12,10 @@
 		createForm: { title: string; description: string; priority: number; issue_type: string; deps?: string[] };
 		allIssues?: Issue[];
 		comments: Comment[];
+		attachments: Attachment[];
+		loadingAttachments: boolean;
+		onuploadattachment: (file: File) => void;
+		ondeleteattachment: (filename: string) => void;
 		copiedId: string | null;
 		newLabelInput: string;
 		newComment: string;
@@ -45,6 +49,10 @@
 		createForm = $bindable(),
 		allIssues = [],
 		comments,
+		attachments,
+		loadingAttachments,
+		onuploadattachment,
+		ondeleteattachment,
 		copiedId,
 		newLabelInput = $bindable(),
 		newComment = $bindable(),
@@ -86,6 +94,31 @@
 
 	function getIssueById(id: string): Issue | undefined {
 		return allIssues.find(i => i.id === id);
+	}
+
+	function formatFileSize(bytes: number): string {
+		if (bytes < 1024) return bytes + ' B'
+		if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+		return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+	}
+
+	function isImageMimetype(mimetype: string): boolean {
+		return mimetype.startsWith('image/')
+	}
+
+	function handleFileDrop(e: DragEvent) {
+		e.preventDefault()
+		const file = e.dataTransfer?.files[0]
+		if (file) onuploadattachment(file)
+	}
+
+	function handleFileSelect(e: Event) {
+		const input = e.target as HTMLInputElement
+		const file = input.files?.[0]
+		if (file) {
+			onuploadattachment(file)
+			input.value = ''
+		}
 	}
 </script>
 
@@ -531,6 +564,75 @@
 						<button class="btn-comment" onclick={onaddcomment} disabled={!newComment.trim()}>
 							<Icon name="send" size={16} />
 						</button>
+					</div>
+				</div>
+			</div>
+
+			<!-- Attachments section -->
+			<div class="form-group">
+				<label>Attachments {#if loadingAttachments}<span class="loading-indicator">...</span>{/if}</label>
+				<div class="attachments-section">
+					{#if attachments.length > 0}
+						<div class="attachments-list">
+							{#each attachments as attachment}
+								{@const attachmentTs = formatTimestamp(attachment.created_at)}
+								<div class="attachment-item">
+									{#if isImageMimetype(attachment.mimetype)}
+										<img 
+											src="/api/issues/{editingIssue.id}/attachments/{attachment.filename}" 
+											alt={attachment.filename}
+											class="attachment-thumbnail"
+										/>
+									{:else}
+										<div class="attachment-icon">
+											<Icon name="file" size={16} />
+										</div>
+									{/if}
+									<div class="attachment-info">
+										<a 
+											href="/api/issues/{editingIssue.id}/attachments/{attachment.filename}"
+											download={attachment.filename}
+											class="attachment-name"
+										>
+											{attachment.filename}
+										</a>
+										<span class="attachment-meta">
+											{formatFileSize(attachment.size)} · {attachmentTs.relative}
+										</span>
+									</div>
+									<button 
+										class="attachment-delete" 
+										onclick={() => {
+											if (confirm('Delete this attachment?')) {
+												ondeleteattachment(attachment.filename)
+											}
+										}}
+										title="Delete attachment"
+									>
+										<Icon name="trash" size={12} />
+									</button>
+								</div>
+							{/each}
+						</div>
+					{:else if !loadingAttachments}
+						<p class="no-attachments">No attachments</p>
+					{/if}
+					<div 
+						class="attachment-dropzone"
+						ondragover={(e) => e.preventDefault()}
+						ondrop={handleFileDrop}
+					>
+						<input 
+							type="file" 
+							id="attachment-input" 
+							class="attachment-input"
+							onchange={handleFileSelect}
+						/>
+						<label for="attachment-input" class="attachment-dropzone-label">
+							<Icon name="plus" size={16} />
+							<span>Drop file or click to upload</span>
+							<span class="attachment-size-hint">Max 10MB</span>
+						</label>
 					</div>
 				</div>
 			</div>
@@ -1230,6 +1332,140 @@
 	.btn-comment :global(svg) {
 		width: 1rem;
 		height: 1rem;
+	}
+
+	/* Attachments */
+	.attachments-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.attachments-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		max-height: 200px;
+		overflow-y: auto;
+	}
+
+	.attachment-item {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.5rem 0.75rem;
+		background: var(--bg-tertiary);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+	}
+
+	.attachment-thumbnail {
+		width: 2.5rem;
+		height: 2.5rem;
+		object-fit: cover;
+		border-radius: var(--radius-sm);
+		flex-shrink: 0;
+	}
+
+	.attachment-icon {
+		width: 2.5rem;
+		height: 2.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--bg-elevated);
+		border-radius: var(--radius-sm);
+		color: var(--text-tertiary);
+		flex-shrink: 0;
+	}
+
+	.attachment-info {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+	}
+
+	.attachment-name {
+		font-size: 0.8125rem;
+		color: var(--accent-primary);
+		text-decoration: none;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.attachment-name:hover {
+		text-decoration: underline;
+	}
+
+	.attachment-meta {
+		font-size: 0.6875rem;
+		color: var(--text-tertiary);
+	}
+
+	.attachment-delete {
+		background: transparent;
+		border: none;
+		color: var(--text-tertiary);
+		cursor: pointer;
+		padding: 0.25rem;
+		border-radius: var(--radius-sm);
+		opacity: 0;
+		transition: all var(--transition-fast);
+	}
+
+	.attachment-item:hover .attachment-delete {
+		opacity: 1;
+	}
+
+	.attachment-delete:hover {
+		color: #ef4444;
+		background: rgba(239, 68, 68, 0.1);
+	}
+
+	.no-attachments {
+		font-size: 0.75rem;
+		color: var(--text-tertiary);
+		text-align: center;
+		padding: 0.75rem;
+	}
+
+	.attachment-dropzone {
+		position: relative;
+		border: 2px dashed var(--border-default);
+		border-radius: var(--radius-md);
+		transition: all var(--transition-fast);
+	}
+
+	.attachment-dropzone:hover,
+	.attachment-dropzone:focus-within {
+		border-color: var(--accent-primary);
+		background: var(--accent-glow);
+	}
+
+	.attachment-input {
+		position: absolute;
+		inset: 0;
+		opacity: 0;
+		cursor: pointer;
+	}
+
+	.attachment-dropzone-label {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 1rem;
+		color: var(--text-tertiary);
+		font-size: 0.75rem;
+		cursor: pointer;
+	}
+
+	.attachment-size-hint {
+		font-size: 0.625rem;
+		opacity: 0.7;
 	}
 
 	.loading-indicator {

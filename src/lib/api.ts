@@ -1,4 +1,4 @@
-import type { Issue, Comment } from './types';
+import type { Issue, Comment, Attachment } from './types';
 
 export async function updateIssue(id: string, updates: Partial<Issue>): Promise<void> {
 	await fetch(`/api/issues/${id}`, {
@@ -50,4 +50,27 @@ export async function removeDependencyApi(issueId: string, dependsOnId: string):
 		body: JSON.stringify({ depends_on: dependsOnId })
 	});
 	return res.json();
+}
+
+export async function loadAttachmentsApi(issueId: string): Promise<Attachment[]> {
+	const res = await fetch(`/api/issues/${issueId}/attachments`);
+	const data = await res.json();
+	return data.attachments || [];
+}
+
+export async function uploadAttachmentApi(issueId: string, file: File): Promise<Attachment | null> {
+	const formData = new FormData();
+	formData.append('file', file);
+	const res = await fetch(`/api/issues/${issueId}/attachments`, {
+		method: 'POST',
+		body: formData
+	});
+	const data = await res.json();
+	return data.attachment || null;
+}
+
+export async function deleteAttachmentApi(issueId: string, filename: string): Promise<void> {
+	await fetch(`/api/issues/${issueId}/attachments/${encodeURIComponent(filename)}`, {
+		method: 'DELETE'
+	});
 }
