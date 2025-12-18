@@ -2,29 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import { join } from 'path';
 import { existsSync, unlinkSync, readFileSync, readdirSync, rmdirSync } from 'fs';
 import type { RequestHandler } from './$types';
-import { getStoredCwd } from '$lib/db';
-
-function getAttachmentsDir(issueId: string): string {
-	return join(getStoredCwd(), '.beads', 'attachments', issueId);
-}
-
-function getMimetype(filename: string): string {
-	const ext = filename.split('.').pop()?.toLowerCase() || '';
-	const mimeTypes: Record<string, string> = {
-		png: 'image/png',
-		jpg: 'image/jpeg',
-		jpeg: 'image/jpeg',
-		gif: 'image/gif',
-		webp: 'image/webp',
-		svg: 'image/svg+xml',
-		pdf: 'application/pdf',
-		txt: 'text/plain',
-		md: 'text/markdown',
-		json: 'application/json',
-		zip: 'application/zip',
-	};
-	return mimeTypes[ext] || 'application/octet-stream';
-}
+import { getAttachmentsDir, getMimetype } from '$lib/attachments';
 
 export const GET: RequestHandler = async ({ params }) => {
 	const dir = getAttachmentsDir(params.id);
