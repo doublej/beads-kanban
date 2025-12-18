@@ -237,13 +237,21 @@
 								<div class="menu-section">
 									<span class="menu-label">Session</span>
 									<button class="menu-item" class:active={isAutoscrollEnabled(pane.name)} onclick={(e) => { e.stopPropagation(); toggleAutoscroll(pane.name); }}>
-										<span class="menu-icon">{isAutoscrollEnabled(pane.name) ? '⤓' : '⤒'}</span>
+										<svg class="menu-icon" viewBox="0 0 14 14" width="12" height="12">
+											{#if isAutoscrollEnabled(pane.name)}
+												<path d="M7 2v10M4 9l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+											{:else}
+												<path d="M7 12V2M4 5l3-3 3 3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+											{/if}
+										</svg>
 										<span>Autoscroll</span>
 										{#if isAutoscrollEnabled(pane.name)}<span class="menu-badge">on</span>{/if}
 									</button>
 									{#if !pane.streaming && onContinueSession}
 										<button class="menu-item" onclick={() => { onContinueSession(pane.name); closeMenu(); }}>
-											<span class="menu-icon">▶</span>
+											<svg class="menu-icon" viewBox="0 0 14 14" width="12" height="12">
+												<path d="M4 2.5v9l7-4.5-7-4.5z" fill="currentColor"/>
+											</svg>
 											<span>Continue</span>
 										</button>
 									{/if}
@@ -255,33 +263,45 @@
 											sessionPickerLoading = false;
 											closeMenu();
 										}}>
-											<span class="menu-icon">⟳</span>
+											<svg class="menu-icon" viewBox="0 0 14 14" width="12" height="12">
+												<path d="M2.5 7a4.5 4.5 0 018-2.5M11.5 7a4.5 4.5 0 01-8 2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+												<path d="M10.5 2v3h-3M3.5 12V9h3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+											</svg>
 											<span>Load Session</span>
 										</button>
 									{/if}
 									{#if onCompactSession}
 										<button class="menu-item" class:active={pane.compacted} onclick={() => { onCompactSession(pane.name); closeMenu(); }}>
-											<span class="menu-icon">◐</span>
+											<svg class="menu-icon" viewBox="0 0 14 14" width="12" height="12">
+												<circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.3"/>
+												<path d="M7 2a5 5 0 010 10" fill="currentColor"/>
+											</svg>
 											<span>Compact</span>
 											{#if pane.compacted}<span class="menu-badge">done</span>{/if}
 										</button>
 									{/if}
 									{#if onEndSession}
 										<button class="menu-item" onclick={() => { onEndSession(pane.name); closeMenu(); }}>
-											<span class="menu-icon">■</span>
+											<svg class="menu-icon" viewBox="0 0 14 14" width="12" height="12">
+												<rect x="3" y="3" width="8" height="8" rx="1" fill="currentColor"/>
+											</svg>
 											<span>End</span>
 										</button>
 									{/if}
 									{#if onClearSession}
 										<button class="menu-item danger" onclick={() => { onClearSession(pane.name); closeMenu(); }}>
-											<span class="menu-icon">⌫</span>
+											<svg class="menu-icon" viewBox="0 0 14 14" width="12" height="12">
+												<path d="M3 4h8M5 4V3a1 1 0 011-1h2a1 1 0 011 1v1M6 6.5v4M8 6.5v4M4.5 4l.5 8a1 1 0 001 1h4a1 1 0 001-1l.5-8" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+											</svg>
 											<span>Clear</span>
 										</button>
 									{/if}
 								</div>
 								<div class="menu-divider"></div>
 								<button class="menu-item danger" onclick={() => { onRemovePane(pane.name); closeMenu(); }}>
-									<span class="menu-icon">×</span>
+									<svg class="menu-icon" viewBox="0 0 14 14" width="12" height="12">
+										<path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+									</svg>
 									<span>Close</span>
 								</button>
 							</div>
@@ -304,7 +324,13 @@
 						onclick={msg.role === 'tool' ? () => toggleToolCollapse(toolKey) : undefined}
 					>
 						{#if msg.role === 'tool'}
-							<span class="collapse-icon">{isCollapsed ? '▶' : '▼'}</span>
+							<span class="collapse-icon">
+								{#if isCollapsed}
+									<svg viewBox="0 0 8 8" width="8" height="8"><path d="M2 1l4 3-4 3z" fill="currentColor"/></svg>
+								{:else}
+									<svg viewBox="0 0 8 8" width="8" height="8"><path d="M1 2l3 4 3-4z" fill="currentColor"/></svg>
+								{/if}
+							</span>
 						{:else}
 							<span class="role-tag">{msg.role === 'user' ? '>' : '<'}</span>
 						{/if}
@@ -407,7 +433,10 @@
 		<div class="session-picker-modal" onclick={(e) => e.stopPropagation()}>
 			<header class="picker-header">
 				<div class="picker-title-row">
-					<span class="picker-icon">◎</span>
+					<svg class="picker-icon" viewBox="0 0 16 16" width="16" height="16">
+						<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+						<circle cx="8" cy="8" r="2" fill="currentColor"/>
+					</svg>
 					<h3>Resume Session</h3>
 				</div>
 				<span class="picker-agent-name">{sessionPickerPane}</span>
@@ -424,7 +453,9 @@
 				</div>
 			{:else if sessionPickerSessions.length === 0}
 				<div class="picker-state empty">
-					<span class="picker-empty-icon">○</span>
+					<svg class="picker-empty-icon" viewBox="0 0 24 24" width="32" height="32">
+						<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/>
+					</svg>
 					<span>No saved sessions</span>
 				</div>
 			{:else}
@@ -462,7 +493,9 @@
 							</div>
 							<div class="picker-item-meta">
 								<span class="picker-item-time">{timeAgo}</span>
-								<span class="picker-item-arrow">→</span>
+								<svg class="picker-item-arrow" viewBox="0 0 12 12" width="12" height="12">
+									<path d="M3 6h6M6.5 3.5L9 6l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+								</svg>
 							</div>
 						</button>
 					{/each}
@@ -903,6 +936,8 @@
 		padding: 0.25rem 0.375rem;
 		border-radius: 3px;
 		animation: fadeIn 150ms ease;
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	@keyframes fadeIn {
@@ -965,13 +1000,15 @@
 	}
 
 	.collapse-icon {
-		width: 1ch;
+		width: 8px;
+		height: 8px;
 		color: #f59e0b;
-		font-size: 8px;
-		line-height: 1;
 		flex-shrink: 0;
 		opacity: 0.7;
 		transition: opacity 80ms ease;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.msg.clickable:hover .collapse-icon {
@@ -1074,6 +1111,8 @@
 		color: var(--text-primary);
 		word-break: break-word;
 		font: inherit;
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	.streaming-content {
@@ -1384,9 +1423,11 @@
 	}
 
 	.picker-icon {
-		font-size: 1rem;
+		width: 16px;
+		height: 16px;
 		color: #6366f1;
 		opacity: 0.9;
+		flex-shrink: 0;
 	}
 
 	.picker-header h3 {
@@ -1438,7 +1479,9 @@
 	}
 
 	.picker-state.empty .picker-empty-icon {
-		font-size: 2rem;
+		width: 32px;
+		height: 32px;
+		color: var(--text-tertiary, #666);
 		opacity: 0.3;
 	}
 
@@ -1556,11 +1599,13 @@
 	}
 
 	.picker-item-arrow {
-		font-size: 14px;
+		width: 12px;
+		height: 12px;
 		color: var(--text-tertiary, #666);
 		opacity: 0;
 		transform: translateX(-4px);
 		transition: all 150ms ease;
+		flex-shrink: 0;
 	}
 
 	:global(.app.light) .session-picker-modal {
