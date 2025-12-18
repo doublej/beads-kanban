@@ -728,36 +728,80 @@
 		background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
 	}
 
-	/* Chat link button next to agent assignee */
+	/* Chat link - matches ticket-link style with chat accent */
 	.chat-link {
+		position: relative;
 		display: inline-flex;
 		align-items: center;
-		gap: 3px;
-		padding: 0.125rem 0.375rem;
-		background: rgba(59, 130, 246, 0.1);
-		border: 1px solid rgba(59, 130, 246, 0.2);
-		border-radius: 4px;
-		font-size: 0.625rem;
-		font-weight: 500;
-		color: #60a5fa;
+		gap: 4px;
+		padding: 3px 8px 3px 6px;
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
+		border: 1px solid rgba(139, 92, 246, 0.25);
+		border-radius: 5px;
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 0.5625rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		color: #a78bfa;
 		cursor: pointer;
-		transition: all 0.15s ease;
+		transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+		box-shadow: 0 1px 3px rgba(139, 92, 246, 0.1);
+	}
+
+	.chat-link::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(99, 102, 241, 0.1) 100%);
+		border-radius: inherit;
+		opacity: 0;
+		transition: opacity 0.2s ease;
 	}
 
 	.chat-link:hover {
-		background: rgba(59, 130, 246, 0.18);
-		border-color: rgba(59, 130, 246, 0.35);
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(139, 92, 246, 0.14) 100%);
+		border-color: rgba(139, 92, 246, 0.4);
+		color: #c4b5fd;
+		transform: translateY(-1px);
+		box-shadow: 0 3px 8px rgba(139, 92, 246, 0.2);
+	}
+
+	.chat-link:hover::before {
+		opacity: 1;
+	}
+
+	.chat-link:active {
+		transform: translateY(0);
+		box-shadow: 0 1px 2px rgba(139, 92, 246, 0.15);
+	}
+
+	.chat-link :global(svg) {
+		position: relative;
+		flex-shrink: 0;
+		opacity: 0.8;
+		transition: transform 0.2s ease;
+	}
+
+	.chat-link:hover :global(svg) {
+		transform: scale(1.1);
+	}
+
+	.chat-link span {
+		position: relative;
 	}
 
 	:global(.app.light) .chat-link {
-		background: rgba(37, 99, 235, 0.08);
-		border-color: rgba(37, 99, 235, 0.15);
-		color: #2563eb;
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.06) 100%);
+		border-color: rgba(99, 102, 241, 0.2);
+		color: #7c3aed;
+		box-shadow: 0 1px 3px rgba(99, 102, 241, 0.08);
 	}
 
 	:global(.app.light) .chat-link:hover {
-		background: rgba(37, 99, 235, 0.15);
-		border-color: rgba(37, 99, 235, 0.25);
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
+		border-color: rgba(99, 102, 241, 0.3);
+		color: #6d28d9;
+		box-shadow: 0 3px 8px rgba(99, 102, 241, 0.15);
 	}
 
 	.working-dot {

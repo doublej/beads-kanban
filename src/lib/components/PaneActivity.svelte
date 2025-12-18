@@ -183,6 +183,7 @@
 	{#each [...wsPanes.values()].filter(p => expandedPanes.has(p.name)) as pane}
 		{@const size = getPaneSize(pane.name)}
 		{@const customized = isCustomized(pane.name)}
+		{@const ticketId = getTicketIdFromPaneName(pane.name)}
 		<div
 			class="agent-window {size}"
 			class:streaming={pane.streaming}
@@ -218,7 +219,6 @@
 
 				<!-- Centered title -->
 				<div class="window-title-center">
-					{@const ticketId = getTicketIdFromPaneName(pane.name)}
 					{#if ticketId && onOpenTicket}
 						<button
 							class="ticket-link"
@@ -774,44 +774,82 @@
 		text-overflow: ellipsis;
 	}
 
+	/* Ticket link - distinctive pill with gradient accent */
 	.ticket-link {
+		position: relative;
 		display: flex;
 		align-items: center;
-		gap: 4px;
-		padding: 2px 6px;
-		background: rgba(59, 130, 246, 0.1);
-		border: 1px solid rgba(59, 130, 246, 0.2);
-		border-radius: 4px;
-		font: 500 10px/1 'JetBrains Mono', ui-monospace, monospace;
-		color: rgba(96, 165, 250, 0.9);
+		gap: 5px;
+		padding: 3px 10px 3px 7px;
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
+		border: 1px solid rgba(139, 92, 246, 0.25);
+		border-radius: 6px;
+		font: 600 9px/1 'JetBrains Mono', ui-monospace, monospace;
+		letter-spacing: 0.02em;
+		color: #a78bfa;
 		cursor: pointer;
-		transition: all 0.15s ease;
+		transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		max-width: 140px;
+		max-width: 160px;
+		box-shadow: 0 1px 3px rgba(139, 92, 246, 0.1);
+	}
+
+	.ticket-link::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(99, 102, 241, 0.1) 100%);
+		border-radius: inherit;
+		opacity: 0;
+		transition: opacity 0.2s ease;
 	}
 
 	.ticket-link:hover {
-		background: rgba(59, 130, 246, 0.18);
-		border-color: rgba(59, 130, 246, 0.35);
-		color: #60a5fa;
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(139, 92, 246, 0.14) 100%);
+		border-color: rgba(139, 92, 246, 0.4);
+		color: #c4b5fd;
+		transform: translateY(-1px);
+		box-shadow: 0 3px 8px rgba(139, 92, 246, 0.2);
+	}
+
+	.ticket-link:hover::before {
+		opacity: 1;
+	}
+
+	.ticket-link:active {
+		transform: translateY(0);
+		box-shadow: 0 1px 2px rgba(139, 92, 246, 0.15);
 	}
 
 	.ticket-link svg {
+		position: relative;
 		flex-shrink: 0;
-		opacity: 0.7;
+		opacity: 0.8;
+		transition: transform 0.2s ease;
+	}
+
+	.ticket-link:hover svg {
+		transform: scale(1.1);
+	}
+
+	.ticket-link span {
+		position: relative;
 	}
 
 	:global(.app.light) .ticket-link {
-		background: rgba(37, 99, 235, 0.08);
-		border-color: rgba(37, 99, 235, 0.15);
-		color: #2563eb;
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.06) 100%);
+		border-color: rgba(99, 102, 241, 0.2);
+		color: #7c3aed;
+		box-shadow: 0 1px 3px rgba(99, 102, 241, 0.08);
 	}
 
 	:global(.app.light) .ticket-link:hover {
-		background: rgba(37, 99, 235, 0.15);
-		border-color: rgba(37, 99, 235, 0.25);
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
+		border-color: rgba(99, 102, 241, 0.3);
+		color: #6d28d9;
+		box-shadow: 0 3px 8px rgba(99, 102, 241, 0.15);
 	}
 
 	.session-id {
