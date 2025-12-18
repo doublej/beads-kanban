@@ -208,7 +208,12 @@
 
 				<!-- Centered title -->
 				<div class="window-title-center">
-					<span class="status-indicator" class:active={pane.streaming}></span>
+					{#if pane.streaming}
+						<svg class="status-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+							<circle cx="12" cy="12" r="3"/>
+							<path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+						</svg>
+					{/if}
 					<span class="agent-name">{pane.name}</span>
 					{#if pane.sdkSessionId}
 						<span class="session-id" class:compacted={pane.compacted} title="{pane.sdkSessionId}&#10;{pane.cwd || 'no cwd'}">
@@ -708,18 +713,15 @@
 		overflow: hidden;
 	}
 
-	.status-indicator {
-		width: 5px;
-		height: 5px;
-		border-radius: 50%;
-		background: transparent;
+	.status-sun {
+		color: #f59e0b;
 		flex-shrink: 0;
+		animation: sun-spin 8s linear infinite;
 	}
 
-	.status-indicator.active {
-		background: #f59e0b;
-		box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
-		animation: pulse 1.2s ease-in-out infinite;
+	@keyframes sun-spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 
 	.agent-name {
@@ -937,7 +939,6 @@
 		border-radius: 3px;
 		animation: fadeIn 150ms ease;
 		min-width: 0;
-		overflow: hidden;
 	}
 
 	@keyframes fadeIn {
