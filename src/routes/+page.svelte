@@ -1678,13 +1678,9 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 				class:active={agentMenuOpen}
 				onclick={() => agentMenuOpen = !agentMenuOpen}
 			>
-				<svg class="launcher-icon" viewBox="0 0 16 16" width="14" height="14">
-					<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/>
-					<path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-				</svg>
-				<span class="launcher-label">Agent</span>
-				<svg class="launcher-caret" class:open={agentMenuOpen} viewBox="0 0 8 8" width="8" height="8">
-					<path d="M2 3l2 2 2-2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+				<span class="launcher-label">New</span>
+				<svg class="launcher-caret" class:open={agentMenuOpen} viewBox="0 0 10 10" width="9" height="9">
+					<path d="M2.5 4l2.5 2.5 2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
 				</svg>
 			</button>
 
@@ -1693,12 +1689,11 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 				<div class="launcher-backdrop" onclick={() => agentMenuOpen = false}></div>
 				<div class="launcher-menu">
 					<button class="launcher-option" onclick={() => { agentMenuOpen = false; agentNameInputOpen = true; setTimeout(() => agentNameInputRef?.focus(), 50); }}>
-						<svg viewBox="0 0 16 16" width="14" height="14">
-							<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.2"/>
-							<path d="M8 5.5v5M5.5 8h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+						<svg viewBox="0 0 16 16" width="13" height="13">
+							<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/>
+							<path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
 						</svg>
 						<span class="option-label">New Agent</span>
-						<span class="option-hint">Create fresh</span>
 					</button>
 					<button class="launcher-option" onclick={async () => {
 						agentMenuOpen = false;
@@ -1708,12 +1703,12 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 						sdkSessions = await fetchSdkSessions(currentProjectPath);
 						loadingSdkSessions = false;
 					}}>
-						<svg viewBox="0 0 16 16" width="14" height="14">
-							<path d="M3 8a5 5 0 019-2M13 8a5 5 0 01-9 2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-							<path d="M12 3v3h-3M4 13v-3h3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+						<svg viewBox="0 0 16 16" width="13" height="13">
+							<path d="M4 8a4 4 0 017.5-2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+							<path d="M11 3.5v2.5h-2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
 						</svg>
-						<span class="option-label">Load Session</span>
-						<span class="option-hint">{filteredSessions.length} saved</span>
+						<span class="option-label">Resume Session</span>
+						<span class="option-badge">{filteredSessions.length}</span>
 					</button>
 				</div>
 			{/if}
@@ -2504,34 +2499,31 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	.launcher-btn {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		padding: 5px 10px 5px 8px;
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.08) 100%);
-		border: 1px solid rgba(99, 102, 241, 0.25);
-		border-radius: 6px;
-		color: var(--text-primary);
-		font: 500 11px/1 'JetBrains Mono', ui-monospace, monospace;
+		gap: 5px;
+		padding: 6px 8px 6px 7px;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 5px;
+		color: var(--text-secondary);
+		font: 500 11px/1 system-ui, -apple-system, sans-serif;
 		cursor: pointer;
-		transition: all 120ms ease;
+		transition: all 100ms ease;
 	}
 
 	.launcher-btn:hover {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0.15) 100%);
-		border-color: rgba(99, 102, 241, 0.4);
-		transform: translateY(-1px);
+		background: rgba(255, 255, 255, 0.07);
+		border-color: rgba(255, 255, 255, 0.12);
+		color: var(--text-primary);
 	}
 
 	.launcher-btn.active {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(99, 102, 241, 0.2) 100%);
-		border-color: rgba(99, 102, 241, 0.5);
-	}
-
-	.launcher-icon {
-		color: rgba(99, 102, 241, 0.9);
+		background: rgba(99, 102, 241, 0.12);
+		border-color: rgba(99, 102, 241, 0.25);
+		color: var(--text-primary);
 	}
 
 	.launcher-label {
-		letter-spacing: 0.02em;
+		letter-spacing: -0.01em;
 	}
 
 	.launcher-caret {
@@ -2551,78 +2543,107 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 
 	.launcher-menu {
 		position: absolute;
-		bottom: calc(100% + 6px);
+		bottom: calc(100% + 4px);
 		left: 0;
-		min-width: 180px;
-		padding: 4px;
-		background: var(--bg-secondary, #1a1a1f);
+		padding: 3px;
+		background: rgba(28, 28, 32, 0.98);
+		backdrop-filter: blur(20px) saturate(1.5);
 		border: 1px solid rgba(255, 255, 255, 0.1);
 		border-radius: 8px;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+		box-shadow:
+			0 0 0 0.5px rgba(0, 0, 0, 0.3),
+			0 4px 16px rgba(0, 0, 0, 0.35),
+			0 8px 32px rgba(0, 0, 0, 0.2);
 		z-index: 1000;
-		animation: menuIn 120ms ease-out;
+		animation: menuSlide 100ms ease-out;
 	}
 
-	@keyframes menuIn {
-		from { opacity: 0; transform: translateY(4px) scale(0.96); }
-		to { opacity: 1; transform: translateY(0) scale(1); }
+	@keyframes menuSlide {
+		from { opacity: 0; transform: translateY(3px); }
+		to { opacity: 1; transform: translateY(0); }
 	}
 
 	.launcher-option {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		width: 100%;
-		padding: 10px 12px;
+		gap: 8px;
+		padding: 7px 10px;
 		background: transparent;
 		border: none;
-		border-radius: 6px;
+		border-radius: 5px;
 		color: var(--text-primary);
-		font: 500 12px/1 system-ui;
+		font: 500 12px/1 system-ui, -apple-system, sans-serif;
 		text-align: left;
 		cursor: pointer;
-		transition: all 80ms ease;
+		transition: background 60ms ease;
+		white-space: nowrap;
 	}
 
 	.launcher-option:hover {
-		background: rgba(99, 102, 241, 0.12);
+		background: rgba(255, 255, 255, 0.08);
+	}
+
+	.launcher-option:active {
+		background: rgba(255, 255, 255, 0.12);
 	}
 
 	.launcher-option svg {
-		color: var(--text-secondary);
+		color: var(--text-tertiary);
 		flex-shrink: 0;
+		transition: color 60ms ease;
 	}
 
 	.launcher-option:hover svg {
-		color: rgba(99, 102, 241, 0.9);
+		color: var(--text-secondary);
 	}
 
 	.option-label {
-		flex: 1;
+		flex-shrink: 0;
 	}
 
-	.option-hint {
-		font: 400 10px/1 'JetBrains Mono', monospace;
+	.option-badge {
+		margin-left: auto;
+		padding: 2px 5px;
+		font: 500 9px/1 'JetBrains Mono', ui-monospace, monospace;
 		color: var(--text-tertiary);
+		background: rgba(255, 255, 255, 0.06);
+		border-radius: 3px;
 	}
 
 	.app.light .launcher-btn {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(99, 102, 241, 0.06) 100%);
-		border-color: rgba(99, 102, 241, 0.2);
+		background: rgba(0, 0, 0, 0.04);
+		border-color: rgba(0, 0, 0, 0.08);
 	}
 
 	.app.light .launcher-btn:hover {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.1) 100%);
+		background: rgba(0, 0, 0, 0.06);
+		border-color: rgba(0, 0, 0, 0.12);
+	}
+
+	.app.light .launcher-btn.active {
+		background: rgba(99, 102, 241, 0.1);
+		border-color: rgba(99, 102, 241, 0.2);
 	}
 
 	.app.light .launcher-menu {
-		background: #fff;
-		border-color: rgba(0, 0, 0, 0.1);
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+		background: rgba(255, 255, 255, 0.98);
+		border-color: rgba(0, 0, 0, 0.08);
+		box-shadow:
+			0 0 0 0.5px rgba(0, 0, 0, 0.06),
+			0 4px 16px rgba(0, 0, 0, 0.1),
+			0 8px 32px rgba(0, 0, 0, 0.08);
 	}
 
 	.app.light .launcher-option:hover {
-		background: rgba(99, 102, 241, 0.08);
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	.app.light .launcher-option:active {
+		background: rgba(0, 0, 0, 0.07);
+	}
+
+	.app.light .option-badge {
+		background: rgba(0, 0, 0, 0.05);
 	}
 
 	/* ===== Agent Name Input ===== */
