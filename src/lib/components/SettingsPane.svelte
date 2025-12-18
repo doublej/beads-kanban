@@ -10,6 +10,9 @@
 		agentEnabled: boolean;
 		agentHost: string;
 		agentPort: number;
+		agentFirstMessage: string;
+		agentSystemPrompt: string;
+		agentToolsExpanded: boolean;
 		colorScheme: string;
 		notificationsEnabled: boolean;
 		ontoggleTheme: () => void;
@@ -24,6 +27,9 @@
 		agentEnabled = $bindable(),
 		agentHost = $bindable(),
 		agentPort = $bindable(),
+		agentFirstMessage = $bindable(),
+		agentSystemPrompt = $bindable(),
+		agentToolsExpanded = $bindable(),
 		colorScheme,
 		notificationsEnabled,
 		ontoggleTheme,
@@ -239,6 +245,52 @@
 							<code class="endpoint-value">ws://{agentHost}:{agentPort}</code>
 						</div>
 					</div>
+
+					<!-- Agent First Message -->
+					<div class="setting-row" style="margin-top: 0.75rem">
+						<div class="setting-info">
+							<span class="setting-name">First Message</span>
+							<span class="setting-desc">Initial briefing sent to new agents</span>
+						</div>
+					</div>
+					<div class="agent-textarea-wrapper">
+						<textarea
+							class="agent-textarea"
+							bind:value={agentFirstMessage}
+							placeholder='You are an agent named "{name}". Await further instructions.'
+							rows="3"
+						></textarea>
+						<span class="textarea-hint">Use {'{name}'} for agent name</span>
+					</div>
+
+					<!-- Agent System Prompt -->
+					<div class="setting-row" style="margin-top: 0.75rem">
+						<div class="setting-info">
+							<span class="setting-name">System Prompt (agents.md)</span>
+							<span class="setting-desc">Additional context appended to system prompt</span>
+						</div>
+					</div>
+					<div class="agent-textarea-wrapper">
+						<textarea
+							class="agent-textarea agent-textarea-large"
+							bind:value={agentSystemPrompt}
+							placeholder="# Agent Instructions&#10;&#10;Add custom instructions, context, or guidelines for all agents..."
+							rows="6"
+						></textarea>
+					</div>
+
+					<!-- Tool Display Preference -->
+					<div class="setting-row" style="margin-top: 0.75rem">
+						<div class="setting-info">
+							<span class="setting-name">Expand Tool Calls</span>
+							<span class="setting-desc">Show tool input/output by default</span>
+						</div>
+						<button class="toggle-switch" onclick={() => agentToolsExpanded = !agentToolsExpanded}>
+							<span class="toggle-track" class:active={agentToolsExpanded}>
+								<span class="toggle-thumb"></span>
+							</span>
+						</button>
+					</div>
 				{/if}
 			</section>
 
@@ -354,7 +406,7 @@
 		inset: 0;
 		background: rgba(0, 0, 0, 0.5);
 		backdrop-filter: blur(4px);
-		z-index: 1000;
+		z-index: 10000;
 		animation: overlayFadeIn 200ms ease-out;
 	}
 
@@ -877,6 +929,59 @@
 	:global(.app.light) .endpoint-value {
 		color: #0891b2;
 		background: rgba(6, 182, 212, 0.1);
+	}
+
+	/* Agent Textarea */
+	.agent-textarea-wrapper {
+		margin-top: 0.5rem;
+		position: relative;
+	}
+
+	.agent-textarea {
+		width: 100%;
+		padding: 0.5rem 0.625rem;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: var(--radius-md);
+		color: var(--text-primary);
+		font-family: ui-monospace, 'SF Mono', monospace;
+		font-size: 0.6875rem;
+		line-height: 1.5;
+		resize: vertical;
+		min-height: 60px;
+	}
+
+	.agent-textarea:focus {
+		outline: none;
+		border-color: rgba(34, 211, 238, 0.4);
+		box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.1);
+	}
+
+	.agent-textarea::placeholder {
+		color: var(--text-tertiary);
+		opacity: 0.6;
+	}
+
+	.agent-textarea-large {
+		min-height: 120px;
+	}
+
+	:global(.app.light) .agent-textarea {
+		background: rgba(0, 0, 0, 0.03);
+		border-color: rgba(0, 0, 0, 0.08);
+	}
+
+	:global(.app.light) .agent-textarea:focus {
+		border-color: rgba(6, 182, 212, 0.4);
+		box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.08);
+	}
+
+	.textarea-hint {
+		display: block;
+		margin-top: 0.25rem;
+		font-size: 0.5625rem;
+		color: var(--text-tertiary);
+		opacity: 0.7;
 	}
 
 	/* Theme Toggle */
