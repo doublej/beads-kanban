@@ -70,11 +70,11 @@
    Paper-like warmth with brown/cream tones, easier on the eyes
    ═══════════════════════════════════════════════════════════════════════════ */
 :global(.app.light) {
-	/* ─── Surface Levels (warm paper tones) ─── */
-	--surface-app: #f5f3ef;         /* App background - warm off-white */
-	--surface-panel: #faf8f5;       /* Panel surface - cream */
-	--surface-card: #fffdf9;        /* Card surface - warm white */
-	--surface-elevated: #fffefa;    /* Modals, popovers - slight cream */
+	/* ─── Surface Levels (warm parchment tones) ─── */
+	--surface-app: #e8e2d9;         /* App background - warm tan */
+	--surface-panel: #f0ebe3;       /* Panel surface - light parchment */
+	--surface-card: #f7f3ec;        /* Card surface - cream paper */
+	--surface-elevated: #faf6f0;    /* Modals, popovers - lightest cream */
 
 	/* Legacy aliases */
 	--bg-primary: var(--surface-app);
@@ -83,47 +83,47 @@
 	--bg-elevated: var(--surface-elevated);
 
 	/* ─── Border System (warm brown tints) ─── */
-	--border-subtle: rgba(120, 100, 80, 0.08);
-	--border-default: rgba(120, 100, 80, 0.12);
-	--border-strong: rgba(120, 100, 80, 0.18);
+	--border-subtle: rgba(100, 80, 60, 0.15);
+	--border-default: rgba(100, 80, 60, 0.22);
+	--border-strong: rgba(100, 80, 60, 0.32);
 
-	/* ─── Text Colors (softer, less harsh) ─── */
-	--text-primary: #2c2a26;
-	--text-secondary: #5c584f;
-	--text-tertiary: #7a756a;
-	--text-muted: #a39e93;
+	/* ─── Text Colors (warm sepia-ish) ─── */
+	--text-primary: #3d3630;
+	--text-secondary: #5c534a;
+	--text-tertiary: #7a6f63;
+	--text-muted: #9c9084;
 
-	/* ─── Accent (warmer blue) ─── */
-	--accent-primary: #3b6db5;
-	--accent-glow: rgba(59, 109, 181, 0.1);
+	/* ─── Accent (earthy blue) ─── */
+	--accent-primary: #4a7ab0;
+	--accent-glow: rgba(74, 122, 176, 0.15);
 
-	/* ─── Shadows (warmer, softer) ─── */
-	--shadow-sm: 0 1px 2px rgba(80, 60, 40, 0.06);
-	--shadow-md: 0 4px 12px rgba(80, 60, 40, 0.08);
-	--shadow-lg: 0 8px 24px rgba(80, 60, 40, 0.10);
-	--shadow-elevated: 0 12px 40px rgba(80, 60, 40, 0.12);
+	/* ─── Shadows (warm brown) ─── */
+	--shadow-sm: 0 1px 2px rgba(80, 60, 40, 0.12);
+	--shadow-md: 0 4px 12px rgba(80, 60, 40, 0.15);
+	--shadow-lg: 0 8px 24px rgba(80, 60, 40, 0.18);
+	--shadow-elevated: 0 12px 40px rgba(80, 60, 40, 0.22);
 
 	/* ─── Input Backgrounds (warm tint) ─── */
-	--input-bg: rgba(120, 100, 80, 0.04);
-	--input-bg-focus: rgba(120, 100, 80, 0.06);
+	--input-bg: rgba(100, 80, 60, 0.08);
+	--input-bg-focus: rgba(100, 80, 60, 0.12);
 }
 
 /* Light theme component overrides */
 :global(.app.light) .btn-hotkey,
 :global(.app.light) .kbd {
-	background: rgba(120, 100, 80, 0.10);
+	background: rgba(100, 80, 60, 0.15);
 }
 
 :global(.app.light) .btn-hotkey-subtle {
-	background: rgba(120, 100, 80, 0.06);
+	background: rgba(100, 80, 60, 0.10);
 }
 
 :global(.app.light) .btn-hotkey-light {
-	background: rgba(120, 100, 80, 0.14);
+	background: rgba(100, 80, 60, 0.20);
 }
 
 :global(.app.light) .hotkey-hint {
-	background: rgba(120, 100, 80, 0.06);
+	background: rgba(100, 80, 60, 0.10);
 	border-color: var(--border-subtle);
 }
 
