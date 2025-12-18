@@ -58,11 +58,13 @@
 	});
 
 	const viewModes: { key: ViewMode; icon: 'view-board' | 'view-tree' | 'view-graph' | 'view-stats'; label: string }[] = [
-		{ key: 'kanban', icon: 'view-board', label: 'Board' },
-		{ key: 'tree', icon: 'view-tree', label: 'Tree' },
-		{ key: 'graph', icon: 'view-graph', label: 'Graph' },
-		{ key: 'stats', icon: 'view-stats', label: 'Stats' }
+		{ key: 'kanban', icon: 'view-board', label: 'board' },
+		{ key: 'tree', icon: 'view-tree', label: 'tree' },
+		{ key: 'graph', icon: 'view-graph', label: 'dependency graph' },
+		{ key: 'stats', icon: 'view-stats', label: 'stats' }
 	];
+
+	const activeViewLabel = $derived(viewModes.find(m => m.key === viewMode)?.label ?? 'board');
 
 	const priorityOptions = [
 		{ value: 'all', label: 'All' },
@@ -126,6 +128,8 @@
 				<span class="logo-app">strandkanban</span>
 				<span class="logo-divider">/</span>
 				<span class="logo-project">{projectName}</span>
+				<span class="logo-divider">/</span>
+				<span class="logo-view">{activeViewLabel}</span>
 			</button>
 		</div>
 
@@ -481,6 +485,18 @@
 		font-weight: 700;
 		letter-spacing: -0.01em;
 		color: rgba(255, 255, 255, 0.95);
+	}
+
+	.logo-view {
+		font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+		font-size: 1.1rem;
+		font-weight: 400;
+		letter-spacing: -0.01em;
+		color: rgba(255, 255, 255, 0.5);
+	}
+
+	:global(.app.light) .logo-view {
+		color: rgba(0, 0, 0, 0.4);
 	}
 
 	:global(.app.light) .logo-app {
