@@ -606,80 +606,94 @@
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.625rem 0.75rem;
-		background: var(--bg-tertiary);
-		border-radius: 10px;
-		margin-bottom: 1.25rem;
+		gap: 0.625rem;
+		padding: 0.5rem 0;
+		margin-bottom: 1rem;
+		border-bottom: 1px solid var(--border-subtle);
 	}
 
 	.spec {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.25rem;
-		font-size: 0.6875rem;
+		gap: 0.3125rem;
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 0.625rem;
 		font-weight: 500;
-		color: var(--text-secondary);
+		color: var(--text-tertiary);
+		letter-spacing: 0.01em;
 	}
 
 	.spec.priority {
 		color: var(--c);
 		font-weight: 600;
+		padding: 0.1875rem 0.5rem 0.1875rem 0.375rem;
+		background: color-mix(in srgb, var(--c) 12%, transparent);
+		border-radius: 5px;
 	}
 
 	.spec-dot {
-		width: 6px;
-		height: 6px;
+		width: 5px;
+		height: 5px;
 		border-radius: 50%;
 		background: var(--c);
 	}
 
 	.spec.type {
-		text-transform: capitalize;
-		color: var(--text-tertiary);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		padding: 0.1875rem 0.4375rem;
+		background: var(--bg-tertiary);
+		border-radius: 4px;
 	}
 
 	.spec.time {
 		color: var(--text-tertiary);
-		font-size: 0.625rem;
+		opacity: 0.7;
 	}
 
 	.spec-divider {
 		width: 1px;
-		height: 12px;
+		height: 10px;
 		background: var(--border-subtle);
+		opacity: 0.5;
 	}
 
 	/* Assignee within specs bar */
 	.spec.assignee {
 		gap: 0.375rem;
+		padding: 0.1875rem 0.5rem;
+		border-radius: 5px;
 	}
 
 	.spec.assignee.agent {
 		color: #10b981;
+		background: rgba(16, 185, 129, 0.1);
 	}
 
 	.spec.assignee.agent.working {
-		color: #10b981;
+		background: rgba(16, 185, 129, 0.15);
+		box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.25);
 	}
 
 	.spec.assignee.human {
 		color: var(--text-secondary);
+		background: var(--bg-tertiary);
 	}
 
 	.avatar-dot {
-		width: 8px;
-		height: 8px;
+		width: 7px;
+		height: 7px;
 		border-radius: 50%;
 		background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
 	}
 
 	.working-dot {
-		width: 6px;
-		height: 6px;
+		width: 5px;
+		height: 5px;
 		border-radius: 50%;
 		background: #10b981;
 		animation: pulse-dot 1.5s ease-in-out infinite;
+		box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
 	}
 
 	@keyframes pulse-dot {
@@ -691,27 +705,28 @@
 	   VIEW MODE - CONTENT BLOCK (Title + Description)
 	   ═══════════════════════════════════════════════════════════════ */
 	.content-block {
-		margin-bottom: 1.5rem;
+		margin-bottom: 2rem;
 	}
 
 	.issue-title {
-		font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-		font-size: 1.375rem;
-		font-weight: 700;
+		font-family: 'Instrument Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
+		font-size: 1.5rem;
+		font-weight: 650;
 		color: var(--text-primary);
-		line-height: 1.3;
-		letter-spacing: -0.025em;
-		margin-bottom: 0.75rem;
+		line-height: 1.25;
+		letter-spacing: -0.03em;
+		margin-bottom: 1rem;
 	}
 
 	.issue-description {
-		font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+		font-family: 'Inter', system-ui, sans-serif;
 		font-size: 0.9375rem;
 		font-weight: 400;
 		color: var(--text-secondary);
-		line-height: 1.65;
+		line-height: 1.7;
 		white-space: pre-wrap;
 		word-break: break-word;
+		letter-spacing: -0.005em;
 	}
 
 	.section {
