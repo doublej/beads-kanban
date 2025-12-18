@@ -7,7 +7,8 @@
 		agentCount,
 		agentEnabled = true,
 		light = false,
-		onstartAgent
+		onstartAgent,
+		onrestartAgent
 	}: {
 		dataStatus: LoadingStatus;
 		agentConnected: boolean;
@@ -15,6 +16,7 @@
 		agentEnabled?: boolean;
 		light?: boolean;
 		onstartAgent?: () => void;
+		onrestartAgent?: () => void;
 	} = $props();
 
 	function formatAge(ts: number | null): string {
@@ -60,7 +62,20 @@
 				{/if}
 			</span>
 			{#if !agentConnected && onstartAgent}
-				<button class="start-btn" onclick={onstartAgent}>Start</button>
+				<button class="action-btn start" onclick={onstartAgent}>
+					<svg viewBox="0 0 12 12" width="10" height="10" fill="currentColor">
+						<path d="M3 1.5v9l7-4.5-7-4.5z"/>
+					</svg>
+					<span>Start</span>
+				</button>
+			{:else if agentConnected && onrestartAgent}
+				<button class="action-btn restart" onclick={onrestartAgent}>
+					<svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.5">
+						<path d="M1 6a5 5 0 019.5-1.5M11 6a5 5 0 01-9.5 1.5"/>
+						<path d="M10.5 1v3.5H7M1.5 11V7.5H5" fill="none"/>
+					</svg>
+					<span>Restart</span>
+				</button>
 			{/if}
 		</div>
 	{/if}
@@ -148,27 +163,68 @@
 		background: rgba(0,0,0,0.1);
 	}
 
-	.start-btn {
-		padding: 2px 8px;
-		margin-left: 6px;
-		background: rgba(99, 102, 241, 0.15);
-		border: 1px solid rgba(99, 102, 241, 0.3);
+	/* Action buttons */
+	.action-btn {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 3px 10px 3px 8px;
+		margin-left: 8px;
+		border: none;
 		border-radius: 4px;
-		color: var(--text-primary, #fff);
-		font-size: 10px;
-		font-weight: 500;
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 9px;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		text-transform: uppercase;
 		cursor: pointer;
-		transition: all 0.15s ease;
+		transition: all 0.12s ease;
 	}
 
-	.start-btn:hover {
-		background: rgba(99, 102, 241, 0.25);
-		border-color: rgba(99, 102, 241, 0.5);
+	.action-btn svg {
+		flex-shrink: 0;
 	}
 
-	.status-bar.light .start-btn {
-		background: rgba(99, 102, 241, 0.1);
-		border-color: rgba(99, 102, 241, 0.2);
-		color: #3c3c43;
+	.action-btn.start {
+		background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+		color: #fff;
+		box-shadow: 0 1px 3px rgba(34, 197, 94, 0.3), inset 0 1px 0 rgba(255,255,255,0.15);
+	}
+
+	.action-btn.start:hover {
+		background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+		transform: translateY(-1px);
+		box-shadow: 0 2px 6px rgba(34, 197, 94, 0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+	}
+
+	.action-btn.start:active {
+		transform: translateY(0);
+		box-shadow: 0 1px 2px rgba(34, 197, 94, 0.2);
+	}
+
+	.action-btn.restart {
+		background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+		color: #fff;
+		box-shadow: 0 1px 3px rgba(245, 158, 11, 0.3), inset 0 1px 0 rgba(255,255,255,0.15);
+	}
+
+	.action-btn.restart:hover {
+		background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+		transform: translateY(-1px);
+		box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+	}
+
+	.action-btn.restart:active {
+		transform: translateY(0);
+		box-shadow: 0 1px 2px rgba(245, 158, 11, 0.2);
+	}
+
+	/* Light theme adjustments */
+	.status-bar.light .action-btn.start {
+		background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+	}
+
+	.status-bar.light .action-btn.restart {
+		background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
 	}
 </style>
