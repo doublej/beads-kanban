@@ -79,7 +79,6 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<div class="switcher-modal" onclick={(e) => e.stopPropagation()}>
 		<div class="switcher-header">
-			<span class="header-icon">⌘</span>
 			<span class="header-text">Switch Project</span>
 			<kbd class="header-hint">Tab</kbd>
 		</div>
@@ -141,8 +140,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: rgba(0, 0, 0, 0.7);
-		backdrop-filter: blur(8px) saturate(150%);
+		background: transparent;
 		animation: overlayIn 150ms ease-out;
 	}
 
@@ -204,11 +202,6 @@
 		background: rgba(0, 0, 0, 0.02);
 	}
 
-	.header-icon {
-		font-size: 1.25rem;
-		opacity: 0.5;
-	}
-
 	.header-text {
 		font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
 		font-size: 0.9375rem;
@@ -263,7 +256,6 @@
 	.project-card:hover {
 		background: rgba(255, 255, 255, 0.06);
 		border-color: rgba(255, 255, 255, 0.1);
-		transform: translateX(4px);
 	}
 
 	:global(.app.light) .project-card:hover {
@@ -274,7 +266,6 @@
 	.project-card.selected {
 		background: rgba(var(--project-color-rgb, 99, 102, 241), 0.12);
 		border-color: var(--project-color);
-		transform: translateX(8px) scale(1.02);
 		box-shadow:
 			0 4px 16px rgba(0, 0, 0, 0.2),
 			0 0 0 1px var(--project-color),

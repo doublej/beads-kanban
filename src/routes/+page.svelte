@@ -2,7 +2,7 @@
 	import { browser } from '$app/environment';
 	import { untrack } from 'svelte';
 	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, type Pane } from '$lib/wsStore.svelte';
-	import type { Issue, Comment, CardPosition, FlyingCard, ContextMenuState, RopeDragState, SortBy, PaneSize, ViewMode, LoadingStatus as LoadingStatusType, Project } from '$lib/types';
+	import type { Issue, Comment, Attachment, CardPosition, FlyingCard, ContextMenuState, RopeDragState, SortBy, PaneSize, ViewMode, LoadingStatus as LoadingStatusType, Project } from '$lib/types';
 	import {
 		columns,
 		getPriorityConfig,
@@ -21,7 +21,10 @@
 		loadComments as loadCommentsApi,
 		addCommentApi,
 		createDependencyApi,
-		removeDependencyApi
+		removeDependencyApi,
+		loadAttachmentsApi,
+		uploadAttachmentApi,
+		deleteAttachmentApi
 	} from '$lib/api';
 	import ColumnNav from '$lib/components/ColumnNav.svelte';
 	import Header from '$lib/components/Header.svelte';
@@ -72,11 +75,14 @@
 	let dropIndicatorIndex = $state<number | null>(null);
 	let dropTargetColumn = $state<string | null>(null);
 	let isDarkMode = $state(true);
+	let colorScheme = $state('default');
 	let themeTransitionActive = $state(false);
 	let themeTransitionToLight = $state(false);
 	let comments = $state<{ id: number; author: string; text: string; created_at: string }[]>([]);
 	let newComment = $state('');
 	let loadingComments = $state(false);
+	let attachments = $state<Attachment[]>([]);
+	let loadingAttachments = $state(false);
 	let showPaneActivity = $state(true);
 	let newPaneName = $state('');
 	let paneMessageInputs = $state<Record<string, string>>({});
@@ -122,9 +128,10 @@
 	let showMutationLog = $state(false);
 	let projects = $state<Project[]>([]);
 	let showProjectSwitcher = $state(false);
-	let projectSwitching = $state(false);
 	let currentProjectPath = $state('');
 	let projectColor = $state('#6366f1');
+	let projectTransition = $state<'idle' | 'wipe-out' | 'wipe-in'>('idle');
+	let sseSource = $state<EventSource | null>(null);
 
 	function getCardPosition(id: string): {x: number; y: number; w: number; h: number} | null {
 		const el = cardRefs.get(id);
@@ -195,6 +202,19 @@
 	function setColumnSort(columnKey: string, sortBy: 'priority' | 'created' | 'title') {
 		columnSortBy = { ...columnSortBy, [columnKey]: sortBy };
 		sortMenuOpen = null;
+	}
+
+	async function startAgentServer() {
+		try {
+			await fetch('/api/agent', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'start' })
+			});
+			// The wsStore will auto-reconnect
+		} catch (err) {
+			console.error('Failed to start agent server:', err);
+		}
 	}
 
 	function toggleColumnCollapse(key: string) {
@@ -411,6 +431,7 @@
 
 	function connectSSE() {
 		const eventSource = new EventSource('/api/issues/stream');
+		sseSource = eventSource;
 
 		eventSource.onmessage = (event) => {
 			const msg = JSON.parse(event.data);
@@ -630,6 +651,26 @@
 		loadingComments = false;
 	}
 
+	async function loadAttachments(issueId: string) {
+		loadingAttachments = true;
+		attachments = await loadAttachmentsApi(issueId);
+		loadingAttachments = false;
+	}
+
+	async function handleUploadAttachment(file: File) {
+		if (!editingIssue) return;
+		const attachment = await uploadAttachmentApi(editingIssue.id, file);
+		if (attachment) {
+			attachments = [...attachments, attachment];
+		}
+	}
+
+	async function handleDeleteAttachment(filename: string) {
+		if (!editingIssue) return;
+		await deleteAttachmentApi(editingIssue.id, filename);
+		attachments = attachments.filter(a => a.filename !== filename);
+	}
+
 	async function addComment() {
 		if (!editingIssue || !newComment.trim()) return;
 		await fetch(`/api/issues/${editingIssue.id}/comments`, {
@@ -657,6 +698,7 @@
 		selectedId = issue.id;
 		comments = [];
 		loadComments(issue.id);
+		loadAttachments(issue.id);
 		if (browser && pushState) {
 			const url = new URL(window.location.href);
 			url.searchParams.set('issue', issue.id);
@@ -699,6 +741,7 @@
 		isCreating = false;
 		issueClosedExternally = false;
 		comments = [];
+		attachments = [];
 		newComment = '';
 		if (browser && pushState) {
 			const url = new URL(window.location.href);
@@ -1073,6 +1116,8 @@
 			if (savedAgentHost) agentHost = savedAgentHost;
 			const savedAgentPort = localStorage.getItem('agentPort');
 			if (savedAgentPort) agentPort = Number(savedAgentPort);
+			const savedColorScheme = localStorage.getItem('colorScheme');
+			if (savedColorScheme) colorScheme = savedColorScheme;
 		}
 	});
 
@@ -1088,6 +1133,9 @@
 	});
 	$effect(() => {
 		if (browser) localStorage.setItem('agentPort', String(agentPort));
+	});
+	$effect(() => {
+		if (browser) localStorage.setItem('colorScheme', colorScheme);
 	});
 
 	$effect(() => {
@@ -1131,28 +1179,52 @@
 
 	async function switchProject(project: Project) {
 		if (project.path === currentProjectPath) return;
-		projectSwitching = true;
 
-		// Trigger the 3D column rotation animation
-		await new Promise(r => setTimeout(r, 50)); // Let animation class apply
+		const WIPE_DURATION = 350;
 
-		try {
-			const res = await fetch('/api/cwd', {
+		// Start wipe out (bottom to top)
+		projectTransition = 'wipe-out';
+
+		// Close SSE and change CWD in parallel with animation
+		if (sseSource) {
+			sseSource.close();
+			sseSource = null;
+		}
+
+		const [cwdRes] = await Promise.all([
+			fetch('/api/cwd', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ path: project.path })
-			});
-			if (res.ok) {
-				// Wait for animation to complete then reload
-				setTimeout(() => {
-					window.location.reload();
-				}, 600);
-			} else {
-				projectSwitching = false;
-			}
-		} catch {
-			projectSwitching = false;
+			}),
+			new Promise(r => setTimeout(r, WIPE_DURATION))
+		]);
+
+		if (!cwdRes.ok) {
+			projectTransition = 'idle';
+			return;
 		}
+
+		// Fetch new issues
+		const issuesRes = await fetch('/api/issues');
+		const issuesData = await issuesRes.json();
+
+		// Update state
+		issues = issuesData.issues || [];
+		currentProjectPath = project.path;
+		projectName = project.name;
+		projectColor = project.color;
+		initialLoaded = true;
+		selectedId = null;
+		editingIssue = null;
+		isCreating = false;
+
+		// Start wipe in (top to bottom)
+		projectTransition = 'wipe-in';
+		connectSSE();
+
+		await new Promise(r => setTimeout(r, WIPE_DURATION));
+		projectTransition = 'idle';
 	}
 </script>
 
@@ -1188,7 +1260,7 @@
 	onclose={() => showProjectSwitcher = false}
 />
 
-<div class="app" class:light={!isDarkMode} class:panel-open={panelOpen} class:show-hotkeys={showHotkeys} class:has-chat-bar={wsConnected} class:project-switching={projectSwitching} style="--project-color: {projectColor}">
+<div class="app scheme-{colorScheme}" class:light={!isDarkMode} class:panel-open={panelOpen} class:show-hotkeys={showHotkeys} class:has-chat-bar={wsConnected} style="--project-color: {projectColor}">
 
 <TickerTape
 	rangeMinutes={tickerRange}
@@ -1215,7 +1287,9 @@
 	bind:agentHost
 	bind:agentPort
 	{isDarkMode}
+	{colorScheme}
 	ontoggleTheme={toggleTheme}
+	onsetColorScheme={(scheme) => colorScheme = scheme}
 />
 	<Header
 		bind:searchQuery
@@ -1243,7 +1317,7 @@
 		{hasActiveFilters}
 	/>
 
-	<div class="main-content">
+	<div class="main-content" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
 		<main class="board" ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
 			{#each columns as column, i}
 				{#if i === 0 && isCreating}
@@ -1300,11 +1374,23 @@
 		</main>
 		</div>
 	{:else if viewMode === 'tree'}
-		<TreeView {issues} {selectedId} onselect={(issue) => openEditPanel(issue)} />
+		<div class="list-view-layout" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
+			<TreeView {issues} {selectedId} onselect={(issue) => openEditPanel(issue)} oncreate={openCreatePanel} />
+			{#if panelOpen}
+				{@render detailPanel()}
+			{/if}
+		</div>
 	{:else if viewMode === 'graph'}
-		<GraphView {issues} {selectedId} onselect={(issue) => openEditPanel(issue)} />
+		<div class="list-view-layout" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
+			<GraphView {issues} {selectedId} onselect={(issue) => openEditPanel(issue)} />
+			{#if panelOpen}
+				{@render detailPanel()}
+			{/if}
+		</div>
 	{:else if viewMode === 'stats'}
-		<StatsView {issues} />
+		<div class="stats-view-wrapper" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
+			<StatsView {issues} />
+		</div>
 	{/if}
 
 <!-- Chat Bar - Pinned to bottom (only when ws connected) -->
@@ -1374,6 +1460,7 @@
 		agentCount={wsPanes.size}
 		{agentEnabled}
 		light={!isDarkMode}
+		onstartAgent={startAgentServer}
 	/>
 </div>
 
@@ -1388,6 +1475,10 @@
 		bind:newLabelInput
 		bind:newComment
 		{loadingComments}
+		attachments={attachments}
+		loadingAttachments={loadingAttachments}
+		onuploadattachment={handleUploadAttachment}
+		ondeleteattachment={handleDeleteAttachment}
 		{originalLabels}
 		{isPanelDragging}
 		{panelDragOffset}
@@ -1469,64 +1560,6 @@
 
 	.app.has-chat-bar {
 		padding-bottom: 48px;
-	}
-
-	/* Project switching 3D column rotation */
-	.app.project-switching {
-		perspective: 1200px;
-		overflow: hidden;
-	}
-
-	.app.project-switching :global(.board) {
-		transform-style: preserve-3d;
-		/* Prevent layout shift during animation */
-		position: relative;
-	}
-
-	.app.project-switching :global(.column) {
-		animation: columnRotateOut 600ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
-		transform-origin: center center;
-		/* Prevent flicker and improve 3D rendering */
-		backface-visibility: hidden;
-		will-change: transform, opacity;
-	}
-
-	.app.project-switching :global(.column:nth-child(1)) { animation-delay: 0ms; }
-	.app.project-switching :global(.column:nth-child(2)) { animation-delay: 50ms; }
-	.app.project-switching :global(.column:nth-child(3)) { animation-delay: 100ms; }
-	.app.project-switching :global(.column:nth-child(4)) { animation-delay: 150ms; }
-	.app.project-switching :global(.column:nth-child(5)) { animation-delay: 200ms; }
-	.app.project-switching :global(.column:nth-child(6)) { animation-delay: 250ms; }
-
-	@keyframes columnRotateOut {
-		0% {
-			transform: rotateY(0deg) translateZ(0) scale(1);
-			opacity: 1;
-		}
-		40% {
-			transform: rotateY(-15deg) translateZ(-100px) scale(0.95);
-			opacity: 0.8;
-		}
-		100% {
-			transform: rotateY(-90deg) translateZ(-200px) scale(0.8);
-			opacity: 0;
-		}
-	}
-
-	/* Project title slide animation */
-	.app.project-switching :global(.logo-project) {
-		animation: titleSlideOut 400ms ease-out forwards;
-	}
-
-	@keyframes titleSlideOut {
-		0% {
-			transform: translateY(0);
-			opacity: 1;
-		}
-		100% {
-			transform: translateY(20px);
-			opacity: 0;
-		}
 	}
 
 	.app::before {
@@ -1611,12 +1644,98 @@
 		background: var(--bg-primary);
 	}
 
+	/* Color Schemes */
+	.app.scheme-ocean {
+		--bg-primary: #0f172a;
+		--bg-secondary: #1e293b;
+		--bg-tertiary: #0c4a6e;
+		--bg-elevated: #334155;
+		--accent-primary: #0ea5e9;
+		--accent-glow: rgba(14, 165, 233, 0.15);
+	}
+
+	.app.scheme-forest {
+		--bg-primary: #0f1a0f;
+		--bg-secondary: #14532d;
+		--bg-tertiary: #166534;
+		--bg-elevated: #1a3a1a;
+		--accent-primary: #22c55e;
+		--accent-glow: rgba(34, 197, 94, 0.15);
+	}
+
+	.app.scheme-sunset {
+		--bg-primary: #1c0a00;
+		--bg-secondary: #431407;
+		--bg-tertiary: #7c2d12;
+		--bg-elevated: #581c0a;
+		--accent-primary: #f97316;
+		--accent-glow: rgba(249, 115, 22, 0.15);
+	}
+
+	.app.scheme-rose {
+		--bg-primary: #1a0a10;
+		--bg-secondary: #4c0519;
+		--bg-tertiary: #881337;
+		--bg-elevated: #5c0a1f;
+		--accent-primary: #f43f5e;
+		--accent-glow: rgba(244, 63, 94, 0.15);
+	}
+
+	/* Light mode + color schemes */
+	.app.light.scheme-ocean { --accent-primary: #0284c7; }
+	.app.light.scheme-forest { --accent-primary: #16a34a; }
+	.app.light.scheme-sunset { --accent-primary: #ea580c; }
+	.app.light.scheme-rose { --accent-primary: #e11d48; }
+
 			/* Main Content - Board + Panel */
 	.main-content {
 		display: flex;
 		flex: 1;
 		min-height: 0;
 		overflow: hidden;
+	}
+
+	/* Stats view wrapper */
+	.stats-view-wrapper {
+		display: flex;
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	/* Project switch wipe animation using clip-path */
+	.main-content.wipe-out,
+	.list-view-layout.wipe-out,
+	.stats-view-wrapper.wipe-out {
+		animation: wipeUp 350ms ease-in forwards;
+	}
+
+	.main-content.wipe-in,
+	.list-view-layout.wipe-in,
+	.stats-view-wrapper.wipe-in {
+		animation: wipeDown 350ms ease-out forwards;
+	}
+
+	@keyframes wipeUp {
+		from {
+			clip-path: inset(0 0 0 0);
+			opacity: 1;
+		}
+		to {
+			clip-path: inset(0 0 100% 0);
+			opacity: 0.5;
+		}
+	}
+
+	@keyframes wipeDown {
+		from {
+			clip-path: inset(100% 0 0 0);
+			opacity: 0.5;
+		}
+		to {
+			clip-path: inset(0 0 0 0);
+			opacity: 1;
+		}
 	}
 
 	/* Board */
@@ -1631,6 +1750,14 @@
 		transition: margin-right var(--transition-smooth);
 		scrollbar-width: none; /* Firefox */
 		-ms-overflow-style: none; /* IE/Edge */
+	}
+
+	/* List view layout (tree/graph views with side panel) */
+	.list-view-layout {
+		display: flex;
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
 	}
 
 	.board::-webkit-scrollbar {

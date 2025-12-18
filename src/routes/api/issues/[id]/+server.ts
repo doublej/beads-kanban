@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import type { RequestHandler } from './$types';
+import { getBdDbFlag } from '$lib/db';
 
 const execAsync = promisify(exec);
 const VALID_STATUSES = ['open', 'in_progress', 'blocked', 'closed'];
@@ -13,10 +14,11 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 		return json({ error: 'Invalid status' }, { status: 400 });
 	}
 
+	const dbFlag = getBdDbFlag();
 	const commands: string[] = [];
 
 	// Build update command if there are field updates
-	let updateCmd = `bd update ${params.id}`;
+	let updateCmd = `bd ${dbFlag} update ${params.id}`;
 	let hasUpdates = false;
 	if (status) { updateCmd += ` --status ${status}`; hasUpdates = true; }
 	if (title !== undefined) { updateCmd += ` --title "${title.replace(/"/g, '\\"')}"`; hasUpdates = true; }
@@ -30,22 +32,19 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	// Add label commands
 	if (removeLabels?.length) {
 		for (const label of removeLabels) {
-			commands.push(`bd label remove ${params.id} ${label}`);
+			commands.push(`bd ${dbFlag} label remove ${params.id} ${label}`);
 		}
 	}
 	if (addLabels?.length) {
 		for (const label of addLabels) {
-			commands.push(`bd label add ${params.id} ${label}`);
+			commands.push(`bd ${dbFlag} label add ${params.id} ${label}`);
 		}
 	}
 
 	try {
-		const results = [];
-		for (const cmd of commands) {
-			const { stdout } = await execAsync(cmd);
-			results.push(stdout.trim());
-		}
-		return json({ success: true, message: results.join('\n') });
+		// Run all commands in parallel for better performance
+		const results = await Promise.all(commands.map(cmd => execAsync(cmd)));
+		return json({ success: true, message: results.map(r => r.stdout.trim()).join('\n') });
 	} catch (err: unknown) {
 		const error = err as { stderr?: string; message?: string };
 		return json({ error: error.stderr || error.message || 'Update failed' }, { status: 500 });
@@ -54,7 +53,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 
 export const DELETE: RequestHandler = async ({ params }) => {
 	try {
-		await execAsync(`bd close ${params.id} --reason "Deleted from Kanban"`);
+		await execAsync(`bd ${getBdDbFlag()} close ${params.id} --reason "Deleted from Kanban"`);
 		return json({ success: true });
 	} catch (err: unknown) {
 		const error = err as { stderr?: string; message?: string };

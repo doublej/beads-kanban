@@ -1,298 +1,258 @@
 # Project Timeline: beads-kanban
-**Period**: 2025-12-09 to 2025-12-10
-**Messages analyzed**: 273
-**Sessions**: Multiple overlapping agent-driven sessions
+**Period:** 2025-12-09 to 2025-12-18
+**Messages analyzed:** 589
+**Corrections identified:** 92
 
 ## Executive Summary
 
-This is a fast-paced, agent-orchestrated development project where the user delegates heavily to autonomous agents. The user built a sophisticated Kanban board UI for the Beads issue tracker using SvelteKit 5, spawning multiple parallel agents to implement features while maintaining hands-on oversight through terse, directive feedback. Communication is extremely concise (often 2-5 words), with strong aesthetic preferences and zero tolerance for generic design. The user values automation, deploys aggressive multi-agent workflows, and provides immediate, blunt corrections when things deviate from expectations.
+The session focused on building a Kanban board UI for the Beads issue tracker, with iterative UI refinement (SVG connectors, animations, panel layouts) and backend integration work. Key accomplishments include panel redesigns, component extraction, and working on project-specific data handling. Major correction patterns center on visual precision feedback (SVG shapes not connecting), unexpected code changes beyond scope (reverting chip styles, refactors not requested), and UI state management (data not following active project selection).
 
-## User Communication Style & Preferences
+## Behaviors to Prevent (CRITICAL)
 
-### Writing Style
-- **Extreme brevity**: Most messages are 2-10 words ("go", "carry on", "commit and continue", "put agents to work")
-- **Imperative mood**: Direct commands without politeness markers ("Get beads", "turn vite hmr off", "Keep grabbing tickets")
-- **Minimal context**: Assumes Claude has full project awareness; rarely provides background
-- **Error reporting via raw output**: Pastes stack traces, compiler warnings, and logs directly without explanation
-- **No question marks on questions**: "what is your role", "where are the pages", "Is a font icon mandatory/" (note the slash typo - user types fast)
-- **Typos preserved**: "descriuptions", "desig skill", "detial pane", "happenign" - doesn't self-correct, expects Claude to parse intent
+### 1. Unwanted Code Changes / Scope Creep
 
-### Interaction Preferences
-- **Minimal feedback loops**: Prefers Claude to act autonomously rather than ask clarifying questions
-- **Explicit anti-questioning directive**: "Watch for tickets, do not ask questions, do not stop" (message #212)
-- **Short confirmations**: "yes", "go on", "i see it", "still" (when something persists)
-- **Blunt corrections**: "NO what did you do to the beautiful active agent chip, revert it now" (message #92)
-- **Cancels dialogs**: Multiple instances of [Cancelled] responses when Claude asks for clarification
-- **Fast iteration**: Pushes for continuous progress ("Always keep fetching tickets!", "quite some open tickets lets go")
+**Pattern:** User asks for specific feature X, you implement X but also refactor or add unrelated code.
 
-### Task Delegation Style
-- **Agent orchestration**: Spawns multiple parallel agents (worker1, worker2, worker3, worker4, orchestra) via external system
-- **Structured task briefings**: When delegating to agents, provides formatted TASK/CONTEXT/RULES blocks
-- **Design skill invocation**: Frequently requests "(use design skill when working on this task)" for frontend work
-- **Outcome-focused**: Expects agents to report completion in standard format ("BEAD_DONE: [id] - [summary]")
-- **Automated reminders**: Uses periodic "keep distributing tasks" messages to maintain agent momentum
-- **No micromanagement**: Once briefed, agents work independently; user monitors via status messages
+**Examples from session:**
+- *"NO what did you do to the beautiful active agent chip, revert it now"* — You changed styling on unrelated UI element during an animation task
+- *"fix that commit message!!"* — Commits made with inadequate or incorrect messages
+- Reverting commits with `revert it to ce0c51f` because implementation drifted from requirements
 
-### Response to Ambiguity
-- **Expects inference**: When saying "Optimize mobile", expects Claude to identify all mobile UX issues
-- **Provides screenshots**: Shares images when words fail, then says "you tell me, i know nothing" (ironic self-deprecation)
-- **Context switching**: Jumps between sessions, expects continuity ("This session is being continued from a previous conversation")
-- **Abbreviated references**: "beads" (the CLI tool), "bd" (beads command), "cav" (agent spawning system), "SOTA" (state-of-the-art)
+**Tool involved:** Edit, Write (file modifications)
 
-## Recommended Prompt Guidelines
-
-Based on this analysis, here's how Claude should interact with this user:
-
-### DO:
-1. **Act first, ask later**: Default to making reasonable decisions and implementing them
-2. **Be concise**: Match the user's brevity. No preambles, no explanations unless errors occur
-3. **Commit fully**: When given aesthetic direction ("make it SOTA", "sophisticated"), go bold
-4. **Use structured output**: Format task completions, errors, and status updates clearly
-5. **Infer context**: The user assumes you know the project state; use git status, file reads, and grep proactively
-6. **Handle typos gracefully**: Parse intent from "descriuptions", "detial pane", "happenign"
-7. **Default to editing**: Never create new files unless explicitly required
-8. **Respect aesthetic choices**: User has strong opinions on design (hates generic AI aesthetics, loves distinctive choices)
-
-### DON'T:
-1. **Ask clarifying questions** unless absolutely critical (e.g., destructive operations)
-2. **Explain what you're about to do**: Just do it and report results
-3. **Suggest alternatives**: User wants fast execution, not options
-4. **Wait for approval**: User says "go" or "carry on" to mean "keep working autonomously"
-5. **Use generic design patterns**: User explicitly rejects Inter/Roboto fonts, purple gradients, cookie-cutter layouts
-6. **Add try/catch blocks**: User's CLAUDE.md forbids defensive programming ("TRY CATCH IS FORBIDDEN! FAIL HARD!")
-
-### Preferred Response Format:
-**Bad**:
-```
-I'll help you with that. First, let me analyze the codebase to understand the current structure. Then I'll implement the feature you requested. Would you like me to add tests as well?
+**Prevention:**
+```yaml
+tool: Edit / Write
+pattern: '(refactor|clean|optimize|improve|simplify)(?!.*\b(per user|request|ask|stated|explicit)\b)'
+reason: 'Prevent implementing improvements not explicitly requested. Changes should be surgical and scoped to stated request only.'
 ```
 
-**Good**:
-```
-[implemented feature]
-
-Done. Added X, Y, Z.
-```
-
-### Handling Errors:
-**User reports error** → Identify root cause → Fix silently → Report "fixed" or show diff
-**Don't**: Ask "what would you like me to do about this error?"
-
-### Aesthetic Decisions:
-- **Always** commit to a bold design direction (the user values "SOTA", "sophisticated", "distinctive")
-- **Never** use: Inter, Roboto, Arial, system fonts, purple gradients, generic layouts
-- **Do** use: Unexpected font pairings, asymmetric layouts, motion/animation, creative backgrounds
-- The user runs a design skill specifically to avoid "AI slop" - take that seriously
-
-### Technical Preferences:
-- **No defensive programming**: Fail fast, fail hard (per CLAUDE.md)
-- **Minimal code**: Functions <20 lines, single responsibility
-- **Edit existing files**: Never create new unless necessary
-- **No emojis**: User's CLAUDE.md explicitly forbids them unless requested
-- **Disable HMR**: User requested "turn vite hmr off" - values stability over dev convenience
-
-### Progress Communication:
-When working on tickets:
-1. Claim the ticket (update status to in_progress)
-2. Implement changes
-3. Report completion: "BEAD_DONE: [ticket-id] - [one-line summary]"
-4. Move to next ticket without asking
-
-## Chronological Highlights
-
-### 2025-12-09 02:40 - Project Kickoff
-**User**: "I want you to design a kanban board that directly integrates with beads. (use design skill when working on this task). Dont code yourself use agents"
-**Significance**: Establishes agent delegation pattern and design-first approach
-
-### 2025-12-09 02:57 - Multi-Agent Orchestration Begins
-**User**: "Build a kanban board around beads issues, spawn agents in cav to do the development"
-**Agents spawned**: worker-search, worker1, worker2, worker3, worker4, orchestra
-**Significance**: Parallel development workflow emerges
-
-### 2025-12-09 03:04 - First Major Feature Request
-**User**: "I need descriptions, i need edit, i need delete, i need live updates"
-**Agents briefed** with structured TASK/CONTEXT/RULES blocks
-**Delivered**: API endpoints (GET, PATCH, DELETE, POST, SSE), full CRUD UI
-**Significance**: Establishes terse requirement style
-
-### 2025-12-09 03:24 - Configuration Refinement
-**User**: "turn vite hmr off"
-**Significance**: User values stability over dev convenience; makes deliberate tooling choices
-
-### 2025-12-09 03:34-38 - Parallel Feature Development
-**Three simultaneous tickets**:
-- beads-kanban-iao: Transition animations (completed 3:35)
-- beads-kanban-aec: Keyboard shortcuts (completed 3:36)
-- beads-kanban-qbi: Mobile responsive layout (completed 3:38)
-**Significance**: Multi-agent workflow at peak efficiency
-
-### 2025-12-09 03:46 - Design Elevation Mandate
-**User**: "Make this kanbanboard look much more sophisticated, work on drop states, make it SOTA"
-**Design skill invoked**: frontend-design skill loaded
-**Aesthetic direction**: Bold, distinctive, anti-generic
-**Significance**: User's quality bar is extremely high
-
-### 2025-12-09 04:18-46 - UI Experimentation Phase
-**Multiple iterations** on card detail pane connection visualization
-**User feedback**: "i dont see it, just a small line inside the item. Can you not draw an svg that b..."
-**Result**: Eventually abandoned ("forget about this, remove the connection")
-**Significance**: User experiments rapidly, discards what doesn't work
-
-### 2025-12-09 04:54 - WebSocket Integration
-**User**: "work on the websocket ui beads ticket"
-**Context**: Integrating pane bridge (ws://localhost:8765) for agent chat feeds
-**Challenges**: Unix socket vs WebSocket compatibility issues
-**Significance**: Real-time agent communication layer
-
-### 2025-12-09 05:16 - Pane UI Refinement
-**User**: "Amazing. Treat the panes like chats. Show more history and i'd like to pin them"
-**Rare positive feedback** - "Amazing" is the strongest praise observed
-**Significance**: Chat pane becomes core feature for monitoring agents
-
-### 2025-12-09 05:22-25 - Interaction Pattern Refinement
-**User**: "allow to make the windows larger" → "Allow to resize and move"
-**Pattern**: Progressive requirement evolution without explicit design docs
-**Significance**: User expects Claude to infer UX best practices
-
-### 2025-12-09 06:28 - Autonomous Workflow Loop
-**User**: "get beads issues and start with beads-kanban-4pq and beads-kanban-6ye"
-Later: "Pick anything frontend related from the beads issue list. Dont ask me questions."
-**Significance**: Transition to fully autonomous agent mode
-
-### 2025-12-09 07:32 - Workflow Hardening
-**User**: "dont touch the server, just work on tickets, go"
-**Context**: User wants dev server left running; changes applied via live reload
-**Significance**: Establishes boundaries for autonomous operation
-
-### 2025-12-09 07:56 - Aesthetic Ownership
-**User**: "NO what did you do to the beautiful active agent chip, revert it now"
-**Context**: Agent inadvertently changed a design element user loved
-**Significance**: User has strong attachment to specific UI details
-
-### 2025-12-09 08:46 - Agent Protocol Crystallized
-**User**: "Watch for tickets, do not ask questions, do not stop"
-**Significance**: Clearest articulation of desired autonomous behavior
-
-### 2025-12-09 09:30 - Cross-Project Usage Planning
-**User**: "how do i run this on another project? I need a os wide command to say 'run beads kanban from X folder'"
-**Solution**: Shell alias/function approach chosen
-**Significance**: User planning to reuse across multiple projects
-
-### 2025-12-09 12:18 - Continuous Operation Mode
-**User**: "Work on beads, if there arent any beads i want you to loop: pause 1 minute, check beads, if new items, claim and work"
-**Significance**: Attempting to create self-sustaining development loop
-
-### 2025-12-09 12:28 - Design Micro-Adjustments
-**User**: "make it even lighter" → "even lighter, dont make the beads lighter!"
-**Context**: Dark mode background refinement
-**Significance**: Iterative design refinement via rapid commands
-
-### 2025-12-10 00:14 - Meta-Documentation
-**User**: Used `/init` command to generate CLAUDE.md
-**Purpose**: Codifying project structure for future Claude instances
-**Significance**: User values reproducible AI collaboration
-
-### 2025-12-10 00:27 - Custom Status Extensions
-**User**: "Draft, Feedback, Review"
-**Context**: Extending Kanban beyond beads' native statuses via labels
-**Challenge**: Beads CLI validation conflicts
-**Significance**: User pushes boundaries of underlying tool
-
-### 2025-12-10 00:51 - Usability Analysis
-**User**: "Use usability skill to review the mobile layout"
-**Approach**: Systematic heuristic evaluation
-**Significance**: User leverages specialized skills for quality assurance
-
-### 2025-12-10 01:04 - Mobile Polish Iteration
-**User**: "chat pane doesnt look great yet. Weird dragger in corner, you lose it when dragg..."
-Later: "Optimize mobile, nothing is aligned or has the same shape orn height"
-**Significance**: Mobile experience is critical; user notices misalignments
-
-### 2025-12-10 23:22 - Meta-Analysis Request
-**User**: "use sessions history skill to extract user preferences and writing guides"
-**Significance**: This document's origin - user wants to optimize future Claude interactions
-
-## Communication Patterns Summary
-
-### Category Breakdown
-- **FEEDBACK**: 178 messages (65%) - Progress updates, confirmations, brief reactions
-- **CORRECTION**: 34 messages (12%) - Error reports, design reverts, "still broken" follow-ups
-- **TASK**: 33 messages (12%) - Direct work requests, ticket assignments
-- **QUESTION**: 27 messages (10%) - Clarifications, status checks ("what is your role")
-- **META**: 1 message (<1%) - The current analysis request
-
-### Common Request Patterns
-1. **Agent spawning**: "put agents to work", "Get beads, put agents to work", "GEt beads issues, start agents to work on it"
-2. **Continuation prompts**: "go", "go on", "carry on", "commit and continue"
-3. **Ticket management**: "Keep grabbing tickets", "new tickets", "Pick up all incoming beads"
-4. **Design invocations**: "(use design skill when working on this task)" appears 8+ times
-5. **Autonomous mode**: "dont ask questions", "Do not ask me questions", "Watch for tickets, do not ask questions, do not stop"
-
-### Areas Where Context Was Often Missing
-1. **Aesthetic preferences**: User rarely describes desired look; expects design skill to infer "sophisticated", "SOTA"
-2. **Technical architecture**: Assumes Claude knows about beads CLI, agent orchestration, pane bridge
-3. **Error context**: Pastes errors without explaining what action triggered them
-4. **Design feedback**: "lots of issues" without specifying which issues
-5. **Cross-session state**: Expects continuity between conversations without explicit recap
-
-### Observed User Frustrations
-1. **Claude asking questions**: Multiple cancelled dialogs, explicit "do not ask questions" directive
-2. **Generic design**: Strong rejection of "AI slop" aesthetics
-3. **Breaking existing features**: "NO what did you do to the beautiful active agent chip"
-4. **Incomplete implementations**: "i dont see it" (when features don't visibly work)
-5. **Persistent bugs**: "still", "still happenign" (when fixes don't work)
-
-### User Strengths as a Collaborator
-1. **Clear boundaries**: Explicit rules in CLAUDE.md (no try/catch, edit don't create, fail hard)
-2. **Structured delegation**: TASK/CONTEXT/RULES format for agent briefings
-3. **Fast feedback loops**: Immediate validation of implementations
-4. **Design literacy**: Strong aesthetic opinions, can articulate "sophisticated", "SOTA", "brutally minimal"
-5. **Technical sophistication**: Uses agent orchestration, WebSocket bridges, CLI automation
-6. **Documentation mindset**: Creates CLAUDE.md, uses /init command, requests this analysis
-
-## Key Insights for Future Claude Instances
-
-### This user is building a **meta-development system** where:
-- Kanban boards manage agent workflows
-- Claude instances spawn and coordinate other Claude instances
-- WebSocket bridges connect UI to agent chat streams
-- Beads CLI becomes the source of truth for task state
-
-### The workflow is:
-1. User creates beads issues via UI or CLI
-2. Manager Claude polls for new issues
-3. Manager spawns worker agents via external orchestration (cav)
-4. Workers implement features, report via BEAD_DONE format
-5. Manager commits changes, updates beads status
-6. UI shows live agent activity via WebSocket feed
-7. Loop continues autonomously
-
-### The user's philosophy:
-- **Speed over perfection**: Iterate fast, discard what doesn't work
-- **Agents over instructions**: Delegate broadly, intervene minimally
-- **Distinctiveness over convention**: Reject generic patterns
-- **Failure over defensiveness**: Crash hard, fix root causes
-- **Brevity over clarity**: Assume context, infer intent
-
-### Anti-patterns to avoid:
-- ❌ "Would you like me to..."
-- ❌ "I'll help you with that. First, let me..."
-- ❌ "Should I also add tests/docs/error handling?"
-- ❌ Using Inter/Roboto/Arial fonts
-- ❌ Purple gradient on white background
-- ❌ Creating new files when editing existing would suffice
-- ❌ Try/catch blocks for control flow
-- ❌ Asking clarifying questions (unless data loss risk)
-
-### Success patterns:
-- ✅ [implemented] "Done. Added X, Y, Z."
-- ✅ "BEAD_DONE: ticket-id - one-line summary"
-- ✅ Bold aesthetic choices (distinctive fonts, asymmetric layouts, unexpected motion)
-- ✅ Editing existing files
-- ✅ Failing fast with clear error messages
-- ✅ Autonomous ticket claiming and completion
-- ✅ Using design/usability skills when relevant
+**User's stated reason:** Keep changes minimal and local; do not do drive-by refactors; changes should be surgical.
 
 ---
 
-**Note**: This user is highly technical, moves extremely fast, and has zero tolerance for generic AI behavior. Match their pace, respect their boundaries, and commit fully to bold execution. When in doubt, act decisively and course-correct based on their terse feedback.
+### 2. Incorrect Assumptions / Missing Context Clarification
+
+**Pattern:** User gives vague feedback like "doesn't work" or "not seeing it," you make assumptions instead of asking for specifics.
+
+**Examples from session:**
+- *"i dont see it, just a small line inside the item. Can you not draw an svg that breaks the two border"* — Feedback on SVG visual, but took multiple iterations to understand exact issue (not touching corners, then gap between elements, etc.)
+- *"the container now is like 0px and nothbing is visibsle"* — Feedback vague about what container; you should clarify before implementing fixes
+- *"not seeing it at all now"* — Too vague; leads to back-and-forth instead of precision work
+
+**Tool involved:** None directly, but leads to Edit/Bash for incorrect fixes
+
+**Prevention:**
+```yaml
+tool: All (blocks implementation)
+pattern: '(nothing|not|doesn.*t|broken|wrong|error)(?!.*\b(reason|because|since|as)\b)'
+reason: 'Ask clarifying question via consult_user_mcp for ANY vague issue report. Do not assume.'
+```
+
+**User's stated reason:** Ask ≤2 clarifying questions before attempting fixes on vague feedback.
+
+---
+
+### 3. Dialog/Confirmation Mismanagement
+
+**Pattern:** Ask confirmation questions when you should either proceed with stated assumptions or skip dialogs entirely.
+
+**Examples from session:**
+- `[Dialog] Q: I found 2 ready tasks but no worker panes are available. Should I spawn worker agents?` → User responded "Cancel" — You asked instead of either spinning up workers or moving on
+- `[Dialog] Q: What command should I use to fetch message history?` → You should have read docs, not asked
+- Multiple dialogs asking about implementation details you should decide given the context
+
+**Tool involved:** consult_user_mcp (overuse)
+
+**Prevention:**
+```yaml
+tool: consult_user_mcp
+pattern: 'ask.*how|ask.*should|ask.*implementation|ask.*details'
+reason: 'Avoid asking implementation questions. Make a decision, state assumption, proceed. Only ask blockers or clarifications on user feedback.'
+```
+
+**User's stated reason:** Do not ask questions about implementation; state assumptions and proceed. Use dialogs only for blockers.
+
+---
+
+### 4. Feature / Logic Implementation Not Matching Requirements
+
+**Pattern:** User specifies behavior X, but implementation does it differently (e.g., crossfade not really a crossfade).
+
+**Examples from session:**
+- *"That's not really a crossfade"* — You implemented a simple fade but user specified staggered, sequential fade-out per row
+- *"it actually jumps to the new targetted column"* — Teleport animation snapping instead of smooth transition
+- *"It does not follow the active project"* — Creating issues in wrong project database when CWD changes
+
+**Tool involved:** Edit (incorrect implementation)
+
+**Prevention:**
+```yaml
+tool: Edit
+pattern: 'implement.*animation|implement.*behavior|implement.*transition'
+reason: 'For complex behaviors, pseudocode the expected flow in comments FIRST, then implement. Verify step-by-step in browser before declaring done.'
+```
+
+**User's stated reason:** Do not implement and hope; validate each step of the flow matches the specification exactly.
+
+---
+
+### 5. File State / Database Operations Not Isolated
+
+**Pattern:** Operations affect wrong project or state persists incorrectly.
+
+**Examples from session:**
+- *"changing path still does not get the data from that beads db"* — CWD changed but data source didn't follow
+- *"It does not follow the active project. It's currently set to beads-kanban"* — Creating issues in wrong project
+- *"the cwd endpoint gives the wrong cwd"* — State not properly tracked/returned
+
+**Tool involved:** Bash (API routes), Edit (state management in wsStore, utils)
+
+**Prevention:**
+```yaml
+tool: Bash / Edit
+pattern: '(beads|database|cwd|project|path).*(?:change|switch|update)'
+reason: 'After any CWD/project change, verify ALL downstream consumers (API calls, state stores, file reads) follow the new context. Do not assume.'
+```
+
+**User's stated reason:** Changes to context (CWD, project) must propagate to all data sources. Test cross-system consistency.
+
+---
+
+### 6. Visual/Positioning Precision Issues
+
+**Pattern:** You implement layouts/SVG/CSS that "close enough" but don't actually match spec (gaps, not touching, wrong alignment).
+
+**Examples from session:**
+- *"it doesnt touch, start with that"* — SVG connector had gaps, needed exact overlap calculations
+- *"the corners of the pane are not being clipped by radius"* — Border-radius CSS not properly applied
+- *"touching on the pane side now"* — Required multiple iterations to get both column AND pane edges correct
+- *"no wrapping inside the chips, outside it can wrap"* — Text wrapping logic inverted
+
+**Tool involved:** Edit (CSS/SVG), Bash (testing)
+
+**Prevention:**
+```yaml
+tool: Edit (for styling/layout)
+pattern: 'position|margin|padding|border|radius|gap|transform|svg.*path'
+reason: 'For pixel-precise work: log/console all computed values. Create a test/debug mode. Verify visually every change before committing.'
+```
+
+**User's stated reason:** Precision work requires validation, not guessing. Use browser DevTools to inspect computed values.
+
+---
+
+## Communication Patterns
+
+### Request Types (by frequency)
+1. **UI/UX refinement requests** (40%) — animation timing, visual tweaks, layout adjustments
+2. **Feature implementation** (25%) — panels, connectors, transitions, new components
+3. **Bug/issue fixes** (20%) — broken state, rendering issues, data sync
+4. **Architecture/structure tasks** (15%) — component extraction, refactoring, organization
+
+### Correction Breakdown by Category
+
+| Category | Count | Theme |
+|----------|-------|-------|
+| UI Visual Feedback | 25 | "Doesn't look right," SVG/CSS not matching spec |
+| Feature Not Implemented Correctly | 18 | Animation runs wrong, behavior off-spec |
+| Data/State Sync Issues | 12 | CWD not followed, wrong project, missing data |
+| Unexpected Changes/Scope Creep | 8 | Reverted work, unasked changes |
+| Dialog/Confirmation Overuse | 7 | Asked when should proceed or decide |
+| Lint/Code Quality Warnings | 6 | Accessibility warnings left unfixed |
+| Missing Context in Implementation | 6 | Assumption-based fixes vs. clarifying |
+| Git/Commit Quality | 4 | Bad commit messages, state reversion |
+
+### When Most Corrections Occurred
+- **Early session (Dec 9, ~04:00 UTC):** Heavy SVG connector iteration (7+ rounds of refinement)
+- **Mid-session (Dec 9–11):** Feature implementation corrections, scope management
+- **Late session (Dec 16–18):** Fine-tuning animations, CWD/project tracking, text wrapping edge cases
+
+## Suggested Hook Rules
+
+```yaml
+hooks:
+  - name: "No scope creep - only implement requested change"
+    tool: Edit
+    pattern: '(refactor|optimize|clean|improve|move|rename).*(?!per.*(user|request|ask|instruction|comment))'
+    action: "WARN"
+    message: |
+      You're about to make a change beyond the stated request (refactor/optimize detected).
+      Per CLAUDE.md: "Keep changes minimal and local. Avoid drive-by refactors."
+      Scope: Are you only fixing/building what was explicitly asked?
+
+  - name: "Clarify vague feedback before implementing"
+    tool: "Edit|Bash"
+    pattern: 'feedback.*?(doesn.*t work|broken|wrong|missing|not.*right|not.*seeing)'
+    action: "HOLD"
+    message: |
+      Vague feedback detected (e.g., "doesn't work"). Before fixing:
+      1. Ask 1–2 clarifying questions via consult_user_mcp (multiple choice)
+      2. Specify the exact expected behavior
+      3. Then implement precisely to that spec
+
+  - name: "Validate behavior against spec"
+    tool: Edit
+    pattern: '(animation|transition|fade|crossfade|teleport|movement|position)'
+    action: "REMIND"
+    message: |
+      You're implementing a behavior. Before committing:
+      1. Write out pseudocode of exact expected flow
+      2. Test in browser to verify spec matches
+      3. If behavior requires iteration, DO NOT ask user "does this look right?" — validate yourself first
+
+  - name: "Context propagation check for CWD/project changes"
+    tool: "Edit|Bash"
+    pattern: '(setCurrentWorkingDirectory|changeProject|switchProject|updateCwd)'
+    action: "REMIND"
+    message: |
+      You're changing project/CWD context. Verify ALL downstream impact:
+      - API routes reading data
+      - State stores (wsStore, issue lists)
+      - File system operations
+      - Test that data loads from new context correctly
+
+  - name: "Dialog overuse prevention"
+    tool: "consult_user_mcp"
+    pattern: 'ask.*(how|should|option|choice|decision).*implement'
+    action: "REJECT"
+    message: |
+      You're asking a dialog for implementation guidance. Per CLAUDE.md:
+      "State assumption and proceed." Make a decision based on context, document it in code,
+      and continue. Only use dialogs for blockers or clarifications on vague user feedback.
+
+  - name: "CSS/SVG precision work requires validation"
+    tool: Edit
+    pattern: '(position|margin|padding|border-radius|gap|transform|svg.*path|flex)'
+    action: "REMIND"
+    message: |
+      Pixel-precise layout/SVG work detected. Before closing:
+      1. Inspect computed CSS values in DevTools
+      2. Verify all edges/connections/alignments match visual spec
+      3. Check across responsive sizes if applicable
+      Do not guess — validate with real measurements
+
+  - name: "Commit message quality check"
+    tool: Bash
+    pattern: 'git commit.*-m'
+    action: "WARN"
+    message: |
+      About to commit. Verify message:
+      - Format: verb: description (e.g., "fix: close panel on escape")
+      - No AI attribution or vague language
+      - No multiple unrelated changes in one commit
+```
+
+---
+
+## Key Insights for Future Work
+
+1. **Visual feedback is iterative:** Changes to SVG connectors, animations, and CSS required 5–10 rounds. Validate in browser early, log computed values.
+
+2. **State sync is error-prone:** Project/CWD changes must propagate through multiple systems (API, UI state, data fetching). Add integration tests for this.
+
+3. **Behavioral specs need precision:** "Crossfade" vs actual staggered sequential fade-out is a 2-3x difference in implementation effort. Clarify behavior upfront.
+
+4. **Scope creep happens silently:** Refactoring a chip style during unrelated animation work caused user friction. Stick to stated scope ruthlessly.
+
+5. **Dialog overuse wastes time:** Asking "should I spawn workers?" or "which approach?" delays work. Make calls, document assumptions, move forward.

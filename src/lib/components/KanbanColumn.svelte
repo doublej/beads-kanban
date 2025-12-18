@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Issue, Column } from '$lib/types';
 	import IssueCard from './IssueCard.svelte';
+	import Icon from './Icon.svelte';
 	import { hasOpenBlockers } from '$lib/utils';
 
 	interface Props {
@@ -20,9 +21,11 @@
 		animatingIds: Set<string>;
 		copiedId: string | null;
 		hasActiveFilters: boolean;
+		isFilterPreviewing: boolean;
 		flyingCards: Map<string, any>;
 		placeholders: Array<{id: string; targetColumn: string; height: number}>;
 		activeColumnIndex: number;
+		showAddButton?: boolean;
 		registerCard: (node: HTMLElement, id: string) => void;
 		registerPlaceholder: (node: HTMLElement, id: string) => void;
 		issueMatchesFilters: (issue: Issue) => boolean;
@@ -38,6 +41,7 @@
 		oncarddragend: () => void;
 		oncardcontextmenu: (e: MouseEvent, issue: Issue) => void;
 		oncopyid: (id: string, text: string) => void;
+		onaddclick?: () => void;
 	}
 
 	let {
@@ -57,9 +61,11 @@
 		animatingIds,
 		copiedId,
 		hasActiveFilters,
+		isFilterPreviewing,
 		flyingCards,
 		placeholders,
 		activeColumnIndex,
+		showAddButton = false,
 		registerCard,
 		registerPlaceholder,
 		issueMatchesFilters,
@@ -74,7 +80,8 @@
 		oncarddragstart,
 		oncarddragend,
 		oncardcontextmenu,
-		oncopyid
+		oncopyid,
+		onaddclick
 	}: Props = $props();
 </script>
 
@@ -91,13 +98,13 @@
 	<div class="column-header" onclick={() => isCollapsed && oncollapseclick(column.key)}>
 		<div class="column-title">
 			<kbd class="hotkey-hint hotkey-hint-column">{columnIndex + 1}</kbd>
-			<span class="column-icon">{column.icon}</span>
+			<span class="column-icon"><Icon name={column.icon} size={12} /></span>
 			<h2>{column.label}</h2>
 		</div>
 		<div class="column-header-actions">
 			<div class="sort-dropdown">
 				<button class="sort-btn" class:active={currentSort} onclick={(e) => ontogglesortmenu(column.key, e)} title="Sort by">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M6 12h12M9 18h6"/></svg>
+					<Icon name="list-filter" size={12} />
 				</button>
 				{#if sortMenuOpen === column.key}
 					<div class="sort-menu">
@@ -109,7 +116,11 @@
 			</div>
 			<span class="column-count">{#if hasActiveFilters}{matchingCount}/{allColumnIssues.length}{:else}{allColumnIssues.length}{/if}</span>
 			<button class="column-collapse-btn" onclick={(e) => ontogglecollapse(e, column.key)} aria-label={isCollapsed ? 'Expand column' : 'Collapse column'}>
-				{isCollapsed ? '▶' : '◀'}
+				{#if isCollapsed}
+					<Icon name="chevron-right" size={10} />
+				{:else}
+					<Icon name="chevron-left" size={10} />
+				{/if}
 			</button>
 		</div>
 	</div>
@@ -133,23 +144,26 @@
 			{@const isBlocked = hasOpenBlockers(issue)}
 			{@const matchesFilter = issueMatchesFilters(issue)}
 			{@const isFlying = flyingCards.has(issue.id)}
-			<IssueCard
-				{issue}
-				selected={selectedId === issue.id}
-				dragging={draggedId === issue.id}
-				animating={animatingIds.has(issue.id)}
-				hasOpenBlockers={isBlocked}
-				{copiedId}
-				editing={editingIssue?.id === issue.id}
-				filterDimmed={hasActiveFilters && !matchesFilter}
-				flyingHidden={isFlying}
-				{registerCard}
-				onclick={() => oncardclick(issue)}
-				ondragstart={(e) => oncarddragstart(e, issue.id)}
-				ondragend={oncarddragend}
-				oncontextmenu={(e) => oncardcontextmenu(e, issue)}
-				oncopyid={(id) => oncopyid(id, id)}
-			/>
+			{@const shouldHide = hasActiveFilters && !isFilterPreviewing && !matchesFilter}
+			{#if !shouldHide}
+				<IssueCard
+					{issue}
+					selected={selectedId === issue.id}
+					dragging={draggedId === issue.id}
+					animating={animatingIds.has(issue.id)}
+					hasOpenBlockers={isBlocked}
+					{copiedId}
+					editing={editingIssue?.id === issue.id}
+					filterDimmed={hasActiveFilters && isFilterPreviewing && !matchesFilter}
+					flyingHidden={isFlying}
+					{registerCard}
+					onclick={() => oncardclick(issue)}
+					ondragstart={(e) => oncarddragstart(e, issue.id)}
+					ondragend={oncarddragend}
+					oncontextmenu={(e) => oncardcontextmenu(e, issue)}
+					oncopyid={(id) => oncopyid(id, id)}
+				/>
+			{/if}
 
 			{#if draggedOverColumn === column.key && dropTargetColumn === column.key && dropIndicatorIndex === idx + 1}
 				<div class="drop-indicator"></div>
@@ -158,9 +172,16 @@
 
 		{#if allColumnIssues.length === 0}
 			<div class="empty-state">
-				<div class="empty-icon">{column.icon}</div>
+				<div class="empty-icon"><Icon name={column.icon} size={24} /></div>
 				<p>No issues</p>
 			</div>
+		{/if}
+
+		{#if showAddButton && onaddclick}
+			<button class="add-card-btn" onclick={onaddclick}>
+				<span class="add-text">New Issue</span>
+				<kbd class="add-hotkey">N</kbd>
+			</button>
 		{/if}
 	</div>
 	{/if}
@@ -168,8 +189,8 @@
 
 <style>
 	.column {
-		flex: 1 1 0;
-		min-width: 280px;
+		flex: 1 1 320px;
+		min-width: 320px;
 		min-height: 0;
 		align-self: stretch;
 		display: flex;
@@ -202,7 +223,7 @@
 	}
 
 	.column-icon {
-		font-size: 0.75rem;
+		display: flex;
 		color: var(--accent);
 	}
 
@@ -250,7 +271,7 @@
 		opacity: 0;
 	}
 
-	.sort-btn svg {
+	.sort-btn :global(svg) {
 		width: 0.75rem;
 		height: 0.75rem;
 	}
@@ -314,7 +335,6 @@
 		border: none;
 		border-radius: var(--radius-sm);
 		color: var(--text-tertiary);
-		font-size: 0.5rem;
 		cursor: pointer;
 		transition: all var(--transition-fast);
 		opacity: 0;
@@ -330,28 +350,67 @@
 	}
 
 	.column.collapsed {
-		flex: 0 0 48px;
-		min-width: 48px;
+		flex: 0 0 40px;
+		min-width: 40px;
 	}
 
 	.column.collapsed .column-header {
 		flex-direction: column;
-		padding: 0.75rem 0.5rem;
+		align-items: center;
+		justify-content: flex-start;
+		padding: 0.75rem 0.25rem;
 		height: 100%;
 		cursor: pointer;
+		gap: 0.5rem;
 	}
 
 	.column.collapsed .column-title {
 		flex-direction: column;
+		align-items: center;
 		writing-mode: vertical-rl;
 		text-orientation: mixed;
+		gap: 0.375rem;
+	}
+
+	.column.collapsed .column-title h2 {
+		font-size: 0.625rem;
+		letter-spacing: 0.06em;
+	}
+
+	.column.collapsed .column-icon {
+		font-size: 0.875rem;
+	}
+
+	.column.collapsed .hotkey-hint-column {
+		display: none;
 	}
 
 	.column.collapsed .column-header-actions {
 		flex-direction: column;
+		align-items: center;
+		gap: 0.375rem;
+		margin-top: auto;
+	}
+
+	.column.collapsed .sort-dropdown {
+		display: none;
+	}
+
+	.column.collapsed .column-count {
+		padding: 0.125rem 0.25rem;
+		font-size: 0.5625rem;
+		min-width: 1.25rem;
+		text-align: center;
 	}
 
 	.column.collapsed .column-collapse-btn {
+		opacity: 0.6;
+		width: 1.5rem;
+		height: 1.5rem;
+		font-size: 0.5rem;
+	}
+
+	.column.collapsed:hover .column-collapse-btn {
 		opacity: 1;
 	}
 
@@ -401,7 +460,7 @@
 		height: 0;
 		overflow: hidden;
 		animation: placeholderExpand 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-		margin-bottom: var(--space-sm);
+		margin: 2px 4px;
 	}
 
 	@keyframes placeholderExpand {
@@ -441,6 +500,52 @@
 		border-radius: var(--radius-xs);
 		color: var(--text-tertiary);
 		font-family: var(--font-mono);
+	}
+
+	/* Add Card Button */
+	.add-card-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		margin: 0.25rem 4px;
+		padding: 0.75rem 1rem;
+		background: transparent;
+		border: 2px dashed var(--border-subtle);
+		border-radius: var(--radius-md);
+		color: var(--text-tertiary);
+		font-family: inherit;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 200ms ease-out;
+	}
+
+	.add-card-btn:hover {
+		border-color: var(--accent-primary);
+		color: var(--accent-primary);
+		background: rgba(99, 102, 241, 0.05);
+	}
+
+	.add-card-btn:active {
+		transform: scale(0.98);
+	}
+
+	.add-hotkey {
+		font-family: ui-monospace, 'SF Mono', monospace;
+		font-size: 0.625rem;
+		font-weight: 600;
+		padding: 0.125rem 0.3rem;
+		background: rgba(99, 102, 241, 0.1);
+		border: 0.5px solid rgba(99, 102, 241, 0.2);
+		border-radius: 3px;
+		color: var(--text-tertiary);
+	}
+
+	.add-card-btn:hover .add-hotkey {
+		background: rgba(99, 102, 241, 0.2);
+		border-color: rgba(99, 102, 241, 0.3);
+		color: var(--accent-primary);
 	}
 
 	@media (max-width: 1023px) {

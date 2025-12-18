@@ -10,7 +10,9 @@
 		agentEnabled: boolean;
 		agentHost: string;
 		agentPort: number;
+		colorScheme: string;
 		ontoggleTheme: () => void;
+		onsetColorScheme: (scheme: string) => void;
 	}
 
 	let {
@@ -20,8 +22,18 @@
 		agentEnabled = $bindable(),
 		agentHost = $bindable(),
 		agentPort = $bindable(),
-		ontoggleTheme
+		colorScheme,
+		ontoggleTheme,
+		onsetColorScheme
 	}: Props = $props();
+
+	const colorSchemes = [
+		{ id: 'default', name: 'Default', accent: '#6366f1', bg: '#27272a' },
+		{ id: 'ocean', name: 'Ocean', accent: '#0ea5e9', bg: '#0c4a6e' },
+		{ id: 'forest', name: 'Forest', accent: '#22c55e', bg: '#14532d' },
+		{ id: 'sunset', name: 'Sunset', accent: '#f97316', bg: '#431407' },
+		{ id: 'rose', name: 'Rose', accent: '#f43f5e', bg: '#4c0519' }
+	];
 
 	let cwd = $state('');
 	let cwdName = $state('');
@@ -245,6 +257,27 @@
 							</span>
 						</span>
 					</button>
+				</div>
+				<div class="setting-row" style="margin-top: 0.75rem">
+					<div class="setting-info">
+						<span class="setting-name">Color Scheme</span>
+						<span class="setting-desc">Accent color theme</span>
+					</div>
+				</div>
+				<div class="color-scheme-selector">
+					{#each colorSchemes as scheme}
+						<button
+							class="color-scheme-option"
+							class:active={colorScheme === scheme.id}
+							onclick={() => onsetColorScheme(scheme.id)}
+							style="--scheme-accent: {scheme.accent}; --scheme-bg: {scheme.bg}"
+						>
+							<span class="scheme-preview">
+								<span class="scheme-dot"></span>
+							</span>
+							<span class="scheme-name">{scheme.name}</span>
+						</button>
+					{/each}
 				</div>
 			</section>
 
@@ -890,6 +923,71 @@
 
 	.theme-track.dark .theme-thumb :global(svg) {
 		color: white;
+	}
+
+	/* Color Scheme Selector */
+	.color-scheme-selector {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.375rem;
+		margin-top: 0.5rem;
+	}
+
+	.color-scheme-option {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0.375rem 0.625rem;
+		background: rgba(255, 255, 255, 0.04);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: var(--radius-sm);
+		color: var(--text-secondary);
+		font-family: inherit;
+		font-size: 0.6875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 150ms ease;
+	}
+
+	.color-scheme-option:hover {
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(255, 255, 255, 0.12);
+	}
+
+	.color-scheme-option.active {
+		background: color-mix(in srgb, var(--scheme-accent) 15%, transparent);
+		border-color: color-mix(in srgb, var(--scheme-accent) 30%, transparent);
+		color: var(--text-primary);
+	}
+
+	:global(.app.light) .color-scheme-option {
+		background: rgba(0, 0, 0, 0.03);
+		border-color: rgba(0, 0, 0, 0.08);
+	}
+
+	:global(.app.light) .color-scheme-option:hover {
+		background: rgba(0, 0, 0, 0.06);
+	}
+
+	.scheme-preview {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 14px;
+		height: 14px;
+		background: var(--scheme-bg);
+		border-radius: 3px;
+	}
+
+	.scheme-dot {
+		width: 8px;
+		height: 8px;
+		background: var(--scheme-accent);
+		border-radius: 50%;
+	}
+
+	.scheme-name {
+		font-size: 0.6875rem;
 	}
 
 	/* Range Selector */

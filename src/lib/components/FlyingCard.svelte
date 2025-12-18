@@ -1,7 +1,4 @@
 <script lang="ts">
-	import type { Issue } from '$lib/types';
-	import { getPriorityConfig, getTypeIcon } from '$lib/utils';
-
 	interface CardPosition {
 		x: number;
 		y: number;
@@ -16,18 +13,11 @@
 		startTime: number;
 	}
 
-	interface FlyingCardData {
-		from: CardPosition;
-		to: CardPosition;
-		issue: Issue;
-	}
-
 	interface Props {
 		teleports: Teleport[];
-		flyingCards: Map<string, FlyingCardData>;
 	}
 
-	let { teleports, flyingCards }: Props = $props();
+	let { teleports }: Props = $props();
 </script>
 
 <!-- Teleport Ghost Strobe Effects -->
@@ -51,62 +41,9 @@
 	{/each}
 {/each}
 
-<!-- Flying Cards -->
-{#each [...flyingCards] as [id, { from, to, issue }]}
-	{@const priorityConfig = getPriorityConfig(issue.priority)}
-	<article
-		class="card flying-card"
-		style="
-			--from-x: {from.x}px;
-			--from-y: {from.y}px;
-			--to-x: {to.x}px;
-			--to-y: {to.y}px;
-			--card-w: {from.w}px;
-			--card-h: {from.h}px;
-		"
-	>
-		<div class="card-priority-bar" style="--priority-bar-color: {priorityConfig.color}">
-			<span class="priority-label">{priorityConfig.label}</span>
-		</div>
-		<span class="type-indicator">{getTypeIcon(issue.issue_type)} {issue.issue_type}</span>
-		<div class="card-content">
-			<div class="card-header">
-				<span class="card-id-wrap"><span class="card-id">{issue.id}</span></span>
-			</div>
-			<h3 class="card-title">{issue.title}</h3>
-			{#if issue.description}
-				<p class="card-desc">{issue.description}</p>
-			{/if}
-		</div>
-	</article>
-{/each}
+<!-- Flying Cards hidden - only ghost strobe effect shown, card appears at destination when data updates -->
 
 <style>
-	.card.flying-card {
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: var(--card-w);
-		z-index: 10000;
-		pointer-events: none;
-		animation: flyCard 500ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-	}
-
-	@keyframes flyCard {
-		0% {
-			transform: translate(var(--from-x), var(--from-y));
-			box-shadow:
-				0 0 0 3px rgba(59, 130, 246, 0.6),
-				0 12px 32px -6px rgba(0, 0, 0, 0.4);
-		}
-		100% {
-			transform: translate(var(--to-x), var(--to-y));
-			box-shadow:
-				0 12px 32px -6px rgba(0, 0, 0, 0.35),
-				0 6px 12px -3px rgba(0, 0, 0, 0.18);
-		}
-	}
-
 	.teleport-ghost {
 		position: fixed;
 		top: 0;

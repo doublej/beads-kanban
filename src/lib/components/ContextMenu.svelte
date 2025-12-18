@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Issue } from '$lib/types';
 	import { getPriorityConfig } from '$lib/utils';
+	import Icon from './Icon.svelte';
 
 	interface Props {
 		x: number;
@@ -14,7 +15,7 @@
 	let { x, y, issue, onSetPriority, onStartRopeDrag, onClose }: Props = $props();
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events a11y_interactive_supports_focus -->
 <div
 	class="context-menu"
 	role="menu"
@@ -48,12 +49,9 @@
 			class="rope-handle"
 			onmousedown={onStartRopeDrag}
 		>
-			<svg class="rope-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-				<path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-			</svg>
+			<Icon name="link" size={16} class="rope-icon" />
 			<span>Drag to link</span>
-			<span class="rope-tip">⟡</span>
+			<Icon name="zap" size={14} class="rope-tip" />
 		</div>
 	</div>
 </div>
@@ -175,15 +173,12 @@
 		transform: scale(0.98);
 	}
 
-	.rope-icon {
-		width: 16px;
-		height: 16px;
+	.rope-handle :global(.rope-icon) {
 		color: #6366f1;
 	}
 
-	.rope-tip {
+	.rope-handle :global(.rope-tip) {
 		margin-left: auto;
-		font-size: 0.875rem;
 		color: #10b981;
 		animation: ropeTipPulse 1.5s ease-in-out infinite;
 	}

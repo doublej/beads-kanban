@@ -1,84 +1,49 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import type { RequestHandler } from './$types';
-
-const execAsync = promisify(exec);
-
-interface Dependency {
-	id: string;
-	title: string;
-	status: string;
-	dependency_type: string;
-}
-
-interface IssueDetail {
-	id: string;
-	title: string;
-	description: string;
-	design?: string;
-	acceptance_criteria?: string;
-	notes?: string;
-	status: string;
-	priority: number;
-	issue_type: string;
-	assignee?: string;
-	labels?: string[];
-	created_at: string;
-	updated_at: string;
-	closed_at?: string;
-	dependencies?: Dependency[];
-	dependents?: Dependency[];
-	dependency_count: number;
-	dependent_count: number;
-}
-
-async function enrichIssues(basicIssues: IssueDetail[]): Promise<IssueDetail[]> {
-	const needsEnrichment = basicIssues.filter(
-		(i) => i.dependency_count > 0 || i.dependent_count > 0
-	);
-
-	if (needsEnrichment.length === 0) return basicIssues;
-
-	const enriched = await Promise.all(
-		needsEnrichment.map(async (issue) => {
-			const { stdout } = await execAsync(`bd show ${issue.id} --json`);
-			const [detail] = JSON.parse(stdout);
-			return detail as IssueDetail;
-		})
-	);
-
-	const enrichedMap = new Map(enriched.map((i) => [i.id, i]));
-
-	return basicIssues.map((issue) => enrichedMap.get(issue.id) || issue);
-}
+import { getAllIssues } from '$lib/db';
+import type { Issue } from '$lib/types';
 
 export const GET: RequestHandler = async () => {
 	let interval: ReturnType<typeof setInterval> | null = null;
 	let closed = false;
+	let pollCount = 0;
+	let lastHash = '';
 
 	const stream = new ReadableStream({
-		async start(controller) {
+		start(controller) {
 			const encoder = new TextEncoder();
-			let lastData = '';
 
-			const sendUpdate = async () => {
-				if (closed) return;
-				const { stdout } = await execAsync('bd list --json');
-				const data = stdout.trim();
-
-				if (data !== lastData && !closed) {
-					lastData = data;
-					const basicIssues = JSON.parse(data) as IssueDetail[];
-					const issues = await enrichIssues(basicIssues);
-					controller.enqueue(encoder.encode(`data: ${JSON.stringify({ issues })}\n\n`));
-				}
+			const send = (data: object) => {
+				if (!closed) controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
 			};
 
-			interval = setInterval(async () => {
-				await sendUpdate();
-			}, 2000);
+			const poll = () => {
+				if (closed) return;
+				pollCount++;
 
-			await sendUpdate();
+				let issues: Issue[];
+				try {
+					issues = getAllIssues();
+				} catch (e) {
+					const msg = e instanceof Error ? e.message : String(e);
+					send({ type: 'error', errorType: 'db-read', message: msg });
+					return;
+				}
+
+				const hash = JSON.stringify(issues.map((i) => i.id + i.updated_at));
+				const hasChanges = hash !== lastHash;
+				lastHash = hash;
+
+				send({
+					type: 'data',
+					issues,
+					pollCount,
+					hasChanges,
+					timestamp: Date.now()
+				});
+			};
+
+			poll();
+			interval = setInterval(poll, 2000);
 		},
 		cancel() {
 			closed = true;

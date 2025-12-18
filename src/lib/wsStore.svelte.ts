@@ -16,6 +16,7 @@ export interface AgentSession {
 	currentDelta: string;
 	cost?: number;
 	diffs?: FileDiff[];
+	serverId?: string; // Server-side session ID for resumption
 	// Compatibility with old Pane interface
 	pane_type: string;
 	backend: string;
@@ -50,6 +51,7 @@ interface ToolResult {
 
 type ServerMessage =
 	| { type: 'session_started'; sessionId: string }
+	| { type: 'session_resumed'; sessionId: string }
 	| { type: 'stream'; data: StreamEvent | AssistantMessage | ToolResult | { type: string } }
 	| { type: 'done'; result: { subtype: string; total_cost_usd?: number }; diffs?: FileDiff[] }
 	| { type: 'error'; error: string }
@@ -91,17 +93,34 @@ $effect.root(() => {
 
 function handleSessionStarted(sessionId: string) {
 	if (!currentSessionName) return;
+	const existing = sessions.get(currentSessionName);
 	const session: AgentSession = {
 		id: sessionId,
 		name: currentSessionName,
 		streaming: true,
-		messages: [],
+		messages: existing?.messages ?? [],
 		currentDelta: '',
+		cost: existing?.cost,
+		diffs: existing?.diffs,
+		serverId: sessionId, // Store server ID for resumption
 		pane_type: 'agent',
 		backend: 'claude'
 	};
 	sessions.set(currentSessionName, session);
 	sessions = new Map(sessions);
+}
+
+function handleSessionResumed(sessionId: string) {
+	if (!currentSessionName) return;
+	const session = sessions.get(currentSessionName);
+	if (!session) return;
+	sessions.set(currentSessionName, {
+		...session,
+		streaming: true,
+		serverId: sessionId
+	});
+	sessions = new Map(sessions);
+	console.log('[agent] session resumed:', sessionId);
 }
 
 function handleStream(data: StreamEvent | AssistantMessage | ToolResult | { type: string }) {
@@ -151,6 +170,15 @@ function handleStream(data: StreamEvent | AssistantMessage | ToolResult | { type
 				}
 			}
 		}
+	} else if (data.type === 'user') {
+		// Server echoes user messages back - skip if we already have it locally
+		// This handles resumption where server sends back the message history
+		const toolResult = (data as ToolResult).tool_use_result;
+		if (toolResult) {
+			// Tool result from server - might be new if resuming
+			console.log('[agent] received tool result echo');
+		}
+		// User messages are already added locally in sendMessage, so ignore echo
 	}
 }
 
@@ -225,6 +253,9 @@ function onMessage(event: MessageEvent) {
 		case 'session_started':
 			handleSessionStarted(msg.sessionId);
 			break;
+		case 'session_resumed':
+			handleSessionResumed(msg.sessionId);
+			break;
 		case 'stream':
 			handleStream(msg.data);
 			break;
@@ -257,6 +288,8 @@ export function connect(url?: string) {
 	ws.onopen = () => {
 		connected = true;
 		console.log('[agent] connected');
+		// Auto-resume sessions that have serverId stored
+		tryResumeAllSessions();
 	};
 	ws.onclose = () => {
 		connected = false;
@@ -268,6 +301,23 @@ export function connect(url?: string) {
 		ws?.close();
 	};
 	ws.onmessage = onMessage;
+}
+
+function tryResumeAllSessions() {
+	for (const [name, session] of sessions) {
+		if (session.serverId && !session.streaming) {
+			console.log('[agent] attempting to resume session:', name, session.serverId);
+			resumeSession(name, session.serverId);
+		}
+	}
+}
+
+export function resumeSession(name: string, serverSessionId: string) {
+	currentSessionName = name;
+	send({
+		type: 'resume',
+		sessionId: serverSessionId
+	});
 }
 
 export function disconnect() {
