@@ -5,6 +5,7 @@
 		dataStatus,
 		agentConnected,
 		agentCount,
+		unreadCount = 0,
 		agentEnabled = true,
 		light = false,
 		onstartAgent,
@@ -13,6 +14,7 @@
 		dataStatus: LoadingStatus;
 		agentConnected: boolean;
 		agentCount: number;
+		unreadCount?: number;
 		agentEnabled?: boolean;
 		light?: boolean;
 		onstartAgent?: () => void;
@@ -61,6 +63,9 @@
 					Agent offline
 				{/if}
 			</span>
+			{#if unreadCount > 0}
+				<span class="unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+			{/if}
 			{#if !agentConnected && onstartAgent}
 				<button class="action-btn start" onclick={onstartAgent}>
 					<svg viewBox="0 0 12 12" width="10" height="10" fill="currentColor">
@@ -226,5 +231,34 @@
 
 	.status-bar.light .action-btn.restart {
 		background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+	}
+
+	/* Unread badge */
+	.unread-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 16px;
+		height: 16px;
+		padding: 0 5px;
+		margin-left: 4px;
+		background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+		border-radius: 8px;
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 9px;
+		font-weight: 700;
+		color: #fff;
+		letter-spacing: -0.02em;
+		box-shadow: 0 1px 3px rgba(239, 68, 68, 0.4);
+		animation: unreadPulse 2s ease-in-out infinite;
+	}
+
+	@keyframes unreadPulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.8; }
+	}
+
+	.status-bar.light .unread-badge {
+		box-shadow: 0 1px 4px rgba(239, 68, 68, 0.3);
 	}
 </style>

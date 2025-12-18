@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import type { Pane, SdkSessionInfo } from '$lib/wsStore.svelte';
 
 	interface Props {
@@ -26,6 +27,7 @@
 		onCompactSession?: (name: string) => void;
 		onFetchSessions?: () => Promise<SdkSessionInfo[]>;
 		onResumeSession?: (name: string, sessionId: string) => void;
+		onMarkAsRead?: (name: string) => void;
 	}
 
 	let {
@@ -52,7 +54,8 @@
 		onContinueSession,
 		onCompactSession,
 		onFetchSessions,
-		onResumeSession
+		onResumeSession,
+		onMarkAsRead
 	}: Props = $props();
 
 	let messagesRefs = $state<Record<string, HTMLDivElement | null>>({});
@@ -63,14 +66,17 @@
 	let sessionPickerSessions = $state<SdkSessionInfo[]>([]);
 	let sessionPickerLoading = $state(false);
 
-	// Auto-focus input when pane opens
-	let prevExpandedPanes = $state<Set<string>>(new Set());
+	// Auto-focus input when pane opens and mark as read
+	let prevExpandedPanes: Set<string> = new Set();
 	$effect(() => {
 		const expanded = [...expandedPanes];
+		// Use untrack to read prevExpandedPanes without creating a dependency (prevents infinite loop)
+		const prev = untrack(() => prevExpandedPanes);
 		for (const name of expanded) {
-			if (!prevExpandedPanes.has(name)) {
-				// Newly expanded pane - focus its input
+			if (!prev.has(name)) {
+				// Newly expanded pane - focus its input and mark as read
 				setTimeout(() => inputRefs[name]?.focus(), 50);
+				onMarkAsRead?.(name);
 			}
 		}
 		prevExpandedPanes = new Set(expanded);
@@ -119,13 +125,20 @@
 		}
 	}
 
+	// Debounced scroll to prevent excessive updates during rapid streaming
+	let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 	$effect(() => {
-		for (const [name, pane] of wsPanes) {
-			const ref = messagesRefs[name];
-			if (ref && (pane.messages.length > 0 || pane.currentDelta)) {
-				ref.scrollTop = ref.scrollHeight;
+		// Track wsPanes to trigger effect
+		const panes = [...wsPanes.entries()];
+		if (scrollTimeout) clearTimeout(scrollTimeout);
+		scrollTimeout = setTimeout(() => {
+			for (const [name, pane] of panes) {
+				const ref = messagesRefs[name];
+				if (ref && (pane.messages.length > 0 || pane.currentDelta)) {
+					ref.scrollTop = ref.scrollHeight;
+				}
 			}
-		}
+		}, 50);
 	});
 </script>
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { untrack } from 'svelte';
-	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, killSession, clearAllSessions, endSession, clearSession, continueSession, compactSession, getPersistedSdkSessionId, getAllPersistedSessions, deletePersistedSession, fetchSdkSessions, type Pane, type SdkSessionInfo } from '$lib/wsStore.svelte';
+	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, killSession, clearAllSessions, endSession, clearSession, continueSession, compactSession, getPersistedSdkSessionId, getAllPersistedSessions, deletePersistedSession, fetchSdkSessions, markPaneAsRead, getTotalUnreadCount, getUnreadCount, type Pane, type SdkSessionInfo } from '$lib/wsStore.svelte';
 	import type { Issue, Comment, Attachment, CardPosition, FlyingCard, ContextMenuState, RopeDragState, SortBy, PaneSize, ViewMode, LoadingStatus as LoadingStatusType, Project } from '$lib/types';
 	import {
 		columns,
@@ -517,11 +517,18 @@
 	// Reactive polling for cross-module state (Svelte 5 doesn't track $state across modules in $derived)
 	let wsConnected = $state(false);
 	let wsPanes = $state<Map<string, Pane>>(new Map());
+	let lastPanesJson = '';
 
 	$effect(() => {
 		const poll = () => {
 			wsConnected = isConnected();
-			wsPanes = getPanes();
+			// Only update wsPanes if content actually changed (prevent infinite loops)
+			const newPanes = getPanes();
+			const newJson = JSON.stringify([...newPanes.entries()].map(([k, v]) => [k, v.messages.length, v.currentDelta?.length || 0, v.streaming]));
+			if (newJson !== lastPanesJson) {
+				lastPanesJson = newJson;
+				wsPanes = newPanes;
+			}
 		};
 		poll();
 		const id = setInterval(poll, 100);
@@ -1779,15 +1786,19 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		{/if}
 		<div class="agent-tabs">
 			{#each [...wsPanes.values()] as pane}
+				{@const unread = getUnreadCount(pane.name)}
 				<button
 					class="agent-tab"
 					class:active={expandedPanes.has(pane.name)}
 					class:streaming={pane.streaming}
+					class:unread={unread > 0}
 					onclick={() => { if (expandedPanes.has(pane.name)) { expandedPanes.delete(pane.name); } else { expandedPanes.add(pane.name); } expandedPanes = new Set(expandedPanes); }}
 				>
 					<span class="tab-dot" class:live={pane.streaming}></span>
 					<span class="tab-name">{pane.name}</span>
-					{#if pane.messages.length > 0}
+					{#if unread > 0}
+						<span class="tab-unread">{unread > 99 ? '99+' : unread}</span>
+					{:else if pane.messages.length > 0}
 						<span class="tab-count">{pane.messages.length}</span>
 					{/if}
 				</button>
@@ -1799,6 +1810,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 				dataStatus={loadingStatus}
 				agentConnected={wsConnected}
 				agentCount={wsPanes.size}
+				unreadCount={getTotalUnreadCount()}
 				{agentEnabled}
 				light={!isDarkMode}
 				onstartAgent={startAgentServer}
@@ -1851,6 +1863,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 			expandedPanes.add(name);
 			expandedPanes = new Set(expandedPanes);
 		}}
+		onMarkAsRead={markPaneAsRead}
 	/>
 </div>
 {/if}
@@ -1866,6 +1879,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		dataStatus={loadingStatus}
 		agentConnected={wsConnected}
 		agentCount={wsPanes.size}
+		unreadCount={getTotalUnreadCount()}
 		{agentEnabled}
 		light={!isDarkMode}
 		onstartAgent={startAgentServer}
@@ -2747,6 +2761,26 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	.agent-tab.active .tab-count {
 		color: #6366f1;
 		opacity: 1;
+	}
+
+	.agent-tab.unread {
+		border-color: rgba(239, 68, 68, 0.4);
+	}
+
+	.tab-unread {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 14px;
+		height: 14px;
+		padding: 0 4px;
+		background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+		border-radius: 7px;
+		font-size: 8px;
+		font-weight: 700;
+		color: #fff;
+		letter-spacing: -0.02em;
+		box-shadow: 0 1px 2px rgba(239, 68, 68, 0.3);
 	}
 
 	@keyframes msgIn {
