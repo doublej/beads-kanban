@@ -158,16 +158,15 @@
 		<!-- Right: Views, Filters, Chat, Theme, Settings, Help -->
 		<div class="toolbar-right">
 			<!-- View Toggle -->
-			<div class="view-toggle">
+			<div class="btn-group">
 				{#each viewModes as mode}
 					<button
-						class="view-btn"
+						class="toolbar-btn"
 						class:active={viewMode === mode.key}
 						onclick={() => viewMode = mode.key}
 						title={mode.label}
 					>
-						<Icon name={mode.icon} size={13} />
-						<span class="view-label">{mode.label}</span>
+						<Icon name={mode.icon} size={14} />
 					</button>
 				{/each}
 			</div>
@@ -181,7 +180,7 @@
 					class:active={hasActiveFilters}
 					onclick={() => showFilters = !showFilters}
 				>
-					<Icon name="filter" size={13} />
+					<Icon name="filter" size={14} />
 					<span>Filters</span>
 					{#if hasActiveFilters}
 						<span class="toolbar-badge">{activeFilterCount}</span>
@@ -286,7 +285,7 @@
 				onclick={ontoggleAgentPanes}
 				title="Toggle chat UI"
 			>
-				<Icon name="message" size={13} />
+				<Icon name="message" size={14} />
 				<span>Chat</span>
 				{#if agentPaneCount > 0}
 					<span class="toolbar-badge">{agentPaneCount}</span>
@@ -296,7 +295,7 @@
 			<span class="toolbar-sep"></span>
 
 			<!-- Icon buttons group -->
-			<button class="icon-btn" onclick={ontoggleTheme} aria-label="Toggle theme">
+			<button class="toolbar-btn" onclick={ontoggleTheme} aria-label="Toggle theme">
 				{#if isDarkMode}
 					<Icon name="sun" size={14} />
 				{:else}
@@ -304,7 +303,7 @@
 				{/if}
 			</button>
 			<div class="help-wrapper">
-				<button class="icon-btn" onclick={() => showHelpMenu = !showHelpMenu} aria-label="Help">
+				<button class="toolbar-btn" onclick={() => showHelpMenu = !showHelpMenu} aria-label="Help">
 					<Icon name="help" size={14} />
 				</button>
 				{#if showHelpMenu}
@@ -325,7 +324,7 @@
 					</div>
 				{/if}
 			</div>
-			<button class="icon-btn" onclick={onopenSettings} aria-label="Settings">
+			<button class="toolbar-btn" onclick={onopenSettings} aria-label="Settings">
 				<Icon name="settings" size={14} />
 			</button>
 		</div>
@@ -366,44 +365,45 @@
 		flex-shrink: 0;
 	}
 
-	/* Icon buttons group for theme, help, settings */
-	.icon-group {
-		display: flex;
-		align-items: center;
-		gap: 0.125rem;
-	}
-
 	.toolbar-sep {
 		width: 1px;
-		height: 1rem;
-		background: rgba(255, 255, 255, 0.1);
-		margin: 0 0.25rem;
+		height: 0.75rem;
+		background: rgba(255, 255, 255, 0.08);
+		margin: 0 0.375rem;
 	}
 
 	:global(.app.light) .toolbar-sep {
-		background: rgba(0, 0, 0, 0.1);
+		background: rgba(0, 0, 0, 0.08);
 	}
 
-	/* Toolbar button (Filters, Activity) */
+	/* Button group for view toggle */
+	.btn-group {
+		display: flex;
+		gap: 2px;
+	}
+
+	/* Unified toolbar button */
 	.toolbar-btn {
 		display: flex;
 		align-items: center;
-		gap: 0.25rem;
-		height: 1.625rem;
+		justify-content: center;
+		gap: 0.375rem;
+		height: 1.75rem;
+		min-width: 1.75rem;
 		padding: 0 0.5rem;
 		background: transparent;
 		border: none;
-		border-radius: 0.375rem;
-		color: var(--text-secondary);
+		border-radius: 0.25rem;
+		color: var(--text-tertiary);
 		font-family: inherit;
-		font-size: 0.6875rem;
+		font-size: 0.75rem;
 		font-weight: 500;
 		cursor: pointer;
-		transition: all var(--transition-fast);
+		transition: background 0.1s, color 0.1s;
 	}
 
 	.toolbar-btn :global(svg) {
-		opacity: 0.7;
+		flex-shrink: 0;
 	}
 
 	.toolbar-btn:hover {
@@ -412,35 +412,30 @@
 	}
 
 	.toolbar-btn.active {
-		background: rgba(59, 130, 246, 0.12);
-		color: #60a5fa;
-	}
-
-	.toolbar-btn.active :global(svg) {
-		opacity: 1;
+		background: rgba(255, 255, 255, 0.1);
+		color: var(--text-primary);
 	}
 
 	:global(.app.light) .toolbar-btn:hover {
-		background: rgba(0, 0, 0, 0.05);
+		background: rgba(0, 0, 0, 0.04);
 	}
 
 	:global(.app.light) .toolbar-btn.active {
-		background: rgba(59, 130, 246, 0.1);
-		color: #2563eb;
+		background: rgba(0, 0, 0, 0.06);
 	}
 
 	.toolbar-badge {
+		min-width: 1rem;
+		height: 1rem;
+		padding: 0 0.25rem;
+		background: var(--text-tertiary);
+		border-radius: 0.25rem;
+		color: var(--bg-primary);
+		font-size: 0.625rem;
+		font-weight: 600;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		min-width: 0.875rem;
-		height: 0.875rem;
-		padding: 0 0.1875rem;
-		background: #3b82f6;
-		border-radius: 999px;
-		color: white;
-		font-size: 0.5rem;
-		font-weight: 600;
 	}
 
 	.logo-lockup {
@@ -500,33 +495,32 @@
 		color: rgba(0, 0, 0, 0.9);
 	}
 
+	/* Search */
 	.search-container {
 		position: relative;
 		display: flex;
 		align-items: center;
-		width: 160px;
+		width: 180px;
 	}
 
 	.search-icon {
 		position: absolute;
-		left: 0.75rem;
+		left: 0.625rem;
 		display: flex;
-		align-items: center;
 		color: var(--text-tertiary);
 		pointer-events: none;
 	}
 
 	.search-input {
 		width: 100%;
-		height: 2.125rem;
-		padding: 0 3rem 0 2.25rem;
+		height: 1.75rem;
+		padding: 0 2.5rem 0 2rem;
 		background: rgba(255, 255, 255, 0.04);
-		border: 0.5px solid rgba(255, 255, 255, 0.12);
-		border-radius: 0.5rem;
+		border: none;
+		border-radius: 0.25rem;
 		color: var(--text-primary);
 		font-family: inherit;
-		font-size: 0.8125rem;
-		transition: all var(--transition-fast);
+		font-size: 0.75rem;
 	}
 
 	.search-input::placeholder {
@@ -535,105 +529,75 @@
 
 	.search-input:focus {
 		outline: none;
-		background: rgba(255, 255, 255, 0.06);
-		border-color: rgba(59, 130, 246, 0.4);
-		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+		background: rgba(255, 255, 255, 0.08);
 	}
 
 	:global(.app.light) .search-input {
 		background: rgba(0, 0, 0, 0.03);
-		border-color: rgba(0, 0, 0, 0.12);
 	}
 
 	:global(.app.light) .search-input:focus {
-		background: rgba(0, 0, 0, 0.04);
+		background: rgba(0, 0, 0, 0.05);
 	}
 
 	.search-clear {
 		position: absolute;
-		right: 0.5rem;
-		width: 1.125rem;
-		height: 1.125rem;
+		right: 0.375rem;
+		width: 1rem;
+		height: 1rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--bg-elevated);
+		background: transparent;
 		border: none;
-		border-radius: 50%;
+		border-radius: 0.125rem;
 		color: var(--text-tertiary);
 		font-size: 0.75rem;
 		cursor: pointer;
-		transition: all var(--transition-fast);
 	}
 
 	.search-clear:hover {
-		background: var(--text-tertiary);
-		color: var(--bg-primary);
+		color: var(--text-primary);
 	}
 
 	.hotkey-hint {
 		position: absolute;
-		right: 0.625rem;
-		top: 50%;
-		transform: translateY(-50%);
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.125rem 0.375rem;
-		font-family: ui-monospace, 'SF Mono', monospace;
+		right: 0.375rem;
+		font-family: ui-monospace, monospace;
 		font-size: 0.625rem;
-		font-weight: 500;
 		color: var(--text-tertiary);
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 4px;
-		opacity: 0.6;
+		opacity: 0.5;
 	}
 
-	:global(.app.light) .hotkey-hint {
-		background: rgba(0, 0, 0, 0.04);
-		border-color: rgba(0, 0, 0, 0.08);
-	}
-
+	/* Create button - styled like toolbar-btn but primary */
 	.btn-create {
 		display: flex;
 		align-items: center;
-		gap: 0.25rem;
-		height: 1.625rem;
-		padding: 0 0.5rem;
-		background: rgba(59, 130, 246, 0.15);
+		gap: 0.375rem;
+		height: 1.75rem;
+		padding: 0 0.625rem;
+		background: rgba(59, 130, 246, 0.12);
 		border: none;
-		border-radius: 0.375rem;
+		border-radius: 0.25rem;
 		font-family: inherit;
-		font-size: 0.6875rem;
+		font-size: 0.75rem;
 		font-weight: 500;
 		color: #60a5fa;
 		cursor: pointer;
-		transition: all var(--transition-fast);
-		white-space: nowrap;
-	}
-
-	.btn-create :global(svg) {
-		opacity: 0.8;
+		transition: background 0.1s;
 	}
 
 	.btn-create:hover {
-		background: rgba(59, 130, 246, 0.2);
-		color: #93c5fd;
-	}
-
-	.btn-create:active {
-		background: rgba(59, 130, 246, 0.25);
+		background: rgba(59, 130, 246, 0.18);
 	}
 
 	:global(.app.light) .btn-create {
-		background: rgba(59, 130, 246, 0.1);
+		background: rgba(59, 130, 246, 0.08);
 		color: #2563eb;
 	}
 
 	:global(.app.light) .btn-create:hover {
-		background: rgba(59, 130, 246, 0.15);
-		color: #1d4ed8;
+		background: rgba(59, 130, 246, 0.12);
 	}
 
 	.btn-create-text {
@@ -641,50 +605,9 @@
 	}
 
 	.create-hotkey {
-		font-family: ui-monospace, 'SF Mono', monospace;
-		font-size: 0.5rem;
-		font-weight: 500;
-		padding: 0.0625rem 0.25rem;
-		background: rgba(59, 130, 246, 0.15);
-		border: none;
-		border-radius: 2px;
-		margin-left: 0.25rem;
-		color: inherit;
-		opacity: 0.7;
-	}
-
-	/* Icon buttons (Help, Theme, Settings) */
-	.icon-btn {
-		width: 1.625rem;
-		height: 1.625rem;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: transparent;
-		border: none;
-		border-radius: 0.375rem;
-		color: var(--text-tertiary);
-		cursor: pointer;
-		transition: all var(--transition-fast);
-	}
-
-	.icon-btn :global(svg) {
-		width: 0.875rem;
-		height: 0.875rem;
-		opacity: 0.7;
-	}
-
-	.icon-btn:hover {
-		background: rgba(255, 255, 255, 0.06);
-		color: var(--text-secondary);
-	}
-
-	.icon-btn:hover :global(svg) {
-		opacity: 1;
-	}
-
-	:global(.app.light) .icon-btn:hover {
-		background: rgba(0, 0, 0, 0.06);
+		font-family: ui-monospace, monospace;
+		font-size: 0.5625rem;
+		opacity: 0.5;
 	}
 
 	/* Dropdown menus (Help, Settings) */
@@ -774,71 +697,6 @@
 	.dropdown-item-danger:hover {
 		background: rgba(239, 68, 68, 0.1);
 		color: #f87171;
-	}
-
-	/* View toggle */
-	.view-toggle {
-		display: flex;
-		align-items: center;
-		height: 1.625rem;
-		gap: 1px;
-		padding: 0 2px;
-		background: rgba(255, 255, 255, 0.04);
-		border-radius: 0.375rem;
-		border: 0.5px solid rgba(255, 255, 255, 0.1);
-	}
-
-	:global(.app.light) .view-toggle {
-		background: rgba(0, 0, 0, 0.03);
-		border-color: rgba(0, 0, 0, 0.1);
-	}
-
-	.view-btn {
-		display: flex;
-		align-items: center;
-		gap: 0.25rem;
-		height: 1.25rem;
-		padding: 0 0.375rem;
-		background: transparent;
-		border: none;
-		border-radius: 0.25rem;
-		color: var(--text-secondary);
-		font-family: inherit;
-		font-size: 0.6875rem;
-		cursor: pointer;
-		transition: all var(--transition-fast);
-	}
-
-	.view-btn:hover {
-		color: var(--text-secondary);
-		background: rgba(255, 255, 255, 0.06);
-	}
-
-	.view-btn.active {
-		color: var(--text-primary);
-		background: rgba(255, 255, 255, 0.1);
-	}
-
-	:global(.app.light) .view-btn:hover {
-		background: rgba(0, 0, 0, 0.04);
-	}
-
-	:global(.app.light) .view-btn.active {
-		background: rgba(0, 0, 0, 0.08);
-	}
-
-	.view-icon {
-		font-size: 0.75rem;
-		line-height: 1;
-	}
-
-	.view-btn :global(svg) {
-		width: 0.75rem;
-		height: 0.75rem;
-	}
-
-	.view-label {
-		font-weight: 400;
 	}
 
 	/* Filters */
@@ -974,31 +832,15 @@
 			gap: 0.125rem;
 		}
 
-		.toolbar-sep {
+		.toolbar-sep,
+		.btn-group {
 			display: none;
 		}
 
-		/* Compact view toggle on mobile */
-		.view-toggle {
-			height: 1.5rem;
-			padding: 0 1px;
-		}
-
-		.view-btn {
-			height: 1.125rem;
-			padding: 0 0.25rem;
-		}
-
-		.view-btn :global(svg) {
-			width: 0.6875rem;
-			height: 0.6875rem;
-		}
-
-		/* Compact toolbar buttons */
 		.toolbar-btn {
 			height: 1.5rem;
+			min-width: 1.5rem;
 			padding: 0 0.375rem;
-			font-size: 0.625rem;
 		}
 
 		.toolbar-btn span:not(.toolbar-badge) {
@@ -1008,39 +850,25 @@
 		.toolbar-badge {
 			min-width: 0.75rem;
 			height: 0.75rem;
-			font-size: 0.4375rem;
+			font-size: 0.5rem;
 		}
 
-		/* Compact search */
 		.search-container {
 			width: 100px;
 		}
 
 		.search-input {
-			height: 1.75rem;
-			padding: 0 2rem 0 1.75rem;
-			font-size: 0.75rem;
-		}
-
-		.search-icon :global(svg) {
-			width: 11px;
-			height: 11px;
+			height: 1.5rem;
+			padding: 0 1.5rem 0 1.75rem;
 		}
 
 		.search-icon {
 			left: 0.5rem;
 		}
 
-		.search-clear {
-			right: 0.375rem;
-			width: 0.875rem;
-			height: 0.875rem;
-			font-size: 0.625rem;
-		}
-
-		/* Compact create button */
 		.btn-create-text,
-		.create-hotkey {
+		.create-hotkey,
+		.hotkey-hint {
 			display: none;
 		}
 
@@ -1048,28 +876,10 @@
 			padding: 0;
 			width: 1.5rem;
 			height: 1.5rem;
-			justify-content: center;
-		}
-
-		.hotkey-hint {
-			display: none;
-		}
-
-		.help-wrapper,
-		.icon-btn:not(.pane-toggle) {
-			display: none;
-		}
-
-		.view-label {
-			display: none;
-		}
-
-		.toolbar-btn span:not(.toolbar-badge) {
-			display: none;
 		}
 
 		.filters-popover {
-			width: calc(100vw - 1.5rem);
+			width: calc(100vw - 1rem);
 			max-width: 320px;
 		}
 	}
