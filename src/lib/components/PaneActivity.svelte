@@ -278,7 +278,7 @@
 						{/if}
 						{#if msg.role === 'tool'}
 							{#if isCollapsed}
-								<pre class="content collapsed-preview"><span class="tool-name">{msg.toolName || 'tool'}</span></pre>
+								<pre class="content collapsed-preview"><span class="tool-name">{msg.toolName || 'tool'}</span>{#if msg.toolResult}<span class="tool-status done">✓</span>{:else}<span class="tool-status pending">…</span>{/if}</pre>
 							{:else}
 								<div class="tool-details">
 									<div class="tool-header">{msg.toolName || 'tool'}</div>
@@ -936,6 +936,25 @@
 	.tool-name {
 		color: #f59e0b;
 		font-weight: 500;
+	}
+
+	.tool-status {
+		margin-left: 6px;
+		font-size: 10px;
+	}
+
+	.tool-status.done {
+		color: #22c55e;
+	}
+
+	.tool-status.pending {
+		color: var(--text-tertiary);
+		animation: toolPending 1s ease-in-out infinite;
+	}
+
+	@keyframes toolPending {
+		0%, 100% { opacity: 0.4; }
+		50% { opacity: 1; }
 	}
 
 	.tool-details {
