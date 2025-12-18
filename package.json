@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --host",
-    "dev:agent": "(cd /Users/jurrejan/Documents/development/_management/kanban_claude && bun run index.ts) & vite dev --host",
+    "dev:agent": "(cd src/lib/server/agent && bun run index.ts) & vite dev --host",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
@@ -22,6 +22,8 @@
   },
   "dependencies": {
     "better-sqlite3": "^12.5.0",
-    "lucide-svelte": "^0.561.0"
+    "highlight.js": "^11.11.1",
+    "lucide-svelte": "^0.561.0",
+    "marked": "^17.0.1"
   }
 }

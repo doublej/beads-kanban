@@ -2,3 +2,7 @@ node_modules/
 .svelte-kit/
 build/
 .env
+
+# Embedded agent (has its own deps)
+src/lib/server/agent/node_modules/
+src/lib/server/agent/bun.lockb

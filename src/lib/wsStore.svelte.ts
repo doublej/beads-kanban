@@ -11,6 +11,13 @@ export interface ChatMessage {
 	timestamp?: string;
 }
 
+export interface TokenUsage {
+	inputTokens: number;
+	outputTokens: number;
+	cacheRead: number;
+	cacheCreation: number;
+}
+
 export interface AgentSession {
 	id: string;
 	name: string;
@@ -23,6 +30,7 @@ export interface AgentSession {
 	serverId?: string;
 	sdkSessionId?: string; // Claude SDK session ID for resume
 	compacted?: boolean; // Whether context was compacted
+	usage?: TokenUsage; // Latest token usage from SDK
 	pane_type: string;
 	backend: string;
 	lastReadCount?: number; // Number of messages when pane was last viewed
@@ -68,6 +76,7 @@ type ServerMessage =
 	| { type: 'session_resumed'; sessionId: string; sdkSessionId?: string; isRunning?: boolean }
 	| { type: 'sdk_session'; sdkSessionId: string; source: 'new' | 'resume' }
 	| { type: 'compacted'; metadata?: unknown }
+	| { type: 'usage'; inputTokens: number; outputTokens: number; cacheRead: number; cacheCreation: number }
 	| { type: 'session_ended'; sessionId: string }
 	| { type: 'session_cleared'; sessionId: string }
 	| { type: 'stream'; data: StreamEvent | AssistantMessage | ToolResult | ToolCallEvent | ToolResultEvent | { type: string } }
@@ -178,6 +187,18 @@ function createMessageHandler(sessionName: string) {
 
 			case 'compacted':
 				updateSession(sessionName, { compacted: true });
+				break;
+
+			case 'usage':
+				// Server sends cumulative totals
+				updateSession(sessionName, {
+					usage: {
+						inputTokens: msg.inputTokens,
+						outputTokens: msg.outputTokens,
+						cacheRead: msg.cacheRead,
+						cacheCreation: msg.cacheCreation,
+					}
+				});
 				break;
 
 			case 'session_ended':

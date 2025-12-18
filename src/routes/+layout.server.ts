@@ -1,6 +1,7 @@
 import type { LayoutServerLoad } from './$types';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { readFileSync } from 'fs';
+import { getStoredCwd } from '$lib/db';
 
 function getProjectName(projectDir: string): string {
 	const fallback = projectDir.split('/').pop() || projectDir;
@@ -12,8 +13,7 @@ function getProjectName(projectDir: string): string {
 }
 
 export const load: LayoutServerLoad = async () => {
-	const dbPath = process.env.BD_DB || '';
-	const cwd = dbPath ? dirname(dirname(dbPath)) : process.cwd();
+	const cwd = getStoredCwd();
 	const folderName = getProjectName(cwd);
 	return { cwd, folderName };
 };

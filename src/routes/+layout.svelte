@@ -1,17 +1,10 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { setWorkingDirectory } from '$lib/wsStore.svelte';
 	import '$lib/styles/components.css';
 
 	let { data, children } = $props();
 
 	let isDarkMode = $state(true);
-
-	$effect(() => {
-		if (browser && data.cwd) {
-			setWorkingDirectory(data.cwd);
-		}
-	});
 
 	$effect(() => {
 		if (browser) {

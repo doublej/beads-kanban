@@ -217,10 +217,29 @@
 					{#if pane.usage}
 						{@const total = pane.usage.inputTokens + pane.usage.outputTokens}
 						{@const cached = pane.usage.cacheRead}
-						{@const pct = total > 0 ? Math.round((cached / total) * 100) : 0}
-						<span class="usage-tag" title="Input: {pane.usage.inputTokens.toLocaleString()}&#10;Output: {pane.usage.outputTokens.toLocaleString()}&#10;Cache read: {cached.toLocaleString()} ({pct}%)&#10;Cache created: {pane.usage.cacheCreation.toLocaleString()}">
-							{total >= 1000 ? `${(total / 1000).toFixed(0)}k` : total}
-						</span>
+						{@const maxContext = 200000}
+						{@const usedPct = Math.min(100, (total / maxContext) * 100)}
+						{@const remainPct = 100 - usedPct}
+						{@const cachePct = total > 0 ? Math.round((cached / total) * 100) : 0}
+						{@const level = remainPct > 66 ? 'low' : remainPct > 33 ? 'mid' : remainPct > 15 ? 'high' : 'critical'}
+						<div
+							class="context-meter {level}"
+							title="Remaining: {(maxContext - total).toLocaleString()} tokens ({remainPct.toFixed(1)}%)&#10;Used: {total.toLocaleString()} / {maxContext.toLocaleString()}&#10;Input: {pane.usage.inputTokens.toLocaleString()}&#10;Output: {pane.usage.outputTokens.toLocaleString()}&#10;Cache: {cached.toLocaleString()} ({cachePct}%)"
+						>
+							<svg viewBox="0 0 28 14" width="28" height="14">
+								<!-- Battery outline -->
+								<rect x="1" y="2" width="22" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.2"/>
+								<!-- Battery cap -->
+								<rect x="23" y="5" width="3" height="4" rx="1" fill="currentColor" opacity="0.5"/>
+								<!-- Fill level (remaining capacity) -->
+								<rect x="3" y="4" width="{Math.max(0, (remainPct / 100) * 18)}" height="6" rx="1" fill="currentColor"/>
+								<!-- Segment lines -->
+								<line x1="8" y1="4" x2="8" y2="10" stroke="var(--meter-bg)" stroke-width="0.8"/>
+								<line x1="13" y1="4" x2="13" y2="10" stroke="var(--meter-bg)" stroke-width="0.8"/>
+								<line x1="18" y1="4" x2="18" y2="10" stroke="var(--meter-bg)" stroke-width="0.8"/>
+							</svg>
+							<span class="meter-label">{total >= 1000 ? `${(total / 1000).toFixed(0)}k` : total}</span>
+						</div>
 					{/if}
 				</div>
 
@@ -739,13 +758,46 @@
 		color: rgba(16, 185, 129, 0.8);
 	}
 
-	.usage-tag {
-		font: 500 8px/1 'JetBrains Mono', monospace;
-		padding: 2px 4px;
-		border-radius: 3px;
-		background: rgba(251, 191, 36, 0.12);
-		color: rgba(251, 191, 36, 0.9);
+	/* Context meter - battery style */
+	.context-meter {
+		--meter-bg: rgba(0,0,0,0.7);
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 6px 2px 4px;
+		border-radius: 4px;
+		background: transparent;
 		cursor: help;
+		opacity: 0.5;
+		transition: opacity 0.15s ease;
+	}
+	.context-meter:hover {
+		opacity: 0.8;
+	}
+	.context-meter svg {
+		display: block;
+	}
+	.context-meter.low {
+		color: #4ade80;
+	}
+	.context-meter.mid {
+		color: #facc15;
+	}
+	.context-meter.high {
+		color: #fb923c;
+	}
+	.context-meter.critical {
+		color: #f87171;
+		animation: pulse-critical 1.5s ease-in-out infinite;
+	}
+	@keyframes pulse-critical {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.6; }
+	}
+	.meter-label {
+		font: 600 9px/1 'JetBrains Mono', monospace;
+		letter-spacing: -0.5px;
+		opacity: 0.9;
 	}
 
 	/* Right actions */

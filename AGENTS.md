@@ -2,9 +2,9 @@
 
 ## Commands
 ```bash
-bun run dev      # Start dev server
+bun run dev      # Start dev server (HMR disabled)
 bun run build    # Production build
-bun run check    # Type-check (svelte-check + tsc)
+bun run check    # Type-check with svelte-check
 ```
 No test framework configured.
 
