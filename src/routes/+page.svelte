@@ -61,6 +61,8 @@
 	let filterPriority = $state<number | 'all'>('all');
 	let filterType = $state<string>('all');
 	let filterTime = $state<string>('all');
+	let filterStatus = $state<string>('all');
+	let filterLabel = $state<string>('all');
 	let isFilterPreviewing = $state(false);
 	let animatingIds = $state<Set<string>>(new Set());
 	let selectedId = $state<string | null>(null);
@@ -421,10 +423,18 @@
 		const matchesPriority = filterPriority === 'all' || issue.priority === filterPriority;
 		const matchesType = filterType === 'all' || issue.issue_type === filterType;
 		const matchesTime = issueMatchesTimeFilter(issue);
-		return matchesSearch && matchesPriority && matchesType && matchesTime;
+		// Status filter: supports negation with '!' prefix (e.g., '!closed')
+		const matchesStatus = filterStatus === 'all' ||
+			(filterStatus.startsWith('!') ? issue.status !== filterStatus.slice(1) : issue.status === filterStatus);
+		// Label filter: issue must have the selected label
+		const matchesLabel = filterLabel === 'all' || (issue.labels || []).includes(filterLabel);
+		return matchesSearch && matchesPriority && matchesType && matchesTime && matchesStatus && matchesLabel;
 	}
 
-	const hasActiveFilters = $derived(searchQuery !== '' || filterPriority !== 'all' || filterType !== 'all' || filterTime !== 'all');
+	const hasActiveFilters = $derived(searchQuery !== '' || filterPriority !== 'all' || filterType !== 'all' || filterTime !== 'all' || filterStatus !== 'all' || filterLabel !== 'all');
+
+	// Get all unique labels from issues for filter dropdown
+	const availableLabels = $derived([...new Set(issues.flatMap(i => i.labels || []))].sort());
 
 	const filteredIssues = $derived(
 		issues.filter((issue) => issueMatchesFilters(issue))
@@ -1338,6 +1348,9 @@
 		bind:filterPriority
 		bind:filterType
 		bind:filterTime
+		bind:filterStatus
+		bind:filterLabel
+		{availableLabels}
 		bind:viewMode
 		{isDarkMode}
 		{projectName}

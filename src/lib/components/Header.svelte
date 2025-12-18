@@ -7,6 +7,9 @@
 		filterPriority: number | 'all';
 		filterType: string;
 		filterTime: string;
+		filterStatus: string;
+		filterLabel: string;
+		availableLabels: string[];
 		viewMode: ViewMode;
 		isDarkMode: boolean;
 		totalIssues: number;
@@ -24,6 +27,9 @@
 		filterPriority = $bindable(),
 		filterType = $bindable(),
 		filterTime = $bindable(),
+		filterStatus = $bindable(),
+		filterLabel = $bindable(),
+		availableLabels,
 		viewMode = $bindable(),
 		isDarkMode,
 		totalIssues,
@@ -78,16 +84,29 @@
 		{ value: 'week', label: 'This Week' }
 	];
 
+	const statusOptions = [
+		{ value: 'all', label: 'All' },
+		{ value: 'open', label: 'Open' },
+		{ value: 'in_progress', label: 'In Progress' },
+		{ value: 'blocked', label: 'Blocked' },
+		{ value: 'closed', label: 'Closed' },
+		{ value: '!closed', label: 'Not Closed' }
+	];
+
 	function clearFilters() {
 		filterPriority = 'all';
 		filterType = 'all';
 		filterTime = 'all';
+		filterStatus = 'all';
+		filterLabel = 'all';
 	}
 
 	const activeFilterCount = $derived(
 		(filterPriority !== 'all' ? 1 : 0) +
 		(filterType !== 'all' ? 1 : 0) +
-		(filterTime !== 'all' ? 1 : 0)
+		(filterTime !== 'all' ? 1 : 0) +
+		(filterStatus !== 'all' ? 1 : 0) +
+		(filterLabel !== 'all' ? 1 : 0)
 	);
 
 	const hasActiveFilters = $derived(activeFilterCount > 0);
@@ -194,6 +213,20 @@
 				{#if showFilters}
 					<div class="filters-popover">
 						<div class="filter-section">
+							<label class="filter-label">Status</label>
+							<div class="filter-chips">
+								{#each statusOptions as opt}
+									<button
+										class="filter-chip"
+										class:active={filterStatus === opt.value}
+										onclick={() => filterStatus = opt.value}
+									>
+										{opt.label}
+									</button>
+								{/each}
+							</div>
+						</div>
+						<div class="filter-section">
 							<label class="filter-label">Priority</label>
 							<div class="filter-chips">
 								{#each priorityOptions as opt}
@@ -221,6 +254,29 @@
 								{/each}
 							</div>
 						</div>
+						{#if availableLabels.length > 0}
+						<div class="filter-section">
+							<label class="filter-label">Label</label>
+							<div class="filter-chips">
+								<button
+									class="filter-chip"
+									class:active={filterLabel === 'all'}
+									onclick={() => filterLabel = 'all'}
+								>
+									All
+								</button>
+								{#each availableLabels as label}
+									<button
+										class="filter-chip"
+										class:active={filterLabel === label}
+										onclick={() => filterLabel = label}
+									>
+										{label}
+									</button>
+								{/each}
+							</div>
+						</div>
+						{/if}
 						<div class="filter-section">
 							<label class="filter-label">Time</label>
 							<div class="filter-chips">
