@@ -731,4 +731,123 @@
 		letter-spacing: 0.02em;
 		opacity: 0.6;
 	}
+
+	/* ═══════════════════════════════════════════════════════════════
+	   MOBILE - Compact card styles
+	   ═══════════════════════════════════════════════════════════════ */
+	@media (max-width: 768px) {
+		.card {
+			margin: 1px 2px;
+		}
+
+		.card-content {
+			padding: 0.625rem 0.75rem;
+		}
+
+		.card-header {
+			margin-bottom: 0.25rem;
+			gap: 0.375rem;
+		}
+
+		.card-id {
+			font-size: 0.5625rem;
+		}
+
+		.card-title {
+			font-size: 0.8125rem;
+			line-height: 1.3;
+			margin-bottom: 0.125rem;
+		}
+
+		.card-description {
+			font-size: 0.625rem;
+			margin-bottom: 0.375rem;
+			-webkit-line-clamp: 1;
+			line-clamp: 1;
+		}
+
+		.card-labels {
+			gap: 0.125rem;
+			margin-bottom: 0.375rem;
+		}
+
+		.label {
+			padding: 0.0625rem 0.25rem;
+			font-size: 0.5rem;
+		}
+
+		/* Compact agent chip */
+		.agent-chip {
+			padding: 0.125rem 0.375rem 0.125rem 0.25rem;
+			margin-bottom: 0.375rem;
+			gap: 0.25rem;
+		}
+
+		.agent-chip .agent-icon svg {
+			width: 12px;
+			height: 12px;
+		}
+
+		.agent-name {
+			font-size: 0.625rem;
+		}
+
+		.agent-status {
+			font-size: 0.5rem;
+			padding-left: 0.125rem;
+		}
+
+		/* Compact links */
+		.card-links {
+			margin-top: 0.375rem;
+			padding-top: 0.375rem;
+			gap: 0.25rem;
+		}
+
+		.link-group {
+			font-size: 0.5rem;
+			gap: 0.125rem;
+		}
+
+		.link-id {
+			padding: 0.0625rem 0.1875rem;
+		}
+
+		/* Compact meta */
+		.card-meta {
+			margin-top: 0.375rem;
+			padding-top: 0.375rem;
+			gap: 0.25rem;
+			font-size: 0.5rem;
+		}
+
+		.priority-label {
+			font-size: 0.375rem;
+		}
+
+		.deps-indicator {
+			padding: 0.0625rem 0.1875rem;
+			font-size: 0.5rem;
+		}
+
+		.impact-badge {
+			padding: 0.0625rem 0.1875rem;
+			font-size: 0.5rem;
+		}
+
+		.badge {
+			padding: 0.125rem 0.25rem;
+			font-size: 0.5625rem;
+		}
+
+		.btn-copy {
+			width: 14px;
+			height: 14px;
+		}
+
+		.btn-copy :global(svg) {
+			width: 8px;
+			height: 8px;
+		}
+	}
 </style>

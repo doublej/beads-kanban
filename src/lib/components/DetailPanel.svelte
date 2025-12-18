@@ -29,6 +29,7 @@
 		onclose: () => void;
 		oncreate: () => void;
 		oncreateandstartagent?: () => void;
+		onstartagent?: (issue: Issue) => void;
 		ondelete: (id: string) => void;
 		onsave: (id: string, updates: Partial<Issue>) => void;
 		onaddcomment: () => void;
@@ -69,6 +70,7 @@
 		onclose,
 		oncreate,
 		oncreateandstartagent,
+		onstartagent,
 		ondelete,
 		onsave,
 		onaddcomment,
@@ -500,13 +502,20 @@
 
 		<footer class="footer">
 			<button class="btn-danger" onclick={() => ondelete(editingIssue.id)}><Icon name="trash" size={13} />Delete</button>
-			<button class="btn-primary" onclick={() => {
-				const cur = editingIssue.labels || [];
-				const add = cur.filter(l => !originalLabels.includes(l));
-				const rm = originalLabels.filter(l => !cur.includes(l));
-				onsave(editingIssue.id, { ...editingIssue, addLabels: add, removeLabels: rm } as any);
-				onclose();
-			}}>Save</button>
+			<div class="footer-actions">
+				{#if agentEnabled && onstartagent && editingIssue.status !== 'closed'}
+					<button class="btn-agent" onclick={() => onstartagent(editingIssue)} title="Start agent to work on this issue">
+						<Icon name="agent" size={14} />Start Agent
+					</button>
+				{/if}
+				<button class="btn-primary" onclick={() => {
+					const cur = editingIssue.labels || [];
+					const add = cur.filter(l => !originalLabels.includes(l));
+					const rm = originalLabels.filter(l => !cur.includes(l));
+					onsave(editingIssue.id, { ...editingIssue, addLabels: add, removeLabels: rm } as any);
+					onclose();
+				}}>Save</button>
+			</div>
 		</footer>
 	{/if}
 </aside>
@@ -1448,8 +1457,8 @@
 			min-width: 100% !important;
 			max-width: 100% !important;
 			flex: none !important;
-			max-height: 85vh;
-			border-radius: 20px 20px 0 0;
+			max-height: 80vh;
+			border-radius: 16px 16px 0 0;
 			z-index: 1010;
 			animation: slideUp 300ms cubic-bezier(0.32, 0.72, 0, 1);
 			backdrop-filter: saturate(180%) blur(20px);
@@ -1462,11 +1471,11 @@
 
 		.drag-handle {
 			display: block;
-			width: 2.25rem;
-			height: 4px;
+			width: 2rem;
+			height: 3px;
 			background: rgba(255,255,255,0.2);
-			border-radius: 2px;
-			margin: 0.5rem auto 0.25rem;
+			border-radius: 1.5px;
+			margin: 0.375rem auto 0.125rem;
 		}
 		.panel:active .drag-handle { background: rgba(255,255,255,0.4); }
 
@@ -1475,8 +1484,128 @@
 			to { opacity: 1; transform: translateY(0); }
 		}
 
-		.footer { flex-direction: column; }
-		.btn-secondary, .btn-primary, .btn-danger { width: 100%; justify-content: center; }
+		/* Compact header */
+		.header {
+			padding: 0.5rem 0.75rem;
+		}
+
+		.header-title {
+			font-size: 0.875rem;
+		}
+
+		.btn-close {
+			width: 1.5rem;
+			height: 1.5rem;
+		}
+
+		.btn-close :global(svg) {
+			width: 14px;
+			height: 14px;
+		}
+
+		/* Compact body */
+		.body {
+			padding: 0.5rem 0.75rem;
+			gap: 0.625rem;
+		}
+
+		.field {
+			margin-bottom: 0;
+		}
+
+		.field-label {
+			font-size: 0.5625rem;
+			margin-bottom: 0.25rem;
+		}
+
+		.input-title {
+			font-size: 1rem;
+			padding: 0.375rem 0;
+		}
+
+		.input-desc {
+			font-size: 0.75rem;
+			padding: 0.375rem;
+		}
+
+		.pill-group {
+			gap: 0.25rem;
+		}
+
+		.pill {
+			padding: 0.25rem 0.5rem;
+			font-size: 0.625rem;
+		}
+
+		.pill-dot {
+			width: 5px;
+			height: 5px;
+		}
+
+		/* Compact sections */
+		.section-header {
+			padding: 0.375rem 0;
+			font-size: 0.625rem;
+		}
+
+		/* Compact comments */
+		.comment {
+			padding: 0.5rem;
+		}
+
+		.comment-author {
+			font-size: 0.625rem;
+		}
+
+		.comment-time {
+			font-size: 0.5rem;
+		}
+
+		.comment-text {
+			font-size: 0.6875rem;
+		}
+
+		/* Compact footer */
+		.footer {
+			flex-direction: column;
+			padding: 0.5rem 0.75rem;
+			gap: 0.375rem;
+		}
+
+		.btn-secondary, .btn-primary, .btn-danger {
+			width: 100%;
+			justify-content: center;
+			height: 2.25rem;
+			font-size: 0.75rem;
+		}
+
+		/* Compact dependency chips */
+		.dep-chips {
+			gap: 0.25rem;
+		}
+
+		.dep-chip {
+			padding: 0.25rem 0.375rem;
+			font-size: 0.5625rem;
+			gap: 0.25rem;
+		}
+
+		/* Compact attachment grid */
+		.attachments-grid {
+			gap: 0.375rem;
+		}
+
+		.attachment-item {
+			padding: 0.375rem;
+		}
+
+		.attachment-name {
+			font-size: 0.625rem;
+		}
+
+		.attachment-size {
+			font-size: 0.5rem;
+		}
 	}
 
 	@media (min-width: 1400px) {

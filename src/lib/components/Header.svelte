@@ -1047,11 +1047,11 @@
 	/* Mobile responsive styles */
 	@media (max-width: 768px) {
 		.toolbar {
-			padding: 0.5rem 0.75rem;
-			padding-top: max(0.5rem, env(safe-area-inset-top));
-			padding-left: max(0.75rem, env(safe-area-inset-left));
-			padding-right: max(0.75rem, env(safe-area-inset-right));
-			gap: 0.5rem;
+			padding: 0.375rem 0.5rem;
+			padding-top: max(0.375rem, env(safe-area-inset-top));
+			padding-left: max(0.5rem, env(safe-area-inset-left));
+			padding-right: max(0.5rem, env(safe-area-inset-right));
+			gap: 0.375rem;
 		}
 
 		.toolbar-left {
@@ -1060,30 +1060,96 @@
 
 		.toolbar-center {
 			flex: 1;
-			justify-content: center;
+			justify-content: flex-start;
+			gap: 0.25rem;
 		}
 
 		.toolbar-right {
-			gap: 0.25rem;
+			gap: 0.125rem;
 		}
 
 		.toolbar-sep {
 			display: none;
 		}
 
-		.search-container {
-			width: 120px;
+		/* Compact view toggle on mobile */
+		.view-toggle {
+			height: 1.5rem;
+			padding: 0 1px;
 		}
 
+		.view-btn {
+			height: 1.125rem;
+			padding: 0 0.25rem;
+		}
+
+		.view-btn :global(svg) {
+			width: 0.6875rem;
+			height: 0.6875rem;
+		}
+
+		/* Compact toolbar buttons */
+		.toolbar-btn {
+			height: 1.5rem;
+			padding: 0 0.375rem;
+			font-size: 0.625rem;
+		}
+
+		.toolbar-btn span:not(.toolbar-badge) {
+			display: none;
+		}
+
+		.toolbar-badge {
+			min-width: 0.75rem;
+			height: 0.75rem;
+			font-size: 0.4375rem;
+		}
+
+		/* Compact search */
+		.search-container {
+			width: 100px;
+		}
+
+		.search-input {
+			height: 1.75rem;
+			padding: 0 2rem 0 1.75rem;
+			font-size: 0.75rem;
+		}
+
+		.search-icon :global(svg) {
+			width: 11px;
+			height: 11px;
+		}
+
+		.search-icon {
+			left: 0.5rem;
+		}
+
+		.search-clear {
+			right: 0.375rem;
+			width: 0.875rem;
+			height: 0.875rem;
+			font-size: 0.625rem;
+		}
+
+		/* Compact create button */
 		.btn-create-text,
 		.create-hotkey {
 			display: none;
 		}
 
 		.btn-create {
-			padding: 0 0.5rem;
+			padding: 0;
 			width: 1.75rem;
+			height: 1.75rem;
 			justify-content: center;
+		}
+
+		.btn-create::after {
+			content: '+';
+			font-size: 1rem;
+			font-weight: 500;
+			color: rgba(255, 255, 255, 0.9);
 		}
 
 		.hotkey-hint {
