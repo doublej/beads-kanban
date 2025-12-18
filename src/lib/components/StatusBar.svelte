@@ -147,16 +147,16 @@
 
 	/* Light theme */
 	.status-bar.light {
-		background: #ffffff;
-		border-color: rgba(0,0,0,0.1);
+		background: var(--surface-panel, #f0ebe3);
+		border-color: var(--border-default, rgba(100, 80, 60, 0.22));
 	}
 
 	.status-bar.light .item {
-		color: #3c3c43;
+		color: var(--text-secondary, #5c534a);
 	}
 
 	.status-bar.light .dot {
-		background: #8e8e93;
+		background: var(--text-muted, #9c9084);
 	}
 
 	.status-bar.light .sep,

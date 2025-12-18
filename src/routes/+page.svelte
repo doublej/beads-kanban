@@ -2364,36 +2364,36 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 
 	/* Light theme - inherits from components.css, add app-specific overrides */
 	.app.light {
-		/* Surface levels - aligned with components.css */
-		--surface-app: #f4f4f5;
-		--surface-panel: #fafafa;
-		--surface-card: #ffffff;
-		--surface-elevated: #ffffff;
+		/* Surface levels - warm parchment tones */
+		--surface-app: #e8e2d9;
+		--surface-panel: #f0ebe3;
+		--surface-card: #f7f3ec;
+		--surface-elevated: #faf6f0;
 		/* Legacy aliases */
 		--bg-primary: var(--surface-app);
 		--bg-secondary: var(--surface-card);
 		--bg-tertiary: var(--surface-panel);
 		--bg-elevated: var(--surface-elevated);
-		/* Borders - dark on light */
-		--border-subtle: rgba(0, 0, 0, 0.06);
-		--border-default: rgba(0, 0, 0, 0.10);
-		--border-strong: rgba(0, 0, 0, 0.15);
-		/* Text */
-		--text-primary: #18181b;
-		--text-secondary: #52525b;
-		--text-tertiary: #71717a;
-		--text-muted: #a1a1aa;
-		/* Accent */
-		--accent-primary: #2563eb;
-		--accent-glow: rgba(37, 99, 235, 0.08);
-		/* Shadows */
-		--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-		--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-		--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
-		--shadow-elevated: 0 12px 40px rgba(0, 0, 0, 0.15);
-		/* CTA buttons - light backgrounds */
-		--cta-muted: rgba(0, 0, 0, 0.05);
-		--cta-muted-hover: rgba(0, 0, 0, 0.08);
+		/* Borders - warm brown tints */
+		--border-subtle: rgba(100, 80, 60, 0.15);
+		--border-default: rgba(100, 80, 60, 0.22);
+		--border-strong: rgba(100, 80, 60, 0.32);
+		/* Text - warm sepia */
+		--text-primary: #3d3630;
+		--text-secondary: #5c534a;
+		--text-tertiary: #7a6f63;
+		--text-muted: #9c9084;
+		/* Accent - earthy blue */
+		--accent-primary: #4a7ab0;
+		--accent-glow: rgba(74, 122, 176, 0.15);
+		/* Shadows - warm brown */
+		--shadow-sm: 0 1px 2px rgba(80, 60, 40, 0.12);
+		--shadow-md: 0 4px 12px rgba(80, 60, 40, 0.15);
+		--shadow-lg: 0 8px 24px rgba(80, 60, 40, 0.18);
+		--shadow-elevated: 0 12px 40px rgba(80, 60, 40, 0.22);
+		/* CTA buttons - warm backgrounds */
+		--cta-muted: rgba(100, 80, 60, 0.08);
+		--cta-muted-hover: rgba(100, 80, 60, 0.12);
 		background: var(--bg-primary);
 	}
 
@@ -3156,14 +3156,14 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	}
 
 	.app.light .session-picker-modal {
-		background: #fff;
-		border-color: rgba(0, 0, 0, 0.1);
-		box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
+		background: var(--surface-elevated);
+		border-color: var(--border-default);
+		box-shadow: var(--shadow-elevated);
 	}
 
 	.app.light .picker-header {
-		background: rgba(0, 0, 0, 0.02);
-		border-color: rgba(0, 0, 0, 0.06);
+		background: rgba(100, 80, 60, 0.04);
+		border-color: var(--border-subtle);
 	}
 
 	.app.light .picker-search-row {

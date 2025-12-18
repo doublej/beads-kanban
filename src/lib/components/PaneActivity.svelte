@@ -1002,18 +1002,18 @@
 	}
 
 	:global(.app.light) .menu-dropdown {
-		background: #fff;
-		border-color: rgba(0, 0, 0, 0.1);
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+		background: var(--surface-elevated);
+		border-color: var(--border-default);
+		box-shadow: var(--shadow-lg);
 	}
 
 	:global(.app.light) .menu-item:hover {
-		background: rgba(0, 0, 0, 0.05);
+		background: rgba(100, 80, 60, 0.08);
 	}
 
 	:global(.app.light) .menu-trigger:hover,
 	:global(.app.light) .menu-trigger.active {
-		background: rgba(0, 0, 0, 0.08);
+		background: rgba(100, 80, 60, 0.10);
 	}
 
 	/* ===== Messages ===== */
