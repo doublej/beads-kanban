@@ -41,8 +41,7 @@
 	import StatusBar from '$lib/components/StatusBar.svelte';
 	import TreeView from '$lib/components/TreeView.svelte';
 	import GraphView from '$lib/components/GraphView.svelte';
-	import TickerTape from '$lib/components/TickerTape.svelte';
-	import MutationLog from '$lib/components/MutationLog.svelte';
+		import MutationLog from '$lib/components/MutationLog.svelte';
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
 	import { fetchMutations } from '$lib/mutationStore.svelte';
 	import StatsView from '$lib/components/StatsView.svelte';
@@ -135,8 +134,7 @@
 	let showHotkeys = $state(false);
 	let showSettings = $state(false);
 	let projectName = $state('');
-	let tickerRange = $state(60 * 24 * 7); // 7 days default
-	let agentEnabled = $state(true);
+		let agentEnabled = $state(true);
 	let agentHost = $state('localhost');
 	let agentPort = $state(8765);
 	let agentFirstMessage = $state('You are an agent named "{name}". Await further instructions.');
@@ -1354,8 +1352,6 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 			if (savedCollapsed) {
 				collapsedColumns = new Set(JSON.parse(savedCollapsed));
 			}
-			const savedTickerRange = localStorage.getItem('tickerRange');
-			if (savedTickerRange) tickerRange = Number(savedTickerRange);
 			const savedAgentEnabled = localStorage.getItem('agentEnabled');
 			if (savedAgentEnabled) agentEnabled = savedAgentEnabled === 'true';
 			const savedAgentHost = localStorage.getItem('agentHost');
@@ -1376,9 +1372,6 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	});
 
 	// Persist settings to localStorage
-	$effect(() => {
-		if (browser) localStorage.setItem('tickerRange', String(tickerRange));
-	});
 	$effect(() => {
 		if (browser) localStorage.setItem('agentEnabled', String(agentEnabled));
 	});
@@ -1528,14 +1521,6 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 
 <div class="app scheme-{colorScheme}" class:light={!isDarkMode} class:panel-open={panelOpen} class:show-hotkeys={showHotkeys} class:has-chat-bar={wsConnected} style="--project-color: {projectColor}">
 
-<TickerTape
-	rangeMinutes={tickerRange}
-	onticketclick={(id) => {
-		const issue = issues.find(i => i.id === id);
-		if (issue) openEditPanel(issue);
-	}}
-	onopenlog={() => showMutationLog = true}
-/>
 <MutationLog
 	show={showMutationLog}
 	onclose={() => showMutationLog = false}
@@ -1548,7 +1533,6 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 <KeyboardHelp bind:show={showKeyboardHelp} />
 <SettingsPane
 	bind:show={showSettings}
-	bind:tickerRange
 	bind:agentEnabled
 	bind:agentHost
 	bind:agentPort
@@ -1598,7 +1582,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 					{@render detailPanel()}
 				{/if}
 				{@const rawColumnIssues = issues.filter((x) => getIssueColumn(x).key === column.key)}
-				{@const allColumnIssues = columnSortBy[column.key] ? sortIssues(rawColumnIssues, columnSortBy[column.key]) : rawColumnIssues}
+				{@const allColumnIssues = sortIssues(rawColumnIssues, columnSortBy[column.key] ?? 'created')}
 				{@const matchingCount = allColumnIssues.filter(issueMatchesFilters).length}
 				{@const isCollapsed = collapsedColumns.has(column.key)}
 				{@const currentSort = columnSortBy[column.key]}
