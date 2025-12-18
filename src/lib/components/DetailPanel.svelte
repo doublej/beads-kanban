@@ -236,7 +236,6 @@
 					{editingIssue.id}
 					<Icon name={copiedId === `panel-${editingIssue.id}` ? 'check' : 'copy'} size={10} />
 				</button>
-				<span class="status-badge" style="background: {column.accent}">{column.label}</span>
 			</div>
 			<div class="header-right">
 				<button class="btn-mode" class:active={isEditMode} onclick={() => isEditMode = !isEditMode} title={isEditMode ? 'View mode' : 'Edit mode'}>
@@ -259,10 +258,14 @@
 				<!-- VIEW MODE -->
 				<!-- Specs bar: compact row of all metadata -->
 				<div class="specs-bar">
+					<span class="spec status" style="--status-color: {column.accent}">
+						<Icon name={column.icon} size={10} />
+						{column.label}
+					</span>
 					<span class="spec priority" style="--c: {priority.color}"><span class="spec-dot"></span>{priority.label}</span>
 					<span class="spec type"><Icon name={getTypeIcon(editingIssue.issue_type)} size={10} />{editingIssue.issue_type}</span>
-					<span class="spec-divider"></span>
 					{#if editingIssue.created_at}
+						<span class="spec-divider"></span>
 						{@const ts = formatTimestamp(editingIssue.created_at)}
 						<span class="spec time" title="{ts.absolute}">{ts.relative}</span>
 					{/if}
@@ -285,6 +288,17 @@
 					{/if}
 				</div>
 
+				<!-- Summary callout for completed issues -->
+				{#if editingIssue.status === 'closed' && editingIssue.notes}
+					<div class="summary-callout">
+						<div class="summary-header">
+							<Icon name="check-circle" size={12} />
+							<span>Summary</span>
+						</div>
+						<p class="summary-text">{editingIssue.notes}</p>
+					</div>
+				{/if}
+
 				<!-- Content block: title + description with typography focus -->
 				<article class="content-block">
 					<h1 class="issue-title">{editingIssue.title}</h1>
@@ -299,7 +313,7 @@
 				{#if editingIssue.acceptance_criteria}
 					<section class="section"><span class="section-label">Acceptance</span><p class="prose">{editingIssue.acceptance_criteria}</p></section>
 				{/if}
-				{#if editingIssue.notes}
+				{#if editingIssue.notes && editingIssue.status !== 'closed'}
 					<section class="section"><span class="section-label">Notes</span><p class="prose">{editingIssue.notes}</p></section>
 				{/if}
 
@@ -565,16 +579,6 @@
 	.id-badge:hover { border-color: var(--border-default); color: var(--text-primary); }
 	.id-badge.copied { color: #10b981; border-color: #10b98140; }
 
-	.status-badge {
-		padding: 0.1875rem 0.5rem;
-		border-radius: 6px;
-		font-size: 0.625rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.03em;
-		color: white;
-	}
-
 	.btn-close, .btn-mode {
 		width: 1.75rem;
 		height: 1.75rem;
@@ -640,6 +644,17 @@
 		background: var(--c);
 	}
 
+	.spec.status {
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		padding: 0.1875rem 0.5rem;
+		background: var(--status-color);
+		color: white;
+		border-radius: 5px;
+		gap: 0.25rem;
+	}
+
 	.spec.type {
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
@@ -701,6 +716,38 @@
 	@keyframes pulse-dot {
 		0%, 100% { opacity: 1; transform: scale(1); }
 		50% { opacity: 0.5; transform: scale(0.8); }
+	}
+
+	/* ═══════════════════════════════════════════════════════════════
+	   VIEW MODE - SUMMARY CALLOUT (completed issues)
+	   ═══════════════════════════════════════════════════════════════ */
+	.summary-callout {
+		margin-bottom: 1.25rem;
+		padding: 0.875rem 1rem;
+		background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(16, 185, 129, 0.04) 100%);
+		border: 1px solid rgba(16, 185, 129, 0.2);
+		border-left: 3px solid #10b981;
+		border-radius: 10px;
+	}
+
+	.summary-header {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		color: #10b981;
+		font-size: 0.625rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin-bottom: 0.5rem;
+	}
+
+	.summary-text {
+		font-size: 0.8125rem;
+		line-height: 1.6;
+		color: var(--text-primary);
+		white-space: pre-wrap;
+		word-break: break-word;
 	}
 
 	/* ═══════════════════════════════════════════════════════════════
