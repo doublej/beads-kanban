@@ -498,63 +498,76 @@ async function switchProject(project: Project) {
 	projectTransition = 'idle';
 }
 
-// Export getters and setters for reactive state
-export function getIssues() { return issues; }
-export function setIssues(value: Issue[]) { issues = value; }
-export function getSelectedId() { return selectedId; }
-export function setSelectedId(value: string | null) { selectedId = value; }
-export function getEditingIssue() { return editingIssue; }
-export function setEditingIssue(value: Issue | null) { editingIssue = value; }
-export function getOriginalLabels() { return originalLabels; }
-export function getIsCreating() { return isCreating; }
-export function setIsCreating(value: boolean) { isCreating = value; }
-export function getCreateForm() { return createForm; }
-export function setCreateForm(value: typeof createForm) { createForm = value; }
-export function getSearchQuery() { return searchQuery; }
-export function setSearchQuery(value: string) { searchQuery = value; }
-export function getFilterPriority() { return filterPriority; }
-export function setFilterPriority(value: number | 'all') { filterPriority = value; }
-export function getFilterType() { return filterType; }
-export function setFilterType(value: string) { filterType = value; }
-export function getFilterTime() { return filterTime; }
-export function setFilterTime(value: string) { filterTime = value; }
-export function getIsFilterPreviewing() { return isFilterPreviewing; }
-export function setIsFilterPreviewing(value: boolean) { isFilterPreviewing = value; }
-export function getLoadingStatus() { return loadingStatus; }
-export function getInitialLoaded() { return initialLoaded; }
-export function getAnimatingIds() { return animatingIds; }
-export function getComments() { return comments; }
-export function getNewComment() { return newComment; }
-export function setNewComment(value: string) { newComment = value; }
-export function getLoadingComments() { return loadingComments; }
-export function getAttachments() { return attachments; }
-export function setAttachments(value: Attachment[]) { attachments = value; }
-export function getLoadingAttachments() { return loadingAttachments; }
-export function getNewLabelInput() { return newLabelInput; }
-export function setNewLabelInput(value: string) { newLabelInput = value; }
-export function getIssueClosedExternally() { return issueClosedExternally; }
-export function setIssueClosedExternally(value: boolean) { issueClosedExternally = value; }
-export function getIsDarkMode() { return isDarkMode; }
-export function setIsDarkMode(value: boolean) { isDarkMode = value; }
-export function getColorScheme() { return colorScheme; }
-export function setColorScheme(value: string) { colorScheme = value; }
-export function getNotificationsEnabled() { return notificationsEnabled; }
-export function getTickerRange() { return tickerRange; }
-export function setTickerRange(value: number) { tickerRange = value; }
-export function getAgentEnabled() { return agentEnabled; }
-export function setAgentEnabled(value: boolean) { agentEnabled = value; }
-export function getAgentHost() { return agentHost; }
-export function setAgentHost(value: string) { agentHost = value; }
-export function getAgentPort() { return agentPort; }
-export function setAgentPort(value: number) { agentPort = value; }
-export function getProjects() { return projects; }
-export function getProjectName() { return projectName; }
-export function getCurrentProjectPath() { return currentProjectPath; }
-export function getProjectColor() { return projectColor; }
-export function getProjectTransition() { return projectTransition; }
-export function getPanelOpen() { return panelOpen; }
-export function getHasActiveFilters() { return hasActiveFilters; }
-export function getFilteredIssues() { return filteredIssues; }
+// Single store object with getter/setter properties for reactive state
+export const kanban = {
+	// Core issue state
+	get issues() { return issues; },
+	set issues(v: Issue[]) { issues = v; },
+	get selectedId() { return selectedId; },
+	set selectedId(v: string | null) { selectedId = v; },
+	get editingIssue() { return editingIssue; },
+	set editingIssue(v: Issue | null) { editingIssue = v; },
+	get originalLabels() { return originalLabels; },
+	get isCreating() { return isCreating; },
+	set isCreating(v: boolean) { isCreating = v; },
+	get createForm() { return createForm; },
+	set createForm(v: typeof createForm) { createForm = v; },
+
+	// Filters
+	get searchQuery() { return searchQuery; },
+	set searchQuery(v: string) { searchQuery = v; },
+	get filterPriority() { return filterPriority; },
+	set filterPriority(v: number | 'all') { filterPriority = v; },
+	get filterType() { return filterType; },
+	set filterType(v: string) { filterType = v; },
+	get filterTime() { return filterTime; },
+	set filterTime(v: string) { filterTime = v; },
+	get isFilterPreviewing() { return isFilterPreviewing; },
+	set isFilterPreviewing(v: boolean) { isFilterPreviewing = v; },
+	get hasActiveFilters() { return hasActiveFilters; },
+	get filteredIssues() { return filteredIssues; },
+
+	// Loading state
+	get loadingStatus() { return loadingStatus; },
+	get initialLoaded() { return initialLoaded; },
+	get animatingIds() { return animatingIds; },
+
+	// Detail panel
+	get comments() { return comments; },
+	get newComment() { return newComment; },
+	set newComment(v: string) { newComment = v; },
+	get loadingComments() { return loadingComments; },
+	get attachments() { return attachments; },
+	set attachments(v: Attachment[]) { attachments = v; },
+	get loadingAttachments() { return loadingAttachments; },
+	get newLabelInput() { return newLabelInput; },
+	set newLabelInput(v: string) { newLabelInput = v; },
+	get issueClosedExternally() { return issueClosedExternally; },
+	set issueClosedExternally(v: boolean) { issueClosedExternally = v; },
+	get panelOpen() { return panelOpen; },
+
+	// Settings
+	get isDarkMode() { return isDarkMode; },
+	set isDarkMode(v: boolean) { isDarkMode = v; },
+	get colorScheme() { return colorScheme; },
+	set colorScheme(v: string) { colorScheme = v; },
+	get notificationsEnabled() { return notificationsEnabled; },
+	get tickerRange() { return tickerRange; },
+	set tickerRange(v: number) { tickerRange = v; },
+	get agentEnabled() { return agentEnabled; },
+	set agentEnabled(v: boolean) { agentEnabled = v; },
+	get agentHost() { return agentHost; },
+	set agentHost(v: string) { agentHost = v; },
+	get agentPort() { return agentPort; },
+	set agentPort(v: number) { agentPort = v; },
+
+	// Project state
+	get projects() { return projects; },
+	get projectName() { return projectName; },
+	get currentProjectPath() { return currentProjectPath; },
+	get projectColor() { return projectColor; },
+	get projectTransition() { return projectTransition; },
+};
 
 // Export functions
 export {
