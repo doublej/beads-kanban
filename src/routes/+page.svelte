@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { untrack } from 'svelte';
 	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, type Pane } from '$lib/wsStore.svelte';
-	import type { Issue, Comment, CardPosition, FlyingCard, ContextMenuState, RopeDragState, SortBy, PaneSize } from '$lib/types';
+	import type { Issue, Comment, CardPosition, FlyingCard, ContextMenuState, RopeDragState, SortBy, PaneSize, ViewMode, LoadingStatus as LoadingStatusType, Project } from '$lib/types';
 	import {
 		columns,
 		getPriorityConfig,
@@ -33,17 +34,31 @@
 	import DetailPanel from '$lib/components/DetailPanel.svelte';
 	import FlyingCardComponent from '$lib/components/FlyingCard.svelte';
 	import PaneActivity from '$lib/components/PaneActivity.svelte';
+	import InitialLoader from '$lib/components/InitialLoader.svelte';
+	import StatusBar from '$lib/components/StatusBar.svelte';
+	import TreeView from '$lib/components/TreeView.svelte';
+	import GraphView from '$lib/components/GraphView.svelte';
+	import TickerTape from '$lib/components/TickerTape.svelte';
+	import MutationLog from '$lib/components/MutationLog.svelte';
+	import SettingsPane from '$lib/components/SettingsPane.svelte';
+	import { fetchMutations } from '$lib/mutationStore.svelte';
+	import StatsView from '$lib/components/StatsView.svelte';
+	import ThemeTransition from '$lib/components/ThemeTransition.svelte';
+	import ProjectSwitcher from '$lib/components/ProjectSwitcher.svelte';
 
 	let issues = $state<Issue[]>([]);
 	let draggedId = $state<string | null>(null);
 	let draggedOverColumn = $state<string | null>(null);
 	let editingIssue = $state<Issue | null>(null);
 	let originalLabels = $state<string[]>([]);
+	let panelColumnIndex = $state<number | null>(null); // Fixed column index when panel is opened
 	let isCreating = $state(false);
-	let createForm = $state({ title: '', description: '', priority: 2, issue_type: 'task' });
+	let createForm = $state({ title: '', description: '', priority: 2, issue_type: 'task', deps: [] as string[] });
 	let searchQuery = $state('');
 	let filterPriority = $state<number | 'all'>('all');
 	let filterType = $state<string>('all');
+	let filterTime = $state<string>('all');
+	let isFilterPreviewing = $state(false);
 	let animatingIds = $state<Set<string>>(new Set());
 	let selectedId = $state<string | null>(null);
 	let activeColumnIndex = $state(0);
@@ -57,6 +72,8 @@
 	let dropIndicatorIndex = $state<number | null>(null);
 	let dropTargetColumn = $state<string | null>(null);
 	let isDarkMode = $state(true);
+	let themeTransitionActive = $state(false);
+	let themeTransitionToLight = $state(false);
 	let comments = $state<{ id: number; author: string; text: string; created_at: string }[]>([]);
 	let newComment = $state('');
 	let loadingComments = $state(false);
@@ -80,11 +97,34 @@
 	let pendingDep = $state<{ fromId: string; toId: string } | null>(null);
 	let showKeyboardHelp = $state(false);
 	let showHotkeys = $state(false);
+	let showSettings = $state(false);
+	let projectName = $state('');
+	let tickerRange = $state(60 * 24 * 7); // 7 days default
+	let agentEnabled = $state(true);
+	let agentHost = $state('localhost');
+	let agentPort = $state(8765);
 	let teleports = $state<{id: string; from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; startTime: number}[]>([]);
 	let placeholders = $state<{id: string; targetColumn: string; height: number}[]>([]);
 	let cardRefs = $state<Map<string, HTMLElement>>(new Map());
 	let placeholderRefs = $state<Map<string, HTMLElement>>(new Map());
 	let flyingCards = $state<Map<string, {from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; issue: Issue}>>(new Map());
+	let issueClosedExternally = $state(false);
+	let viewMode = $state<ViewMode>('kanban');
+	let loadingStatus = $state<LoadingStatusType>({
+		phase: 'disconnected',
+		pollCount: 0,
+		lastUpdate: null,
+		issueCount: 0,
+		hasChanges: false,
+		errorMessage: null
+	});
+	let initialLoaded = $state(false);
+	let showMutationLog = $state(false);
+	let projects = $state<Project[]>([]);
+	let showProjectSwitcher = $state(false);
+	let projectSwitching = $state(false);
+	let currentProjectPath = $state('');
+	let projectColor = $state('#6366f1');
 
 	function getCardPosition(id: string): {x: number; y: number; w: number; h: number} | null {
 		const el = cardRefs.get(id);
@@ -328,12 +368,28 @@
 
 	const panelOpen = $derived(editingIssue !== null || isCreating);
 
-	const editingColumnIndex = $derived(() => {
-		if (!editingIssue) return 0; // default for create
-		const col = getIssueColumn(editingIssue);
-		const idx = columns.findIndex(c => c.key === col.key);
-		return idx >= 0 ? idx : 0;
-	});
+	function issueMatchesTimeFilter(issue: Issue): boolean {
+		if (filterTime === 'all') return true;
+		const now = new Date();
+		const updated = issue.updated_at ? new Date(issue.updated_at) : new Date(issue.created_at);
+		const diffMs = now.getTime() - updated.getTime();
+		const diffHours = diffMs / (1000 * 60 * 60);
+		switch (filterTime) {
+			case '1h': return diffHours <= 1;
+			case '24h': return diffHours <= 24;
+			case 'today': {
+				const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+				return updated >= startOfDay;
+			}
+			case 'week': {
+				const startOfWeek = new Date(now);
+				startOfWeek.setDate(now.getDate() - now.getDay());
+				startOfWeek.setHours(0, 0, 0, 0);
+				return updated >= startOfWeek;
+			}
+			default: return true;
+		}
+	}
 
 	function issueMatchesFilters(issue: Issue): boolean {
 		const query = searchQuery.toLowerCase();
@@ -343,10 +399,11 @@
 			issue.description.toLowerCase().includes(query);
 		const matchesPriority = filterPriority === 'all' || issue.priority === filterPriority;
 		const matchesType = filterType === 'all' || issue.issue_type === filterType;
-		return matchesSearch && matchesPriority && matchesType;
+		const matchesTime = issueMatchesTimeFilter(issue);
+		return matchesSearch && matchesPriority && matchesType && matchesTime;
 	}
 
-	const hasActiveFilters = $derived(searchQuery !== '' || filterPriority !== 'all' || filterType !== 'all');
+	const hasActiveFilters = $derived(searchQuery !== '' || filterPriority !== 'all' || filterType !== 'all' || filterTime !== 'all');
 
 	const filteredIssues = $derived(
 		issues.filter((issue) => issueMatchesFilters(issue))
@@ -356,8 +413,40 @@
 		const eventSource = new EventSource('/api/issues/stream');
 
 		eventSource.onmessage = (event) => {
-			const data = JSON.parse(event.data);
+			const msg = JSON.parse(event.data);
+
+			if (msg.type === 'error') {
+				loadingStatus = { ...loadingStatus, phase: 'error', errorMessage: msg.message };
+				return;
+			}
+
+			if (msg.type !== 'data') return;
+
+			loadingStatus = {
+				...loadingStatus,
+				phase: 'ready',
+				pollCount: msg.pollCount,
+				lastUpdate: msg.timestamp,
+				issueCount: msg.issues.length,
+				hasChanges: msg.hasChanges,
+				errorMessage: null
+			};
+			if (!initialLoaded) {
+				initialLoaded = true;
+				fetchMutations();
+			}
+
+			const data = msg;
 			const oldIssuesMap = new Map(issues.map(i => [i.id, i]));
+
+			// Check if the currently editing issue was closed externally
+			const currentEditing = editingIssue;
+			if (currentEditing && !isCreating) {
+				const updatedIssue = data.issues.find((i: Issue) => i.id === currentEditing.id);
+				if (updatedIssue && updatedIssue.status === 'closed' && currentEditing.status !== 'closed') {
+					issueClosedExternally = true;
+				}
+			}
 
 			// Find status changes and capture positions
 			const statusChanges: {id: string; fromPos: {x: number; y: number; w: number; h: number}; newStatus: string; height: number}[] = [];
@@ -417,6 +506,7 @@
 
 		eventSource.onerror = () => {
 			eventSource.close();
+			loadingStatus = { ...loadingStatus, phase: 'disconnected' };
 			setTimeout(connectSSE, 3000);
 		};
 
@@ -424,19 +514,33 @@
 	}
 
 	async function updateIssue(id: string, updates: Partial<Issue>) {
+		// Optimistic update - apply immediately for instant feedback
+		const idx = issues.findIndex(i => i.id === id);
+		if (idx !== -1) {
+			const updated = { ...issues[idx], ...updates, updated_at: new Date().toISOString() };
+			issues = [...issues.slice(0, idx), updated, ...issues.slice(idx + 1)];
+		}
 		await fetch(`/api/issues/${id}`, {
 			method: 'PATCH',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(updates)
 		});
+		fetchMutations();
 	}
 
 	async function deleteIssue(id: string) {
 		if (!confirm('Delete this issue?')) return;
-		await fetch(`/api/issues/${id}`, { method: 'DELETE' });
+		// Optimistic update - mark as closed immediately
+		const idx = issues.findIndex(i => i.id === id);
+		if (idx !== -1) {
+			const closed = { ...issues[idx], status: 'closed', updated_at: new Date().toISOString() };
+			issues = [...issues.slice(0, idx), closed, ...issues.slice(idx + 1)];
+		}
 		if (editingIssue?.id === id) {
 			editingIssue = null;
 		}
+		await fetch(`/api/issues/${id}`, { method: 'DELETE' });
+		fetchMutations();
 	}
 
 	function openContextMenu(e: MouseEvent, issue: Issue) {
@@ -464,19 +568,39 @@
 
 	async function createIssue() {
 		if (!createForm.title.trim()) return;
-		await fetch('/api/issues', {
+		// Optimistic update - add temp issue immediately
+		const tempId = `temp-${Date.now()}`;
+		const tempIssue: Issue = {
+			id: tempId,
+			title: createForm.title,
+			description: createForm.description,
+			status: 'open',
+			priority: createForm.priority,
+			issue_type: createForm.issue_type,
+			labels: [],
+			dependencies: [],
+			dependents: [],
+			created_at: new Date().toISOString(),
+			updated_at: new Date().toISOString()
+		};
+		issues = [tempIssue, ...issues];
+		createForm = { title: '', description: '', priority: 2, issue_type: 'task', deps: [] };
+		isCreating = false;
+
+		const res = await fetch('/api/issues', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(createForm)
+			body: JSON.stringify({ title: tempIssue.title, description: tempIssue.description, priority: tempIssue.priority, issue_type: tempIssue.issue_type })
 		});
-		createForm = { title: '', description: '', priority: 2, issue_type: 'task' };
-		isCreating = false;
+		await res.json();
+		// SSE will replace temp issue with real one on next poll
+		fetchMutations();
 	}
 
 	function openCreatePanel() {
 		editingIssue = null;
 		isCreating = true;
-		createForm = { title: '', description: '', priority: 2, issue_type: 'task' };
+		createForm = { title: '', description: '', priority: 2, issue_type: 'task', deps: [] };
 		requestAnimationFrame(() => {
 			const titleInput = document.getElementById('create-title') as HTMLInputElement;
 			titleInput?.focus();
@@ -500,6 +624,7 @@
 		});
 		newComment = '';
 		await loadComments(editingIssue.id);
+		fetchMutations();
 	}
 
 	function openEditPanel(issue: Issue, pushState = true) {
@@ -507,9 +632,13 @@
 			if (!confirm('You have unsaved changes. Discard them?')) return;
 		}
 		isCreating = false;
-		createForm = { title: '', description: '', priority: 2, issue_type: 'task' };
+		createForm = { title: '', description: '', priority: 2, issue_type: 'task', deps: [] };
 		editingIssue = { ...issue, labels: issue.labels ? [...issue.labels] : [] };
 		originalLabels = issue.labels ? [...issue.labels] : [];
+		// Capture column index when panel opens - panel stays here even if status changes
+		const col = getIssueColumn(issue);
+		const idx = columns.findIndex(c => c.key === col.key);
+		panelColumnIndex = idx >= 0 ? idx : 0;
 		selectedId = issue.id;
 		comments = [];
 		loadComments(issue.id);
@@ -524,11 +653,6 @@
 		if (!editingIssue) return;
 		const updates = getColumnMoveUpdates(editingIssue, columnKey);
 		if (updates.status) editingIssue.status = updates.status;
-		// Update labels in editingIssue
-		let labels = editingIssue.labels ? [...editingIssue.labels] : [];
-		if (updates.removeLabels) labels = labels.filter(l => !updates.removeLabels!.includes(l));
-		if (updates.addLabels) labels = [...labels, ...updates.addLabels];
-		editingIssue.labels = labels;
 	}
 
 	function addLabelToEditing(label: string) {
@@ -556,7 +680,9 @@
 			if (!confirm('You have unsaved changes. Discard them?')) return;
 		}
 		editingIssue = null;
+		panelColumnIndex = null;
 		isCreating = false;
+		issueClosedExternally = false;
 		comments = [];
 		newComment = '';
 		if (browser && pushState) {
@@ -739,8 +865,29 @@
 			return;
 		}
 
+		// Cmd/Ctrl+K to focus search (global, works even in inputs)
+		if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+			e.preventDefault();
+			const searchInput = document.querySelector('.search-input') as HTMLInputElement;
+			searchInput?.focus();
+			searchInput?.select();
+			return;
+		}
+
+		// Cmd/Ctrl+` or Ctrl+Tab to open project switcher
+		if ((e.metaKey || e.ctrlKey) && (e.key === '`' || e.key === 'Tab') && projects.length > 1) {
+			e.preventDefault();
+			showProjectSwitcher = true;
+			return;
+		}
+
 		// Global shortcuts (work even in inputs)
 		if (e.key === 'Escape') {
+			if (showProjectSwitcher) {
+				showProjectSwitcher = false;
+				e.preventDefault();
+				return;
+			}
 			if (showKeyboardHelp) {
 				showKeyboardHelp = false;
 				e.preventDefault();
@@ -875,10 +1022,20 @@
 	}
 
 	function toggleTheme() {
+		if (themeTransitionActive) return;
+		themeTransitionToLight = isDarkMode; // going from dark to light
+		themeTransitionActive = true;
+	}
+
+	function switchTheme() {
 		isDarkMode = !isDarkMode;
 		if (browser) {
 			localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
 		}
+	}
+
+	function completeThemeTransition() {
+		themeTransitionActive = false;
 	}
 
 	$effect(() => {
@@ -893,16 +1050,38 @@
 			if (savedCollapsed) {
 				collapsedColumns = new Set(JSON.parse(savedCollapsed));
 			}
+			const savedTickerRange = localStorage.getItem('tickerRange');
+			if (savedTickerRange) tickerRange = Number(savedTickerRange);
+			const savedAgentEnabled = localStorage.getItem('agentEnabled');
+			if (savedAgentEnabled) agentEnabled = savedAgentEnabled === 'true';
+			const savedAgentHost = localStorage.getItem('agentHost');
+			if (savedAgentHost) agentHost = savedAgentHost;
+			const savedAgentPort = localStorage.getItem('agentPort');
+			if (savedAgentPort) agentPort = Number(savedAgentPort);
 		}
 	});
 
+	// Persist settings to localStorage
 	$effect(() => {
-		const source = connectSSE();
+		if (browser) localStorage.setItem('tickerRange', String(tickerRange));
+	});
+	$effect(() => {
+		if (browser) localStorage.setItem('agentEnabled', String(agentEnabled));
+	});
+	$effect(() => {
+		if (browser) localStorage.setItem('agentHost', agentHost);
+	});
+	$effect(() => {
+		if (browser) localStorage.setItem('agentPort', String(agentPort));
+	});
+
+	$effect(() => {
+		const source = untrack(() => connectSSE());
 		return () => source.close();
 	});
 
 	$effect(() => {
-		if (browser) connect();
+		if (browser && agentEnabled) connect();
 		return () => disconnect();
 	});
 
@@ -914,6 +1093,52 @@
 		const issueId = new URL(window.location.href).searchParams.get('issue');
 		if (issueId) openIssueById(issueId, false);
 	});
+
+	// Register project on load and fetch all projects
+	$effect(() => {
+		if (!browser) return;
+		fetch('/api/cwd').then(r => r.json()).then(({ cwd, name }) => {
+			projectName = name || cwd.split('/').pop() || 'project';
+			currentProjectPath = cwd;
+			fetch('/api/projects', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ path: cwd, name })
+			}).then(r => r.json()).then(data => {
+				if (data.projects) {
+					projects = data.projects;
+					const current = projects.find(p => p.path === cwd);
+					if (current) projectColor = current.color;
+				}
+			});
+		});
+	});
+
+	async function switchProject(project: Project) {
+		if (project.path === currentProjectPath) return;
+		projectSwitching = true;
+
+		// Trigger the 3D column rotation animation
+		await new Promise(r => setTimeout(r, 50)); // Let animation class apply
+
+		try {
+			const res = await fetch('/api/cwd', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ path: project.path })
+			});
+			if (res.ok) {
+				// Wait for animation to complete then reload
+				setTimeout(() => {
+					window.location.reload();
+				}, 600);
+			} else {
+				projectSwitching = false;
+			}
+		} catch {
+			projectSwitching = false;
+		}
+	}
 </script>
 
 <svelte:window onkeydown={handleKeydown} onkeyup={handleKeyup} onpopstate={handlePopState} onclick={closeContextMenu} onmousemove={handleMouseMove} onmouseup={handleMouseUp} onblur={handleWindowBlur} />
@@ -933,22 +1158,68 @@
 
 <DepTypePicker {pendingDep} onconfirm={confirmDependency} oncancel={cancelDependency} />
 
-<div class="app" class:light={!isDarkMode} class:panel-open={panelOpen} class:show-hotkeys={showHotkeys}>
+<ThemeTransition
+	active={themeTransitionActive}
+	toLight={themeTransitionToLight}
+	onswitch={switchTheme}
+	ondone={completeThemeTransition}
+/>
+
+<ProjectSwitcher
+	bind:show={showProjectSwitcher}
+	{projects}
+	currentPath={currentProjectPath}
+	onselect={switchProject}
+	onclose={() => showProjectSwitcher = false}
+/>
+
+<div class="app" class:light={!isDarkMode} class:panel-open={panelOpen} class:show-hotkeys={showHotkeys} class:has-chat-bar={wsConnected} class:project-switching={projectSwitching} style="--project-color: {projectColor}">
+
+<TickerTape
+	rangeMinutes={tickerRange}
+	onticketclick={(id) => {
+		const issue = issues.find(i => i.id === id);
+		if (issue) openEditPanel(issue);
+	}}
+	onopenlog={() => showMutationLog = true}
+/>
+<MutationLog
+	show={showMutationLog}
+	onclose={() => showMutationLog = false}
+	onticketclick={(id) => {
+		const issue = issues.find(i => i.id === id);
+		if (issue) openEditPanel(issue);
+	}}
+/>
 
 <KeyboardHelp bind:show={showKeyboardHelp} />
+<SettingsPane
+	bind:show={showSettings}
+	bind:tickerRange
+	bind:agentEnabled
+	bind:agentHost
+	bind:agentPort
+	{isDarkMode}
+	ontoggleTheme={toggleTheme}
+/>
 	<Header
 		bind:searchQuery
 		bind:filterPriority
 		bind:filterType
+		bind:filterTime
+		bind:viewMode
 		{isDarkMode}
-		wsConnected={wsConnected}
-		paneCount={wsPanes.size}
+		{projectName}
+		totalIssues={issues.length}
 		ontoggleTheme={toggleTheme}
 		onopenKeyboardHelp={() => showKeyboardHelp = true}
 		onopenCreatePanel={openCreatePanel}
-		ontogglePaneActivity={() => showPaneActivity = !showPaneActivity}
+		onopenSettings={() => showSettings = true}
+		onpreviewchange={(previewing) => isFilterPreviewing = previewing}
+		oneditProject={() => showSettings = true}
 	/>
 
+	{#if viewMode === 'kanban'}
 	<ColumnNav
 		{columns}
 		bind:activeColumnIndex
@@ -985,6 +1256,7 @@
 					{animatingIds}
 					{copiedId}
 					{hasActiveFilters}
+					{isFilterPreviewing}
 					{flyingCards}
 					{placeholders}
 					{activeColumnIndex}
@@ -1003,15 +1275,25 @@
 					oncarddragend={handleDragEnd}
 					oncardcontextmenu={(e, issue) => openContextMenu(e, issue)}
 					oncopyid={(id, text) => copyToClipboard(id, text)}
+					showAddButton={i === 0}
+					onaddclick={openCreatePanel}
 				/>
-				{#if editingIssue && editingColumnIndex() === i}
+				{#if editingIssue && panelColumnIndex === i}
 					{@render detailPanel()}
 				{/if}
 			{/each}
 		</main>
 		</div>
+	{:else if viewMode === 'tree'}
+		<TreeView {issues} {selectedId} onselect={(issue) => openEditPanel(issue)} />
+	{:else if viewMode === 'graph'}
+		<GraphView {issues} {selectedId} onselect={(issue) => openEditPanel(issue)} />
+	{:else if viewMode === 'stats'}
+		<StatsView {issues} />
+	{/if}
 
-<!-- Chat Bar - Pinned to bottom -->
+<!-- Chat Bar - Pinned to bottom (only when ws connected) -->
+{#if wsConnected}
 <div class="chat-bar" class:has-panes={wsPanes.size > 0}>
 	<div class="chat-bar-inner">
 		<!-- Connection indicator -->
@@ -1063,8 +1345,21 @@
 		onMouseUp={handleMouseUp}
 	/>
 </div>
+{/if}
 
-<FlyingCardComponent {teleports} {flyingCards} />
+<FlyingCardComponent {teleports} />
+</div>
+
+<InitialLoader status={loadingStatus} visible={!initialLoaded} />
+
+<div class="status-bar-container" class:light={!isDarkMode}>
+	<StatusBar
+		dataStatus={loadingStatus}
+		agentConnected={wsConnected}
+		agentCount={wsPanes.size}
+		{agentEnabled}
+		light={!isDarkMode}
+	/>
 </div>
 
 {#snippet detailPanel()}
@@ -1072,6 +1367,7 @@
 		bind:editingIssue
 		{isCreating}
 		bind:createForm
+		allIssues={issues}
 		{comments}
 		{copiedId}
 		bind:newLabelInput
@@ -1080,6 +1376,7 @@
 		{originalLabels}
 		{isPanelDragging}
 		{panelDragOffset}
+		{issueClosedExternally}
 		onclose={closePanel}
 		oncreate={createIssue}
 		ondelete={(id) => deleteIssue(id)}
@@ -1095,6 +1392,7 @@
 		onpaneltouchend={handlePanelTouchEnd}
 		updatecreateform={(key, value) => createForm[key] = value}
 		updatenewlabel={(value) => newLabelInput = value}
+		ondismissclosedwarning={() => issueClosedExternally = false}
 		updatenewcomment={(value) => newComment = value}
 	/>
 {/snippet}
@@ -1148,11 +1446,66 @@
 		display: flex;
 		flex-direction: column;
 		height: 100vh;
-		padding-bottom: 48px;
 		background: var(--bg-primary);
 		transition: background var(--transition-smooth);
 		position: relative;
 		overflow: hidden;
+	}
+
+	.app.has-chat-bar {
+		padding-bottom: 48px;
+	}
+
+	/* Project switching 3D column rotation */
+	.app.project-switching {
+		perspective: 1200px;
+	}
+
+	.app.project-switching :global(.board) {
+		transform-style: preserve-3d;
+	}
+
+	.app.project-switching :global(.column) {
+		animation: columnRotateOut 600ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+		transform-origin: center center;
+	}
+
+	.app.project-switching :global(.column:nth-child(1)) { animation-delay: 0ms; }
+	.app.project-switching :global(.column:nth-child(2)) { animation-delay: 50ms; }
+	.app.project-switching :global(.column:nth-child(3)) { animation-delay: 100ms; }
+	.app.project-switching :global(.column:nth-child(4)) { animation-delay: 150ms; }
+	.app.project-switching :global(.column:nth-child(5)) { animation-delay: 200ms; }
+	.app.project-switching :global(.column:nth-child(6)) { animation-delay: 250ms; }
+
+	@keyframes columnRotateOut {
+		0% {
+			transform: rotateY(0deg) translateZ(0) scale(1);
+			opacity: 1;
+		}
+		40% {
+			transform: rotateY(-15deg) translateZ(-100px) scale(0.95);
+			opacity: 0.8;
+		}
+		100% {
+			transform: rotateY(-90deg) translateZ(-200px) scale(0.8);
+			opacity: 0;
+		}
+	}
+
+	/* Project title slide animation */
+	.app.project-switching :global(.logo-project) {
+		animation: titleSlideOut 400ms ease-out forwards;
+	}
+
+	@keyframes titleSlideOut {
+		0% {
+			transform: translateY(0);
+			opacity: 1;
+		}
+		100% {
+			transform: translateY(20px);
+			opacity: 0;
+		}
 	}
 
 	.app::before {
@@ -1255,6 +1608,12 @@
 		overflow-x: auto;
 		overflow-y: hidden;
 		transition: margin-right var(--transition-smooth);
+		scrollbar-width: none; /* Firefox */
+		-ms-overflow-style: none; /* IE/Edge */
+	}
+
+	.board::-webkit-scrollbar {
+		display: none; /* Chrome/Safari/Opera */
 	}
 
 	@keyframes dropPulse {
@@ -1274,38 +1633,6 @@
 			box-shadow:
 				0 12px 32px -6px rgba(0, 0, 0, 0.35),
 				0 6px 12px -3px rgba(0, 0, 0, 0.18);
-		}
-	}
-
-	@keyframes cardEnter {
-		0% {
-			opacity: 0;
-			transform: scale(0.9) translateY(-12px);
-			box-shadow:
-				0 0 0 3px rgba(16, 185, 129, 0.8),
-				0 0 40px rgba(16, 185, 129, 0.6),
-				0 8px 32px rgba(0, 0, 0, 0.3);
-			background: rgba(16, 185, 129, 0.15);
-		}
-		30% {
-			opacity: 1;
-			transform: scale(1.03) translateY(0);
-			box-shadow:
-				0 0 0 3px rgba(16, 185, 129, 0.6),
-				0 0 32px rgba(16, 185, 129, 0.5),
-				0 12px 40px rgba(0, 0, 0, 0.25);
-		}
-		60% {
-			transform: scale(0.98) translateY(0);
-			box-shadow:
-				0 0 0 2px rgba(99, 102, 241, 0.4),
-				0 0 20px rgba(99, 102, 241, 0.3),
-				0 4px 16px rgba(0, 0, 0, 0.15);
-		}
-		100% {
-			transform: scale(1) translateY(0);
-			box-shadow: none;
-			background: var(--bg-tertiary);
 		}
 	}
 
@@ -1676,4 +2003,10 @@
 		to { opacity: 1; transform: translateY(0) scale(1); }
 	}
 
-					</style>
+	.status-bar-container {
+		position: fixed;
+		bottom: 12px;
+		right: 12px;
+		z-index: 9999;
+	}
+</style>

@@ -30,23 +30,21 @@
 			<div class="keyboard-help-content">
 				<div class="shortcut-group">
 					<h3>Navigation</h3>
-					<div class="shortcut"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd><span>Navigate cards</span></div>
-					<div class="shortcut"><kbd>h</kbd><kbd>j</kbd><kbd>k</kbd><kbd>l</kbd><span>Vim-style navigation</span></div>
-					<div class="shortcut"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd><span>Jump to column</span></div>
+					<div class="shortcut"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd><span>Navigate</span></div>
+					<div class="shortcut"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd><span>Column</span></div>
 				</div>
 				<div class="shortcut-group">
 					<h3>Actions</h3>
-					<div class="shortcut"><kbd>n</kbd><span>New issue</span></div>
-					<div class="shortcut"><kbd>o</kbd> or <kbd>↵</kbd><span>Open issue</span></div>
-					<div class="shortcut"><kbd>x</kbd><span>Delete issue</span></div>
-					<div class="shortcut"><kbd>/</kbd><span>Focus search</span></div>
+					<div class="shortcut"><kbd>n</kbd><span>New</span></div>
+					<div class="shortcut"><kbd>↵</kbd><span>Open</span></div>
+					<div class="shortcut"><kbd>x</kbd><span>Delete</span></div>
+					<div class="shortcut"><kbd>⌘K</kbd><span>Search</span></div>
 				</div>
 				<div class="shortcut-group">
 					<h3>General</h3>
-					<div class="shortcut"><kbd>t</kbd><span>Toggle theme</span></div>
-					<div class="shortcut"><kbd>?</kbd><span>Show this help</span></div>
-					<div class="shortcut"><kbd>esc</kbd><span>Close / Cancel</span></div>
-					<div class="shortcut"><kbd>⌥</kbd><span>Hold for hints</span></div>
+					<div class="shortcut"><kbd>t</kbd><span>Theme</span></div>
+					<div class="shortcut"><kbd>⌘`</kbd><span>Projects</span></div>
+					<div class="shortcut"><kbd>?</kbd><span>Help</span></div>
 				</div>
 			</div>
 		</div>
@@ -75,8 +73,8 @@
 		background: var(--bg-secondary);
 		border: 1px solid var(--border-subtle);
 		border-radius: var(--radius-xl);
-		padding: 1.5rem;
-		max-width: 480px;
+		padding: 1rem 1.25rem;
+		max-width: 360px;
 		width: 90%;
 		box-shadow: var(--shadow-lg);
 		animation: slideUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -91,8 +89,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 1.25rem;
-		padding-bottom: 0.75rem;
+		margin-bottom: 0.75rem;
+		padding-bottom: 0.5rem;
 		border-bottom: 1px solid var(--border-subtle);
 	}
 
@@ -115,25 +113,25 @@
 
 	.keyboard-help-content {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-		gap: 1.25rem;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 0.75rem;
 	}
 
 	.shortcut-group h3 {
-		font-size: 0.625rem;
+		font-size: 0.5625rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 		color: var(--text-tertiary);
-		margin-bottom: 0.625rem;
+		margin-bottom: 0.375rem;
 	}
 
 	.shortcut {
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
-		margin-bottom: 0.5rem;
-		font-size: 0.75rem;
+		gap: 0.25rem;
+		margin-bottom: 0.375rem;
+		font-size: 0.6875rem;
 	}
 
 	.shortcut span {
@@ -145,16 +143,16 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		min-width: 1.25rem;
-		height: 1.25rem;
-		padding: 0 0.375rem;
+		min-width: 1rem;
+		height: 1rem;
+		padding: 0 0.25rem;
 		font-family: ui-monospace, 'SF Mono', monospace;
-		font-size: 0.625rem;
+		font-size: 0.5625rem;
 		font-weight: 500;
 		color: var(--text-primary);
 		background: var(--bg-tertiary);
 		border: 1px solid var(--border-default);
-		border-radius: 4px;
+		border-radius: 3px;
 		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 	}
 </style>

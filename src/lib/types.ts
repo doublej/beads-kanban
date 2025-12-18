@@ -37,13 +37,13 @@ export interface Comment {
 	created_at: string;
 }
 
+export type ColumnIconName = 'circle' | 'circle-dot' | 'circle-slash' | 'check-circle';
+
 export interface Column {
 	key: string;
 	status: Issue['status'];
-	filterLabel?: string;  // If set, column shows issues with this label
-	excludeLabels?: string[];  // Exclude issues with these labels (for "Backlog" to exclude draft/feedback/review)
 	label: string;
-	icon: string;
+	icon: ColumnIconName;
 	accent: string;
 }
 
@@ -77,3 +77,35 @@ export interface RopeDragState {
 
 export type SortBy = 'priority' | 'created' | 'title';
 export type PaneSize = 'compact' | 'medium' | 'large';
+export type ViewMode = 'kanban' | 'tree' | 'graph' | 'stats';
+
+export type LoadingPhase = 'disconnected' | 'ready' | 'error';
+
+export interface LoadingStatus {
+	phase: LoadingPhase;
+	pollCount: number;
+	lastUpdate: number | null;
+	issueCount: number;
+	hasChanges: boolean;
+	errorMessage: string | null;
+}
+
+export type MutationType = 'status' | 'priority' | 'assignee' | 'comment' | 'dependency' | 'label' | 'created' | 'closed';
+
+export interface MutationEntry {
+	id: string;
+	timestamp: number;
+	ticketId: string;
+	ticketTitle: string;
+	mutationType: MutationType;
+	field: string;
+	previousValue: string | null;
+	newValue: string;
+}
+
+export interface Project {
+	path: string;
+	name: string;
+	lastAccess: string;
+	color: string;
+}
