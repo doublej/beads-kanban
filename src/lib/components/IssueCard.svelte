@@ -201,26 +201,42 @@
 </article>
 
 <style>
-	/* Card - Clean, minimal design */
+	/* ═══════════════════════════════════════════════════════════════
+	   CARD - Clean minimal design with status dot accent
+	   Removed one-sided border, using subtle full border + surface contrast
+	   ═══════════════════════════════════════════════════════════════ */
 	.card {
 		position: relative;
 		display: flex;
 		flex-shrink: 0;
 		margin: 2px 4px;
-		background: var(--bg-secondary);
-		border-radius: var(--radius-md);
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+		background: var(--surface-card);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
 		cursor: pointer;
 		transition:
-			transform 180ms ease-out,
-			box-shadow 180ms ease-out,
-			background 150ms ease-out;
+			transform var(--transition-fast),
+			box-shadow var(--transition-fast),
+			border-color var(--transition-fast);
 		overflow: hidden;
 	}
 
+	/* Status accent dot (top-left) - replaces one-sided border */
+	.card::before {
+		content: '';
+		position: absolute;
+		top: 0.5rem;
+		left: 0;
+		width: 3px;
+		height: 3px;
+		border-radius: 0 50% 50% 0;
+		background: var(--priority-color, var(--text-tertiary));
+		opacity: 0.8;
+	}
+
 	.card:hover {
+		border-color: var(--border-default);
 		transform: translateY(-1px);
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 	}
 
 	.card:active {
@@ -230,42 +246,45 @@
 
 	.card-content {
 		flex: 1;
-		padding: 0.75rem 0.875rem;
+		padding: 0.625rem 0.75rem;
 		min-width: 0;
 		overflow: hidden;
 	}
 
 	.card.selected {
-		box-shadow: 0 0 0 1.5px var(--accent-primary), 0 4px 12px rgba(0, 0, 0, 0.1);
+		border-color: var(--accent-primary);
+		box-shadow: 0 0 0 1px var(--accent-primary);
 	}
 
 	.card.dragging {
-		opacity: 0.7;
-		transform: rotate(2deg) scale(1.02);
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+		opacity: 0.85;
+		transform: rotate(1deg) scale(1.01);
+		box-shadow: var(--shadow-lg);
 		cursor: grabbing;
+		z-index: 100;
 	}
 
 	.card.animating {
-		animation: cardPulse 350ms ease-out;
+		animation: cardPulse 300ms ease-out;
 		z-index: 10;
 	}
 
 	@keyframes cardPulse {
-		0% { box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.6), 0 4px 16px rgba(16, 185, 129, 0.2); }
-		100% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
+		0% { box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.5); }
+		100% { box-shadow: none; }
 	}
 
 	.card.editing {
-		box-shadow: 0 0 0 1.5px var(--accent-primary), 0 4px 16px rgba(10, 132, 255, 0.12);
+		border-color: var(--accent-primary);
+		box-shadow: 0 0 0 1px var(--accent-primary);
 		z-index: 5;
 	}
 
 	.card.filter-dimmed {
-		opacity: 0.2;
+		opacity: 0.15;
 		pointer-events: none;
 		transform: scale(0.98);
-		filter: grayscale(0.4);
+		filter: grayscale(0.5);
 	}
 
 	.card.flying-hidden {
@@ -274,7 +293,12 @@
 	}
 
 	.card.has-blockers {
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), inset 0 0 0 1px rgba(239, 68, 68, 0.15);
+		border-color: rgba(239, 68, 68, 0.3);
+	}
+
+	.card.has-blockers::before {
+		background: var(--state-blocked);
+		opacity: 1;
 	}
 
 	/* Priority dot - elegant inline indicator */
@@ -412,113 +436,73 @@
 		50% { opacity: 0.7; }
 	}
 
-	/* Agent Chip - Prominent AI worker indicator */
+	/* ─── Agent Chip - Simplified, flat design ─── */
 	.agent-chip {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
-		gap: 0.375rem;
-		padding: 0.25rem 0.5rem 0.25rem 0.375rem;
-		background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(6, 182, 212, 0.12) 100%);
-		border: 1px solid rgba(16, 185, 129, 0.25);
-		border-radius: 1rem;
-		margin-bottom: 0.5rem;
-		position: relative;
-		overflow: hidden;
+		gap: 0.25rem;
+		padding: 0.1875rem 0.375rem;
+		background: rgba(16, 185, 129, 0.1);
+		border-radius: var(--radius-xs);
+		margin-bottom: 0.375rem;
 		width: fit-content;
 	}
 
-	/* Idle state - muted appearance */
 	.agent-chip.idle {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
-		border-color: rgba(99, 102, 241, 0.2);
+		background: rgba(99, 102, 241, 0.1);
 	}
 
-	.agent-chip.idle .agent-icon {
-		color: #8b5cf6;
-		animation: none;
-	}
+	.agent-chip.idle .agent-icon { color: #8b5cf6; }
+	.agent-chip.idle .agent-name { color: #8b5cf6; }
+	.agent-chip.idle .agent-status { color: rgba(139, 92, 246, 0.6); }
 
-	.agent-chip.idle .agent-name {
-		color: #8b5cf6;
-	}
-
-	.agent-chip.idle .agent-status {
-		color: rgba(139, 92, 246, 0.6);
-		border-left-color: rgba(139, 92, 246, 0.15);
-	}
-
-	/* Done state - completed appearance */
 	.agent-chip.done {
-		background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(6, 182, 212, 0.06) 100%);
-		border-color: rgba(16, 185, 129, 0.15);
-		opacity: 0.7;
+		background: rgba(16, 185, 129, 0.06);
+		opacity: 0.6;
 	}
 
-	.agent-chip.done .agent-icon {
-		animation: none;
-	}
+	.agent-status.done { color: var(--state-done) !important; }
 
-	.agent-status.done {
-		color: #10b981 !important;
-	}
-
-	.agent-pulse {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(90deg, transparent 0%, rgba(16, 185, 129, 0.1) 50%, transparent 100%);
-		animation: agent-pulse-sweep 2.5s ease-in-out infinite;
-	}
-
-	@keyframes agent-pulse-sweep {
-		0%, 100% { transform: translateX(-100%); opacity: 0; }
-		50% { transform: translateX(100%); opacity: 1; }
-	}
+	.agent-pulse { display: none; }
 
 	.agent-icon {
 		display: flex;
-		color: #10b981;
+		color: var(--state-done);
 		flex-shrink: 0;
 	}
 
 	.agent-chip.working .agent-icon {
-		animation: agent-icon-spin 8s linear infinite;
+		animation: agent-icon-pulse 2s ease-in-out infinite;
 	}
 
-	@keyframes agent-icon-spin {
-		from { transform: rotate(0deg); }
-		to { transform: rotate(360deg); }
+	@keyframes agent-icon-pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.5; }
 	}
 
 	.agent-name {
-		font-size: 0.6875rem;
-		font-weight: 600;
-		color: #10b981;
+		font-family: var(--font-mono);
+		font-size: 0.5625rem;
+		font-weight: 500;
+		color: var(--state-done);
 		letter-spacing: 0.01em;
 	}
 
 	.agent-status {
-		font-size: 0.5625rem;
+		font-size: 0.5rem;
 		font-weight: 500;
-		color: rgba(16, 185, 129, 0.7);
+		color: rgba(16, 185, 129, 0.6);
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		padding-left: 0.25rem;
-		border-left: 1px solid rgba(16, 185, 129, 0.2);
+		letter-spacing: 0.04em;
 	}
 
+	/* ─── Card Content Hierarchy ─── */
 	.card-title {
-		font-size: 0.875rem;
-		font-weight: 500;
+		font-size: 0.8125rem;
+		font-weight: 550;
 		color: var(--text-primary);
 		line-height: 1.35;
 		margin-bottom: 0.25rem;
-	}
-
-	.card-description {
-		font-size: 0.6875rem;
-		color: var(--text-tertiary);
-		line-height: 1.4;
-		margin-bottom: 0.5rem;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
 		line-clamp: 2;
@@ -526,22 +510,38 @@
 		overflow: hidden;
 	}
 
+	.card-description {
+		font-size: 0.6875rem;
+		color: var(--text-tertiary);
+		line-height: 1.4;
+		margin-bottom: 0.375rem;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+
+	/* Tags row - cap at 2 + "+N" */
 	.card-labels {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 0.25rem;
-		margin-bottom: 0.5rem;
+		flex-wrap: nowrap;
+		gap: 0.1875rem;
+		margin-bottom: 0.375rem;
+		overflow: hidden;
 	}
 
 	.label {
-		padding: 0.125rem 0.375rem;
-		background: var(--bg-elevated);
-		border-radius: var(--radius-sm);
-		font-size: 0.5625rem;
+		padding: 0.0625rem 0.3125rem;
+		background: var(--surface-panel);
+		border-radius: var(--radius-xs);
+		font-size: 0.5rem;
 		font-weight: 500;
-		color: var(--text-secondary);
+		color: var(--text-tertiary);
 		text-transform: uppercase;
 		letter-spacing: 0.02em;
+		white-space: nowrap;
+		flex-shrink: 0;
 	}
 
 	.label.more {
@@ -551,7 +551,7 @@
 
 	.card-footer {
 		display: flex;
-		gap: 0.3125rem;
+		gap: 0.25rem;
 		flex-wrap: wrap;
 	}
 
@@ -629,17 +629,17 @@
 		margin-right: 0.125rem;
 	}
 
-	/* Card Meta (footer row) */
+	/* ─── Card Meta (type • priority • age row) ─── */
 	.card-meta {
 		display: flex;
 		align-items: center;
 		gap: 0.375rem;
-		margin-top: 0.5rem;
-		padding-top: 0.5rem;
+		margin-top: 0.375rem;
+		padding-top: 0.375rem;
 		border-top: 1px solid var(--border-subtle);
-		font-family: ui-monospace, 'SF Mono', monospace;
-		font-size: 0.5625rem;
-		color: var(--text-tertiary);
+		font-family: var(--font-mono);
+		font-size: 0.5rem;
+		color: var(--text-muted);
 	}
 
 	.meta-item {
@@ -647,18 +647,22 @@
 	}
 
 	.meta-item.closed {
-		color: #10b981;
+		color: var(--state-done);
 	}
 
 	.meta-sep {
-		opacity: 0.4;
+		opacity: 0.3;
+		font-size: 0.5rem;
 	}
 
 	.meta-type {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.1875rem;
 		margin-left: auto;
 		text-transform: uppercase;
 		letter-spacing: 0.02em;
-		opacity: 0.6;
+		opacity: 0.5;
 	}
 
 	/* ═══════════════════════════════════════════════════════════════
@@ -778,5 +782,36 @@
 			width: 8px;
 			height: 8px;
 		}
+	}
+
+	/* ═══════════════════════════════════════════════════════════════
+	   LIGHT THEME - Card adjustments
+	   ═══════════════════════════════════════════════════════════════ */
+	:global(.app.light) .card {
+		box-shadow: var(--shadow-sm);
+	}
+
+	:global(.app.light) .card:hover {
+		box-shadow: var(--shadow-md);
+	}
+
+	:global(.app.light) .card.selected {
+		box-shadow: 0 0 0 1px var(--accent-primary), var(--shadow-sm);
+	}
+
+	:global(.app.light) .card.dragging {
+		box-shadow: var(--shadow-lg);
+	}
+
+	:global(.app.light) .agent-chip {
+		background: rgba(16, 185, 129, 0.08);
+	}
+
+	:global(.app.light) .agent-chip.idle {
+		background: rgba(99, 102, 241, 0.08);
+	}
+
+	:global(.app.light) .label {
+		background: rgba(0, 0, 0, 0.04);
 	}
 </style>

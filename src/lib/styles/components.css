@@ -1,30 +1,107 @@
 /* ===== FONTS ===== */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&display=swap');
 
-/* ===== CSS CUSTOM PROPERTIES ===== */
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM TOKENS
+   Visual system cleanup: 3 surface levels, standardized radius/border/shadow
+   ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-	--bg-primary: #3f3f46;
-	--bg-secondary: #27272a;
-	--bg-tertiary: #18181b;
-	--bg-elevated: #3a3a3c;
-	--border-subtle: rgba(255, 255, 255, 0.08);
-	--border-default: rgba(255, 255, 255, 0.12);
-	--border-strong: rgba(255, 255, 255, 0.18);
-	--text-primary: #ffffff;
-	--text-secondary: #98989d;
-	--text-tertiary: #636366;
-	--accent-primary: #0a84ff;
-	--accent-glow: rgba(10, 132, 255, 0.15);
+	/* ─── Surface Levels (3-tier system) ─── */
+	--surface-app: #18181b;        /* App background - darkest, flat */
+	--surface-panel: #1f1f23;      /* Panel/column surface - slightly lighter */
+	--surface-card: #27272a;       /* Card surface - lightest of the 3 */
+	--surface-elevated: #2f2f33;   /* Modals, dragged cards, popovers */
+
+	/* Legacy aliases (gradual migration) */
+	--bg-primary: var(--surface-app);
+	--bg-secondary: var(--surface-card);
+	--bg-tertiary: var(--surface-panel);
+	--bg-elevated: var(--surface-elevated);
+
+	/* ─── Border System (single style, consistent alpha) ─── */
+	--border-subtle: rgba(255, 255, 255, 0.06);
+	--border-default: rgba(255, 255, 255, 0.10);
+	--border-strong: rgba(255, 255, 255, 0.15);
+
+	/* ─── Text Colors ─── */
+	--text-primary: #fafafa;
+	--text-secondary: #a1a1aa;
+	--text-tertiary: #71717a;
+	--text-muted: #52525b;
+
+	/* ─── Accent Colors ─── */
+	--accent-primary: #3b82f6;
+	--accent-glow: rgba(59, 130, 246, 0.12);
+
+	/* ─── State Colors (reserved for status/priority/focus) ─── */
+	--state-open: #6366f1;
+	--state-in-progress: #f59e0b;
+	--state-blocked: #ef4444;
+	--state-done: #10b981;
+	--state-focus: var(--accent-primary);
+
+	/* ─── Radius Scale (8 / 12 / 16) ─── */
+	--radius-xs: 4px;
 	--radius-sm: 8px;
 	--radius-md: 12px;
-	--radius-lg: 20px;
-	--radius-xl: 28px;
-	--transition-fast: 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
-	--transition-smooth: 350ms cubic-bezier(0.25, 0.1, 0.25, 1);
-	--transition-bounce: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
-	--shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
-	--shadow-md: 0 4px 24px rgba(0, 0, 0, 0.2);
-	--shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.3);
+	--radius-lg: 16px;
+	--radius-xl: 20px;
+	--radius-full: 9999px;
+
+	/* ─── Shadow System (soft, only for elevated items) ─── */
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+	--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+	--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.35);
+	--shadow-elevated: 0 12px 40px rgba(0, 0, 0, 0.4);
+
+	/* ─── Transitions ─── */
+	--transition-fast: 150ms ease-out;
+	--transition-smooth: 250ms ease-out;
+	--transition-bounce: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+	/* ─── Typography ─── */
+	--font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+	--font-display: 'Plus Jakarta Sans', var(--font-sans);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT THEME
+   Same 3-tier surface system, inverted for light mode
+   ═══════════════════════════════════════════════════════════════════════════ */
+:global(.app.light) {
+	/* ─── Surface Levels (light mode) ─── */
+	--surface-app: #f4f4f5;         /* App background - light gray */
+	--surface-panel: #fafafa;       /* Panel surface - near white */
+	--surface-card: #ffffff;        /* Card surface - pure white */
+	--surface-elevated: #ffffff;    /* Modals, popovers */
+
+	/* Legacy aliases */
+	--bg-primary: var(--surface-app);
+	--bg-secondary: var(--surface-card);
+	--bg-tertiary: var(--surface-panel);
+	--bg-elevated: var(--surface-elevated);
+
+	/* ─── Border System (dark on light) ─── */
+	--border-subtle: rgba(0, 0, 0, 0.06);
+	--border-default: rgba(0, 0, 0, 0.10);
+	--border-strong: rgba(0, 0, 0, 0.15);
+
+	/* ─── Text Colors ─── */
+	--text-primary: #18181b;
+	--text-secondary: #52525b;
+	--text-tertiary: #71717a;
+	--text-muted: #a1a1aa;
+
+	/* ─── Accent (slightly darker for light bg) ─── */
+	--accent-primary: #2563eb;
+	--accent-glow: rgba(37, 99, 235, 0.08);
+
+	/* ─── Shadows (lighter) ─── */
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+	--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+	--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+	--shadow-elevated: 0 12px 40px rgba(0, 0, 0, 0.15);
 }
 
 /* ===== GLOBAL STYLES ===== */
@@ -35,8 +112,8 @@
 }
 
 :global(body) {
-	font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-	background: var(--bg-primary);
+	font-family: var(--font-sans);
+	background: var(--surface-app);
 	color: var(--text-primary);
 	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
@@ -140,98 +217,167 @@
 	height: 0.625rem;
 }
 
-/* ===== BUTTONS ===== */
-.btn-secondary,
-.btn-primary,
-.btn-danger {
-	display: flex;
+/* ═══════════════════════════════════════════════════════════════════════════
+   BUTTON / CTA SYSTEM
+   5 variants: primary, secondary, tertiary (outline), ghost, destructive
+   States: default, hover, active, disabled, focus
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Base Button Reset ─── */
+.btn {
+	display: inline-flex;
 	align-items: center;
-	gap: 0.5rem;
-	padding: 0.625rem 1.25rem;
-	border: none;
-	border-radius: var(--radius-lg);
-	font-family: inherit;
-	font-size: 0.875rem;
+	justify-content: center;
+	gap: 0.375rem;
+	padding: 0.5rem 0.875rem;
+	border: 1px solid transparent;
+	border-radius: var(--radius-sm);
+	font-family: var(--font-sans);
+	font-size: 0.8125rem;
 	font-weight: 500;
+	line-height: 1;
 	cursor: pointer;
 	transition: all var(--transition-fast);
+	white-space: nowrap;
+	user-select: none;
 }
 
-.btn-secondary {
-	background: var(--bg-tertiary);
-	color: var(--text-primary);
+.btn:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--surface-app), 0 0 0 4px var(--accent-primary);
 }
 
-.btn-secondary:hover {
-	background: var(--bg-elevated);
+.btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+	pointer-events: none;
 }
 
-.btn-secondary:active {
-	transform: scale(0.98);
+.btn:active:not(:disabled) {
+	transform: scale(0.97);
 }
 
-.btn-primary {
+/* ─── Primary (main action): solid accent, high contrast ─── */
+.btn-primary,
+.btn.primary {
 	background: var(--accent-primary);
+	border-color: var(--accent-primary);
 	color: white;
 }
 
-.btn-primary:hover {
-	filter: brightness(1.1);
+.btn-primary:hover:not(:disabled),
+.btn.primary:hover:not(:disabled) {
+	background: #2563eb;
+	border-color: #2563eb;
 }
 
-.btn-primary:active {
-	filter: brightness(0.95);
-	transform: scale(0.98);
+/* ─── Secondary: subtle filled surface ─── */
+.btn-secondary,
+.btn.secondary {
+	background: var(--surface-elevated);
+	border-color: var(--border-default);
+	color: var(--text-primary);
 }
 
-.btn-danger {
-	background: rgba(255, 59, 48, 0.12);
-	color: #ff3b30;
+.btn-secondary:hover:not(:disabled),
+.btn.secondary:hover:not(:disabled) {
+	background: var(--surface-card);
+	border-color: var(--border-strong);
 }
 
-.btn-danger:hover {
-	background: rgba(255, 59, 48, 0.18);
+/* ─── Tertiary: outline only ─── */
+.btn-tertiary,
+.btn.tertiary {
+	background: transparent;
+	border-color: var(--border-default);
+	color: var(--text-secondary);
 }
 
-.btn-danger:active {
-	transform: scale(0.98);
+.btn-tertiary:hover:not(:disabled),
+.btn.tertiary:hover:not(:disabled) {
+	background: var(--surface-panel);
+	border-color: var(--border-strong);
+	color: var(--text-primary);
 }
 
-.btn-danger svg {
-	width: 0.875rem;
-	height: 0.875rem;
+/* ─── Ghost: text/icon only ─── */
+.btn-ghost,
+.btn.ghost {
+	background: transparent;
+	border-color: transparent;
+	color: var(--text-secondary);
 }
 
-.btn-hotkey {
-	font-family: ui-monospace, 'SF Mono', monospace;
-	font-size: 0.625rem;
+.btn-ghost:hover:not(:disabled),
+.btn.ghost:hover:not(:disabled) {
+	background: var(--surface-panel);
+	color: var(--text-primary);
+}
+
+/* ─── Destructive: red accent (delete/wipe only) ─── */
+.btn-danger,
+.btn-destructive,
+.btn.destructive {
+	background: rgba(239, 68, 68, 0.1);
+	border-color: rgba(239, 68, 68, 0.2);
+	color: #ef4444;
+}
+
+.btn-danger:hover:not(:disabled),
+.btn-destructive:hover:not(:disabled),
+.btn.destructive:hover:not(:disabled) {
+	background: rgba(239, 68, 68, 0.18);
+	border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* ─── Button Sizes ─── */
+.btn-sm {
+	padding: 0.375rem 0.625rem;
+	font-size: 0.75rem;
+	border-radius: var(--radius-xs);
+}
+
+.btn-lg {
+	padding: 0.625rem 1.25rem;
+	font-size: 0.875rem;
+	border-radius: var(--radius-md);
+}
+
+/* ─── Icon-only Button ─── */
+.btn-icon {
+	padding: 0.5rem;
+	aspect-ratio: 1;
+}
+
+.btn-icon.btn-sm {
+	padding: 0.375rem;
+}
+
+/* ─── Hotkey Badges ─── */
+.btn-hotkey,
+.kbd {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.25rem;
+	height: 1.125rem;
+	padding: 0 0.25rem;
+	font-family: var(--font-mono);
+	font-size: 0.5625rem;
 	font-weight: 500;
-	padding: 0.125rem 0.375rem;
-	background: rgba(255, 255, 255, 0.15);
-	border-radius: 3px;
-	margin-left: 0.5rem;
-	opacity: 0.8;
+	background: rgba(255, 255, 255, 0.12);
+	border-radius: var(--radius-xs);
+	color: inherit;
+	opacity: 0.7;
 }
 
 .btn-hotkey-subtle {
-	font-family: ui-monospace, 'SF Mono', monospace;
-	font-size: 0.625rem;
-	font-weight: 500;
-	padding: 0.125rem 0.25rem;
-	background: rgba(255, 255, 255, 0.08);
-	border-radius: 3px;
-	margin-left: 0.375rem;
+	background: rgba(255, 255, 255, 0.06);
 	color: var(--text-tertiary);
 }
 
 .btn-hotkey-light {
-	font-family: ui-monospace, 'SF Mono', monospace;
-	font-size: 0.625rem;
-	font-weight: 500;
-	padding: 0.125rem 0.25rem;
-	background: rgba(255, 255, 255, 0.2);
-	border-radius: 3px;
-	margin-left: 0.375rem;
+	background: rgba(255, 255, 255, 0.18);
 }
 
 /* ===== FORM ELEMENTS ===== */

@@ -188,47 +188,56 @@
 </section>
 
 <style>
+	/* ═══════════════════════════════════════════════════════════════
+	   COLUMN - Clean surface with sticky header
+	   ═══════════════════════════════════════════════════════════════ */
 	.column {
-		flex: 1 1 320px;
-		min-width: 320px;
+		flex: 1 1 300px;
+		min-width: 280px;
 		min-height: 0;
 		align-self: stretch;
 		display: flex;
 		flex-direction: column;
-		background: transparent;
-		border: none;
-		border-radius: var(--radius-lg);
-		overflow: visible;
-		transition: all var(--transition-smooth);
+		background: var(--surface-panel);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		transition: border-color var(--transition-fast);
 	}
 
 	.column.drag-over {
-		background: var(--accent-glow);
+		border-color: var(--accent-primary);
+		background: linear-gradient(180deg, var(--accent-glow) 0%, var(--surface-panel) 100%);
 	}
 
+	/* Sticky header */
 	.column-header {
+		position: sticky;
+		top: 0;
+		z-index: 10;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.75rem 0.5rem;
-		border-bottom: none;
-		background: transparent;
+		padding: 0.625rem 0.75rem;
+		background: var(--surface-panel);
+		border-bottom: 1px solid var(--border-subtle);
 		flex-shrink: 0;
 	}
 
 	.column-title {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.375rem;
 	}
 
 	.column-icon {
 		display: flex;
 		color: var(--accent);
+		opacity: 0.8;
 	}
 
 	.column-header h2 {
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
@@ -236,12 +245,13 @@
 	}
 
 	.column-count {
-		padding: 0.1875rem 0.5rem;
-		background: var(--bg-elevated);
-		border-radius: 999px;
-		font-size: 0.6875rem;
-		font-weight: 600;
-		color: var(--text-secondary);
+		padding: 0.125rem 0.375rem;
+		background: var(--surface-card);
+		border-radius: var(--radius-full);
+		font-family: var(--font-mono);
+		font-size: 0.625rem;
+		font-weight: 500;
+		color: var(--text-tertiary);
 	}
 
 	.column-header-actions {
@@ -417,17 +427,16 @@
 	.cards {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
-		padding: 0.75rem 1rem 2rem 0.75rem;
-		margin: 0 -0.25rem;
+		gap: 0.375rem;
+		padding: 0.5rem;
 		flex: 1;
 		overflow-y: auto;
-		overflow-x: visible;
+		overflow-x: hidden;
 		min-height: 0;
 	}
 
 	.cards::-webkit-scrollbar {
-		width: 5px;
+		width: 4px;
 	}
 
 	.cards::-webkit-scrollbar-track {
@@ -435,12 +444,12 @@
 	}
 
 	.cards::-webkit-scrollbar-thumb {
-		background: var(--border-default);
-		border-radius: 2.5px;
+		background: var(--border-subtle);
+		border-radius: 2px;
 	}
 
 	.cards::-webkit-scrollbar-thumb:hover {
-		background: var(--border-strong);
+		background: var(--border-default);
 	}
 
 	.drop-indicator {
@@ -473,23 +482,23 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		padding: 1.5rem;
-		color: var(--text-tertiary);
+		padding: 1.5rem 1rem;
+		color: var(--text-muted);
 		text-align: center;
-		border: 2px dashed var(--border-subtle);
-		border-radius: var(--radius-md);
-		transition: all var(--transition-smooth);
+		border: 1px dashed var(--border-subtle);
+		border-radius: var(--radius-sm);
+		margin: 0.25rem;
 		flex: 1;
 	}
 
 	.empty-icon {
-		font-size: 1.5rem;
-		margin-bottom: 0.375rem;
-		opacity: 0.3;
+		margin-bottom: 0.25rem;
+		opacity: 0.25;
 	}
 
 	.empty-state p {
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
+		font-weight: 500;
 	}
 
 	/* Hotkey hint for column number */
@@ -507,24 +516,25 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 0.5rem;
-		margin: 0.25rem 4px;
-		padding: 0.75rem 1rem;
+		gap: 0.375rem;
+		margin: 0.25rem;
+		padding: 0.5rem 0.75rem;
 		background: transparent;
-		border: 2px dashed var(--border-subtle);
-		border-radius: var(--radius-md);
+		border: 1px dashed var(--border-default);
+		border-radius: var(--radius-sm);
 		color: var(--text-tertiary);
-		font-family: inherit;
-		font-size: 0.8125rem;
+		font-family: var(--font-sans);
+		font-size: 0.75rem;
 		font-weight: 500;
 		cursor: pointer;
-		transition: all 200ms ease-out;
+		transition: all var(--transition-fast);
 	}
 
 	.add-card-btn:hover {
 		border-color: var(--accent-primary);
+		border-style: solid;
 		color: var(--accent-primary);
-		background: rgba(99, 102, 241, 0.05);
+		background: var(--accent-glow);
 	}
 
 	.add-card-btn:active {
@@ -532,19 +542,17 @@
 	}
 
 	.add-hotkey {
-		font-family: ui-monospace, 'SF Mono', monospace;
-		font-size: 0.625rem;
-		font-weight: 600;
-		padding: 0.125rem 0.3rem;
-		background: rgba(99, 102, 241, 0.1);
-		border: 0.5px solid rgba(99, 102, 241, 0.2);
-		border-radius: 3px;
-		color: var(--text-tertiary);
+		font-family: var(--font-mono);
+		font-size: 0.5rem;
+		font-weight: 500;
+		padding: 0.0625rem 0.25rem;
+		background: rgba(255, 255, 255, 0.06);
+		border-radius: var(--radius-xs);
+		color: var(--text-muted);
 	}
 
 	.add-card-btn:hover .add-hotkey {
-		background: rgba(99, 102, 241, 0.2);
-		border-color: rgba(99, 102, 241, 0.3);
+		background: rgba(59, 130, 246, 0.15);
 		color: var(--accent-primary);
 	}
 
@@ -637,5 +645,24 @@
 			font-size: 0.5625rem;
 			padding: 0.0625rem 0.25rem;
 		}
+	}
+
+	/* ═══════════════════════════════════════════════════════════════
+	   LIGHT THEME - Column adjustments
+	   ═══════════════════════════════════════════════════════════════ */
+	:global(.app.light) .column {
+		box-shadow: var(--shadow-sm);
+	}
+
+	:global(.app.light) .column.drag-over {
+		box-shadow: var(--shadow-md);
+	}
+
+	:global(.app.light) .column-count {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	:global(.app.light) .sort-menu {
+		box-shadow: var(--shadow-md);
 	}
 </style>
