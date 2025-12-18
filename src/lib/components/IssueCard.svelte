@@ -44,6 +44,13 @@
 	const priorityConfig = $derived(getPriorityConfig(issue.priority));
 	const impactScore = $derived(calculateImpactScore(issue));
 	const impactLevel = $derived(getImpactLevel(impactScore));
+
+	// Check if assignee is an agent (contains "agent" in name or matches known agent patterns)
+	const isAgentAssignee = $derived(issue.assignee && (
+		issue.assignee.toLowerCase().includes('agent') ||
+		issue.assignee.toLowerCase() === 'claude' ||
+		issue.assignee.startsWith('@')
+	));
 </script>
 
 <article
@@ -99,12 +106,25 @@
 				</span>
 			{/if}
 		</div>
-		{#if issue.status === 'in_progress' && issue.assignee}
-			<div class="agent-chip">
-				<span class="agent-pulse"></span>
-				<span class="agent-icon"><Icon name="agent" size={14} /></span>
+		{#if issue.assignee && isAgentAssignee}
+			<div class="agent-chip" class:working={issue.status === 'in_progress'} class:idle={issue.status !== 'in_progress' && issue.status !== 'closed'} class:done={issue.status === 'closed'}>
+				{#if issue.status === 'in_progress'}
+					<span class="agent-pulse"></span>
+				{/if}
+				<span class="agent-icon">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+						<circle cx="12" cy="12" r="3"/>
+						<path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+					</svg>
+				</span>
 				<span class="agent-name">{issue.assignee}</span>
-				<span class="agent-status">working</span>
+				{#if issue.status === 'in_progress'}
+					<span class="agent-status">working</span>
+				{:else if issue.status === 'closed'}
+					<span class="agent-status done">done</span>
+				{:else}
+					<span class="agent-status">assigned</span>
+				{/if}
 			</div>
 		{/if}
 		<h3 class="card-title">{issue.title}</h3>
@@ -121,7 +141,7 @@
 				{/if}
 			</div>
 		{/if}
-		{#if issue.assignee && !(issue.assignee.toLowerCase() === 'claude' || issue.assignee.toLowerCase().includes('agent'))}
+		{#if issue.assignee && !isAgentAssignee}
 		<div class="card-footer">
 			<span class="badge assignee">
 				<span class="assignee-dot"></span>
@@ -478,6 +498,41 @@
 		width: fit-content;
 	}
 
+	/* Idle state - muted appearance */
+	.agent-chip.idle {
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
+		border-color: rgba(99, 102, 241, 0.2);
+	}
+
+	.agent-chip.idle .agent-icon {
+		color: #8b5cf6;
+		animation: none;
+	}
+
+	.agent-chip.idle .agent-name {
+		color: #8b5cf6;
+	}
+
+	.agent-chip.idle .agent-status {
+		color: rgba(139, 92, 246, 0.6);
+		border-left-color: rgba(139, 92, 246, 0.15);
+	}
+
+	/* Done state - completed appearance */
+	.agent-chip.done {
+		background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(6, 182, 212, 0.06) 100%);
+		border-color: rgba(16, 185, 129, 0.15);
+		opacity: 0.7;
+	}
+
+	.agent-chip.done .agent-icon {
+		animation: none;
+	}
+
+	.agent-status.done {
+		color: #10b981 !important;
+	}
+
 	.agent-pulse {
 		position: absolute;
 		inset: 0;
@@ -493,8 +548,11 @@
 	.agent-icon {
 		display: flex;
 		color: #10b981;
-		animation: agent-icon-spin 8s linear infinite;
 		flex-shrink: 0;
+	}
+
+	.agent-chip.working .agent-icon {
+		animation: agent-icon-spin 8s linear infinite;
 	}
 
 	@keyframes agent-icon-spin {
@@ -506,7 +564,6 @@
 		font-size: 0.6875rem;
 		font-weight: 600;
 		color: #10b981;
-		text-transform: capitalize;
 		letter-spacing: 0.01em;
 	}
 
