@@ -1,6 +1,21 @@
 // WebSocket store for embedded agent server at ws://localhost:9347
 // Each session gets its own WebSocket connection for proper isolation
 import { untrack } from 'svelte';
+import {
+	persistSdkSessionId,
+	clearPersistedSdkSessionId,
+	loadSessions,
+	saveSessions,
+} from './session-persistence';
+
+// Re-export persistence functions for external use
+export {
+	getPersistedSdkSessionId,
+	getAllPersistedSessions,
+	deletePersistedSession,
+	fetchSdkSessions,
+	type SdkSessionInfo,
+} from './session-persistence';
 
 export interface ChatMessage {
 	role: 'user' | 'assistant' | 'tool';
@@ -84,70 +99,19 @@ type ServerMessage =
 	| { type: 'error'; error: string }
 	| { type: 'interrupted' };
 
-const STORAGE_KEY = 'beads-kanban-sessions';
-const SDK_SESSION_KEY = 'beads-kanban-sdk-sessions';
-
-function persistSdkSessionId(sessionName: string, sdkSessionId: string) {
-	if (typeof window === 'undefined') return;
-	const stored = localStorage.getItem(SDK_SESSION_KEY);
-	const map: Record<string, string> = stored ? JSON.parse(stored) : {};
-	map[sessionName] = sdkSessionId;
-	localStorage.setItem(SDK_SESSION_KEY, JSON.stringify(map));
-}
-
-function clearPersistedSdkSessionId(sessionName: string) {
-	if (typeof window === 'undefined') return;
-	const stored = localStorage.getItem(SDK_SESSION_KEY);
-	if (!stored) return;
-	const map: Record<string, string> = JSON.parse(stored);
-	delete map[sessionName];
-	localStorage.setItem(SDK_SESSION_KEY, JSON.stringify(map));
-}
-
-export function getPersistedSdkSessionId(sessionName: string): string | undefined {
-	if (typeof window === 'undefined') return undefined;
-	const stored = localStorage.getItem(SDK_SESSION_KEY);
-	if (!stored) return undefined;
-	const map: Record<string, string> = JSON.parse(stored);
-	return map[sessionName];
-}
-
-function loadSessions(): Map<string, AgentSession> {
-	if (typeof window === 'undefined') return new Map();
-	const stored = localStorage.getItem(STORAGE_KEY);
-	if (!stored) return new Map();
-	try {
-		const arr: [string, AgentSession][] = JSON.parse(stored);
-		return new Map(arr.map(([k, v]) => [k, { ...v, streaming: false, currentDelta: '' }]));
-	} catch {
-		return new Map();
-	}
-}
-
-function saveSessions() {
-	if (typeof window === 'undefined') return;
-	// Don't save ws in storage
-	const toSave = Array.from(sessions.entries()).map(([k, v]) => {
-		const { ...rest } = v;
-		return [k, rest] as [string, AgentSession];
-	});
-	localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
-}
-
 let sessions = $state<Map<string, AgentSession>>(loadSessions());
 let sessionSockets = new Map<string, WebSocket>();
 let serverAvailable = $state(false);
 let checkTimer: ReturnType<typeof setTimeout> | null = null;
 
-// Save sessions whenever they change (debounced to prevent infinite loops)
+// Save sessions whenever they change (debounced)
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 if (typeof window !== 'undefined') {
 	$effect.root(() => {
 		$effect(() => {
 			const _ = sessions.size;
-			// Debounce saves to prevent rapid-fire updates from causing loops
 			if (saveTimeout) clearTimeout(saveTimeout);
-			saveTimeout = setTimeout(() => untrack(() => saveSessions()), 100);
+			saveTimeout = setTimeout(() => untrack(() => saveSessions(sessions)), 100);
 		});
 	});
 }
@@ -627,45 +591,4 @@ export function continueSession(name: string) {
 
 export function compactSession(name: string) {
 	sendToSocket(name, { type: 'compact' });
-}
-
-// Get all persisted SDK sessions (for session picker UI)
-export function getAllPersistedSessions(): { name: string; sdkSessionId: string }[] {
-	if (typeof window === 'undefined') return [];
-	const stored = localStorage.getItem(SDK_SESSION_KEY);
-	if (!stored) return [];
-	try {
-		const map: Record<string, string> = JSON.parse(stored);
-		return Object.entries(map).map(([name, sdkSessionId]) => ({ name, sdkSessionId }));
-	} catch {
-		return [];
-	}
-}
-
-// Delete a persisted SDK session
-export function deletePersistedSession(sessionName: string) {
-	clearPersistedSdkSessionId(sessionName);
-}
-
-// SDK session info from disk
-export interface SdkSessionInfo {
-	sessionId: string;
-	agentName?: string;
-	timestamp: string;
-	summary?: string;
-	preview: string[];
-}
-
-// Fetch SDK sessions from disk via agent server API
-export async function fetchSdkSessions(cwd: string): Promise<SdkSessionInfo[]> {
-	if (typeof window === 'undefined') return [];
-	try {
-		const host = window.location.hostname;
-		const res = await fetch(`http://${host}:9347/sessions?cwd=${encodeURIComponent(cwd)}`);
-		if (!res.ok) return [];
-		const data = await res.json();
-		return data.sessions || [];
-	} catch {
-		return [];
-	}
 }
