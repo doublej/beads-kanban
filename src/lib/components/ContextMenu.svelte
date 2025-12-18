@@ -49,9 +49,8 @@
 			class="rope-handle"
 			onmousedown={onStartRopeDrag}
 		>
-			<Icon name="link" size={16} class="rope-icon" />
+			<Icon name="git-branch" size={14} class="rope-icon" />
 			<span>Drag to link</span>
-			<Icon name="zap" size={14} class="rope-tip" />
 		</div>
 	</div>
 </div>
@@ -152,45 +151,41 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.5rem 0.625rem;
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%);
-		border: 1px dashed rgba(99, 102, 241, 0.3);
-		border-radius: var(--radius-md);
+		padding: 0.375rem 0.5rem;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
 		cursor: grab;
-		transition: all 0.2s ease;
+		transition: all var(--transition-fast);
 		color: var(--text-secondary);
 		font-size: 0.75rem;
 	}
 
 	.rope-handle:hover {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(16, 185, 129, 0.25) 100%);
-		border-color: rgba(99, 102, 241, 0.5);
+		background: var(--bg-elevated);
 		color: var(--text-primary);
+	}
+
+	.rope-handle:hover :global(.rope-icon) {
+		color: var(--accent-primary);
 	}
 
 	.rope-handle:active {
 		cursor: grabbing;
-		transform: scale(0.98);
+		background: var(--accent-glow);
 	}
 
 	.rope-handle :global(.rope-icon) {
-		color: #6366f1;
+		color: var(--text-tertiary);
+		transition: color var(--transition-fast);
 	}
 
-	.rope-handle :global(.rope-tip) {
-		margin-left: auto;
-		color: #10b981;
-		animation: ropeTipPulse 1.5s ease-in-out infinite;
+	:global(.app.light) .rope-handle:hover {
+		background: rgba(0, 0, 0, 0.04);
 	}
 
-	@keyframes ropeTipPulse {
-		0%, 100% { opacity: 0.6; transform: scale(1); }
-		50% { opacity: 1; transform: scale(1.2); }
-	}
-
-	:global(.app.light) .rope-handle {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
-		border-color: rgba(99, 102, 241, 0.2);
+	:global(.app.light) .rope-handle:active {
+		background: rgba(0, 122, 255, 0.12);
 	}
 
 	.priority-dot {
