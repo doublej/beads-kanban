@@ -512,6 +512,8 @@
 		box-shadow: 0 8px 32px rgba(0,0,0,0.25);
 		overflow: hidden;
 		animation: slideIn 300ms cubic-bezier(0.2, 0, 0.2, 1);
+		position: relative;
+		z-index: 1010;
 	}
 
 	@keyframes slideIn {
@@ -1401,7 +1403,7 @@
 			flex: none !important;
 			max-height: 85vh;
 			border-radius: 20px 20px 0 0;
-			z-index: 100;
+			z-index: 1010;
 			animation: slideUp 300ms cubic-bezier(0.32, 0.72, 0, 1);
 			backdrop-filter: saturate(180%) blur(20px);
 			background: rgba(39,39,42,0.95);
