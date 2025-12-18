@@ -1712,4 +1712,97 @@
 	@media (min-width: 1800px) {
 		.panel { flex: 0 0 520px; min-width: 520px; max-width: 520px; }
 	}
+
+	/* ═══════════════════════════════════════════════════════════════
+	   LIGHT THEME OVERRIDES
+	   ═══════════════════════════════════════════════════════════════ */
+	:global(.app.light) .panel {
+		background: var(--surface-elevated);
+		box-shadow: var(--shadow-lg);
+	}
+
+	:global(.app.light) .header {
+		background: var(--surface-card);
+	}
+
+	:global(.app.light) .id-badge {
+		background: rgba(0, 0, 0, 0.04);
+		border-color: var(--border-subtle);
+	}
+
+	:global(.app.light) .id-badge:hover {
+		background: rgba(0, 0, 0, 0.06);
+	}
+
+	:global(.app.light) .specs-bar {
+		border-color: var(--border-subtle);
+	}
+
+	:global(.app.light) .spec-priority,
+	:global(.app.light) .spec-type,
+	:global(.app.light) .spec-human {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	:global(.app.light) .spec-agent {
+		background: rgba(16, 185, 129, 0.08);
+	}
+
+	:global(.app.light) .summary-callout {
+		background: rgba(16, 185, 129, 0.05);
+	}
+
+	:global(.app.light) .input,
+	:global(.app.light) .input-title,
+	:global(.app.light) .input-desc {
+		background: rgba(0, 0, 0, 0.03);
+		border-color: var(--border-subtle);
+	}
+
+	:global(.app.light) .input:focus,
+	:global(.app.light) .input-title:focus,
+	:global(.app.light) .input-desc:focus {
+		background: rgba(0, 0, 0, 0.02);
+	}
+
+	:global(.app.light) .pill {
+		background: rgba(0, 0, 0, 0.04);
+		border-color: var(--border-subtle);
+	}
+
+	:global(.app.light) .pill:hover {
+		background: rgba(0, 0, 0, 0.06);
+	}
+
+	:global(.app.light) .btn-add {
+		border-color: var(--border-default);
+	}
+
+	:global(.app.light) .relation,
+	:global(.app.light) .comment,
+	:global(.app.light) .attachment {
+		background: rgba(0, 0, 0, 0.02);
+		border-color: var(--border-subtle);
+	}
+
+	:global(.app.light) .comment-input textarea {
+		background: rgba(0, 0, 0, 0.02);
+		border-color: var(--border-subtle);
+	}
+
+	:global(.app.light) .dropzone {
+		border-color: var(--border-default);
+	}
+
+	:global(.app.light) .label-chip {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	:global(.app.light) .dep-chip {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	:global(.app.light) .kbd {
+		background: rgba(0, 0, 0, 0.08);
+	}
 </style>

@@ -2362,23 +2362,38 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 			radial-gradient(ellipse 120% 100% at 50% 40%, transparent 40%, rgba(255, 255, 255, 0.3) 100%);
 	}
 
-	/* Light theme */
+	/* Light theme - inherits from components.css, add app-specific overrides */
 	.app.light {
-		--bg-primary: #f2f2f7;
-		--bg-secondary: #ffffff;
-		--bg-tertiary: #e5e5ea;
-		--bg-elevated: #d1d1d6;
-		--border-subtle: rgba(0, 0, 0, 0.04);
-		--border-default: rgba(0, 0, 0, 0.08);
-		--border-strong: rgba(0, 0, 0, 0.12);
-		--text-primary: #000000;
-		--text-secondary: #3c3c43;
-		--text-tertiary: #8e8e93;
-		--accent-primary: #007aff;
-		--accent-glow: rgba(0, 122, 255, 0.12);
-		--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-		--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
-		--shadow-lg: 0 8px 28px rgba(0, 0, 0, 0.12);
+		/* Surface levels - aligned with components.css */
+		--surface-app: #f4f4f5;
+		--surface-panel: #fafafa;
+		--surface-card: #ffffff;
+		--surface-elevated: #ffffff;
+		/* Legacy aliases */
+		--bg-primary: var(--surface-app);
+		--bg-secondary: var(--surface-card);
+		--bg-tertiary: var(--surface-panel);
+		--bg-elevated: var(--surface-elevated);
+		/* Borders - dark on light */
+		--border-subtle: rgba(0, 0, 0, 0.06);
+		--border-default: rgba(0, 0, 0, 0.10);
+		--border-strong: rgba(0, 0, 0, 0.15);
+		/* Text */
+		--text-primary: #18181b;
+		--text-secondary: #52525b;
+		--text-tertiary: #71717a;
+		--text-muted: #a1a1aa;
+		/* Accent */
+		--accent-primary: #2563eb;
+		--accent-glow: rgba(37, 99, 235, 0.08);
+		/* Shadows */
+		--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+		--shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+		--shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+		--shadow-elevated: 0 12px 40px rgba(0, 0, 0, 0.15);
+		/* CTA buttons - light backgrounds */
+		--cta-muted: rgba(0, 0, 0, 0.05);
+		--cta-muted-hover: rgba(0, 0, 0, 0.08);
 		background: var(--bg-primary);
 	}
 
