@@ -66,6 +66,8 @@
 	let sessionPickerPane = $state<string | null>(null);
 	let sessionPickerSessions = $state<SdkSessionInfo[]>([]);
 	let sessionPickerLoading = $state(false);
+	let activePaneName = $state<string | null>(null);
+	let autoscrollEnabled = $state<Record<string, boolean>>({});
 
 	// Auto-focus input when pane opens and mark as read
 	let prevExpandedPanes: Set<string> = new Set();
@@ -126,16 +128,33 @@
 		}
 	}
 
+	// Helper to check if autoscroll is enabled for a pane (default: true)
+	function isAutoscrollEnabled(name: string): boolean {
+		return autoscrollEnabled[name] !== false;
+	}
+
+	function toggleAutoscroll(name: string) {
+		autoscrollEnabled[name] = !isAutoscrollEnabled(name);
+		autoscrollEnabled = { ...autoscrollEnabled };
+	}
+
+	function setActivePane(name: string) {
+		activePaneName = name;
+	}
+
 	// Debounced scroll to prevent excessive updates during rapid streaming
 	let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 	$effect(() => {
-		// Track wsPanes to trigger effect
+		// Track wsPanes and activePaneName to trigger effect
 		const panes = [...wsPanes.entries()];
+		const active = activePaneName;
 		if (scrollTimeout) clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(() => {
-			for (const [name, pane] of panes) {
-				const ref = messagesRefs[name];
-				if (ref && (pane.messages.length > 0 || pane.currentDelta)) {
+			// Only scroll the active pane if autoscroll is enabled
+			if (active && isAutoscrollEnabled(active)) {
+				const pane = wsPanes.get(active);
+				const ref = messagesRefs[active];
+				if (ref && pane && (pane.messages.length > 0 || pane.currentDelta)) {
 					ref.scrollTop = ref.scrollHeight;
 				}
 			}
@@ -160,8 +179,10 @@
 			class:customized
 			class:dragging={draggingPane === pane.name}
 			class:resizing={resizingPane === pane.name}
+			class:active={activePaneName === pane.name}
 			data-pane={pane.name}
 			style={getPaneStyle(pane.name)}
+			onclick={() => setActivePane(pane.name)}
 		>
 			<!-- Header - OS-style window chrome -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -215,6 +236,11 @@
 							<div class="menu-dropdown" onclick={(e) => e.stopPropagation()}>
 								<div class="menu-section">
 									<span class="menu-label">Session</span>
+									<button class="menu-item" class:active={isAutoscrollEnabled(pane.name)} onclick={(e) => { e.stopPropagation(); toggleAutoscroll(pane.name); }}>
+										<span class="menu-icon">{isAutoscrollEnabled(pane.name) ? '⤓' : '⤒'}</span>
+										<span>Autoscroll</span>
+										{#if isAutoscrollEnabled(pane.name)}<span class="menu-badge">on</span>{/if}
+									</button>
 									{#if !pane.streaming && onContinueSession}
 										<button class="menu-item" onclick={() => { onContinueSession(pane.name); closeMenu(); }}>
 											<span class="menu-icon">▶</span>
@@ -524,10 +550,26 @@
 		contain: layout style;
 	}
 
+	.agent-window.active {
+		border-color: rgba(99, 102, 241, 0.5);
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(99, 102, 241, 0.25);
+		z-index: 1000;
+	}
+
+	.agent-window.active.streaming {
+		border-color: rgba(245, 158, 11, 0.5);
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(245, 158, 11, 0.3);
+	}
+
 	:global(.app.light) .agent-window {
 		background: rgba(255, 255, 255, 0.98);
 		border-color: rgba(0, 0, 0, 0.1);
 		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+	}
+
+	:global(.app.light) .agent-window.active {
+		border-color: rgba(99, 102, 241, 0.6);
+		box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(99, 102, 241, 0.3);
 	}
 
 	:global(.app.light) .agent-windows.has-large {
