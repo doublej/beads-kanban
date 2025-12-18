@@ -267,42 +267,50 @@
 		<div class="body">
 			{#if !isEditMode}
 				<!-- VIEW MODE -->
-				<!-- Specs bar: compact row of all metadata -->
+				<!-- Specs bar: clean metadata row with rhythm -->
 				<div class="specs-bar">
-					<span class="spec status" style="--status-color: {column.accent}">
-						<Icon name={column.icon} size={10} />
-						{column.label}
-					</span>
-					<span class="spec priority" style="--c: {priority.color}"><span class="spec-dot"></span>{priority.label}</span>
-					<span class="spec type"><Icon name={getTypeIcon(editingIssue.issue_type)} size={10} />{editingIssue.issue_type}</span>
-					{#if editingIssue.created_at}
-						<span class="spec-divider"></span>
-						{@const ts = formatTimestamp(editingIssue.created_at)}
-						<span class="spec time" title="{ts.absolute}">{ts.relative}</span>
-					{/if}
-					{#if editingIssue.assignee}
-						<span class="spec-divider"></span>
-						{#if isAgentAssignee}
-							<span class="spec assignee agent" class:working={editingIssue.status === 'in_progress'}>
-								<Icon name="agent" size={11} />
-								<span>{editingIssue.assignee}</span>
-								{#if editingIssue.status === 'in_progress'}
-									<span class="working-dot"></span>
-								{/if}
-							</span>
-							{#if activeAgentPane() && onviewchat}
-								<button class="chat-link" onclick={() => onviewchat(activeAgentPane()!)} title="View chat session">
-									<Icon name="message" size={10} />
-									<span>Chat</span>
-								</button>
-							{/if}
-						{:else}
-							<span class="spec assignee human">
-								<span class="avatar-dot"></span>
-								<span>{editingIssue.assignee}</span>
-							</span>
+					<div class="specs-primary">
+						<span class="spec-status" style="--status-color: {column.accent}">
+							<Icon name={column.icon} size={9} />
+							<span>{column.label}</span>
+						</span>
+						<span class="spec-priority" style="--c: {priority.color}">
+							<span class="priority-dot"></span>
+							<span>{priority.label}</span>
+						</span>
+						<span class="spec-type">
+							<Icon name={getTypeIcon(editingIssue.issue_type)} size={9} />
+							<span>{editingIssue.issue_type}</span>
+						</span>
+					</div>
+					<div class="specs-secondary">
+						{#if editingIssue.created_at}
+							{@const ts = formatTimestamp(editingIssue.created_at)}
+							<span class="spec-time" title="{ts.absolute}">{ts.relative}</span>
 						{/if}
-					{/if}
+						{#if editingIssue.assignee}
+							{#if isAgentAssignee}
+								<span class="spec-agent" class:working={editingIssue.status === 'in_progress'}>
+									<Icon name="agent" size={10} />
+									<span>{editingIssue.assignee}</span>
+									{#if editingIssue.status === 'in_progress'}
+										<span class="working-dot"></span>
+									{/if}
+								</span>
+								{#if activeAgentPane() && onviewchat}
+									<button class="chat-link" onclick={() => onviewchat(activeAgentPane()!)} title="View chat session">
+										<Icon name="message" size={9} />
+										<span>Chat</span>
+									</button>
+								{/if}
+							{:else}
+								<span class="spec-human">
+									<span class="avatar-dot"></span>
+									<span>{editingIssue.assignee}</span>
+								</span>
+							{/if}
+						{/if}
+					</div>
 				</div>
 
 				<!-- Summary callout for completed issues -->
@@ -630,102 +638,121 @@
 	}
 
 	/* ═══════════════════════════════════════════════════════════════
-	   VIEW MODE - SPECS BAR
+	   VIEW MODE - SPECS BAR (Clean, rhythmic layout)
 	   ═══════════════════════════════════════════════════════════════ */
 	.specs-bar {
 		display: flex;
-		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.625rem;
-		padding: 0.5rem 0;
-		margin-bottom: 1rem;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 0.75rem 0;
+		margin-bottom: 1.25rem;
 		border-bottom: 1px solid var(--border-subtle);
 	}
 
-	.spec {
+	.specs-primary {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.specs-secondary {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	/* Shared pill base */
+	.spec-status,
+	.spec-priority,
+	.spec-type {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.3125rem;
+		gap: 4px;
+		padding: 4px 8px;
+		border-radius: 4px;
 		font-family: 'JetBrains Mono', ui-monospace, monospace;
-		font-size: 0.625rem;
-		font-weight: 500;
-		color: var(--text-tertiary);
-		letter-spacing: 0.01em;
-	}
-
-	.spec.priority {
-		color: var(--c);
+		font-size: 9px;
 		font-weight: 600;
-		padding: 0.1875rem 0.5rem 0.1875rem 0.375rem;
-		background: color-mix(in srgb, var(--c) 12%, transparent);
-		border-radius: 5px;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		line-height: 1;
 	}
 
-	.spec-dot {
+	/* Status - solid colored pill */
+	.spec-status {
+		background: var(--status-color);
+		color: white;
+	}
+
+	/* Priority - tinted background with colored text */
+	.spec-priority {
+		background: color-mix(in srgb, var(--c) 12%, transparent);
+		color: var(--c);
+	}
+
+	.priority-dot {
 		width: 5px;
 		height: 5px;
 		border-radius: 50%;
-		background: var(--c);
+		background: currentColor;
+		flex-shrink: 0;
 	}
 
-	.spec.status {
+	/* Type - subtle muted pill */
+	.spec-type {
+		background: var(--bg-tertiary);
+		color: var(--text-secondary);
+	}
+
+	/* Time - minimal text */
+	.spec-time {
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 9px;
+		font-weight: 500;
+		color: var(--text-tertiary);
+		opacity: 0.6;
+	}
+
+	/* Agent assignee */
+	.spec-agent {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 8px;
+		background: rgba(16, 185, 129, 0.1);
+		border-radius: 4px;
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 9px;
 		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.03em;
-		padding: 0.1875rem 0.5rem;
-		background: var(--status-color);
-		color: white;
-		border-radius: 5px;
-		gap: 0.25rem;
+		color: #10b981;
 	}
 
-	.spec.type {
-		text-transform: uppercase;
-		letter-spacing: 0.03em;
-		padding: 0.1875rem 0.4375rem;
+	.spec-agent.working {
+		background: rgba(16, 185, 129, 0.15);
+		box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.2);
+	}
+
+	/* Human assignee */
+	.spec-human {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 8px;
 		background: var(--bg-tertiary);
 		border-radius: 4px;
-	}
-
-	.spec.time {
-		color: var(--text-tertiary);
-		opacity: 0.7;
-	}
-
-	.spec-divider {
-		width: 1px;
-		height: 10px;
-		background: var(--border-subtle);
-		opacity: 0.5;
-	}
-
-	/* Assignee within specs bar */
-	.spec.assignee {
-		gap: 0.375rem;
-		padding: 0.1875rem 0.5rem;
-		border-radius: 5px;
-	}
-
-	.spec.assignee.agent {
-		color: #10b981;
-		background: rgba(16, 185, 129, 0.1);
-	}
-
-	.spec.assignee.agent.working {
-		background: rgba(16, 185, 129, 0.15);
-		box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.25);
-	}
-
-	.spec.assignee.human {
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-size: 9px;
+		font-weight: 500;
 		color: var(--text-secondary);
-		background: var(--bg-tertiary);
 	}
 
 	.avatar-dot {
-		width: 7px;
-		height: 7px;
+		width: 6px;
+		height: 6px;
 		border-radius: 50%;
 		background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+		flex-shrink: 0;
 	}
 
 	/* Chat link - matches ticket-link style with chat accent */
