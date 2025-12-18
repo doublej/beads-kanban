@@ -129,8 +129,34 @@
 			</button>
 		</div>
 
-		<!-- Center: Views, Filters, Activity -->
+		<!-- Center: Search + New -->
 		<div class="toolbar-center">
+			<div class="search-container">
+				<span class="search-icon"><Icon name="search" size={13} /></span>
+				<input
+					type="text"
+					placeholder="Search..."
+					bind:value={searchQuery}
+					class="search-input"
+					onfocus={() => isSearchFocused = true}
+					onblur={() => isSearchFocused = false}
+				/>
+				{#if searchQuery}
+					<button class="search-clear" onclick={() => searchQuery = ''}>×</button>
+				{:else}
+					<kbd class="hotkey-hint">⌘K</kbd>
+				{/if}
+			</div>
+
+			<button class="btn-create" onclick={onopenCreatePanel}>
+				<Icon name="plus" size={13} />
+				<span class="btn-create-text">New</span>
+				<kbd class="create-hotkey">N</kbd>
+			</button>
+		</div>
+
+		<!-- Right: Views, Filters, Chat, Theme, Settings, Help -->
+		<div class="toolbar-right">
 			<!-- View Toggle -->
 			<div class="view-toggle">
 				{#each viewModes as mode}
@@ -266,37 +292,20 @@
 					<span class="toolbar-badge">{agentPaneCount}</span>
 				{/if}
 			</button>
-		</div>
-
-		<!-- Right: Search, Create, Icons -->
-		<div class="toolbar-right">
-			<div class="search-container">
-				<span class="search-icon"><Icon name="search" size={13} /></span>
-				<input
-					type="text"
-					placeholder="Search..."
-					bind:value={searchQuery}
-					class="search-input"
-					onfocus={() => isSearchFocused = true}
-					onblur={() => isSearchFocused = false}
-				/>
-				{#if searchQuery}
-					<button class="search-clear" onclick={() => searchQuery = ''}>×</button>
-				{:else}
-					<kbd class="hotkey-hint">⌘K</kbd>
-				{/if}
-			</div>
-
-			<button class="btn-create" onclick={onopenCreatePanel}>
-				<span class="btn-create-text">New</span>
-				<kbd class="create-hotkey">N</kbd>
-			</button>
 
 			<span class="toolbar-sep"></span>
 
+			<!-- Icon buttons group -->
+			<button class="icon-btn" onclick={ontoggleTheme} aria-label="Toggle theme">
+				{#if isDarkMode}
+					<Icon name="sun" size={14} />
+				{:else}
+					<Icon name="moon" size={14} />
+				{/if}
+			</button>
 			<div class="help-wrapper">
 				<button class="icon-btn" onclick={() => showHelpMenu = !showHelpMenu} aria-label="Help">
-					<Icon name="help" size={15} />
+					<Icon name="help" size={14} />
 				</button>
 				{#if showHelpMenu}
 					<div class="dropdown-menu" role="menu">
@@ -316,15 +325,8 @@
 					</div>
 				{/if}
 			</div>
-			<button class="icon-btn" onclick={ontoggleTheme} aria-label="Toggle theme">
-				{#if isDarkMode}
-					<Icon name="sun" size={15} />
-				{:else}
-					<Icon name="moon" size={15} />
-				{/if}
-			</button>
 			<button class="icon-btn" onclick={onopenSettings} aria-label="Settings">
-				<Icon name="settings" size={15} />
+				<Icon name="settings" size={14} />
 			</button>
 		</div>
 	</div>
@@ -352,7 +354,9 @@
 	.toolbar-center {
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
+		justify-content: center;
+		gap: 0.5rem;
+		flex: 1;
 	}
 
 	.toolbar-right {
@@ -360,6 +364,13 @@
 		align-items: center;
 		gap: 0.375rem;
 		flex-shrink: 0;
+	}
+
+	/* Icon buttons group for theme, help, settings */
+	.icon-group {
+		display: flex;
+		align-items: center;
+		gap: 0.125rem;
 	}
 
 	.toolbar-sep {
@@ -585,196 +596,91 @@
 	}
 
 	.btn-create {
-		position: relative;
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
-		height: 2.125rem;
-		padding: 0 0.875rem;
-		background:
-			linear-gradient(180deg,
-				rgba(255, 255, 255, 0.18) 0%,
-				rgba(255, 255, 255, 0.05) 50%,
-				transparent 50%,
-				rgba(0, 0, 0, 0.05) 100%
-			),
-			linear-gradient(180deg, #4a9fff 0%, #3b82f6 40%, #2563eb 100%);
+		gap: 0.25rem;
+		height: 1.625rem;
+		padding: 0 0.5rem;
+		background: rgba(59, 130, 246, 0.15);
 		border: none;
-		border-radius: 0.5rem;
+		border-radius: 0.375rem;
 		font-family: inherit;
-		font-size: 0.8125rem;
+		font-size: 0.6875rem;
 		font-weight: 500;
+		color: #60a5fa;
 		cursor: pointer;
 		transition: all var(--transition-fast);
 		white-space: nowrap;
-		box-shadow:
-			/* outer glow */
-			0 0 12px rgba(59, 130, 246, 0.25),
-			/* bottom edge */
-			0 2px 0 #1e40af,
-			0 3px 3px rgba(30, 64, 175, 0.4),
-			/* specular top highlight */
-			inset 0 1px 0 rgba(255, 255, 255, 0.35),
-			/* inner top glow */
-			inset 0 0 8px rgba(255, 255, 255, 0.1),
-			/* bottom inner shadow for depth */
-			inset 0 -1px 1px rgba(0, 0, 0, 0.1);
-		backdrop-filter: saturate(120%);
 	}
 
-	/* Gradient border via pseudo-element */
-	.btn-create::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		border-radius: inherit;
-		padding: 0.5px;
-		background: linear-gradient(
-			180deg,
-			rgba(255, 255, 255, 0.5) 0%,
-			rgba(255, 255, 255, 0.15) 50%,
-			rgba(0, 0, 0, 0.1) 100%
-		);
-		-webkit-mask:
-			linear-gradient(#fff 0 0) content-box,
-			linear-gradient(#fff 0 0);
-		mask:
-			linear-gradient(#fff 0 0) content-box,
-			linear-gradient(#fff 0 0);
-		-webkit-mask-composite: xor;
-		mask-composite: exclude;
-		pointer-events: none;
+	.btn-create :global(svg) {
+		opacity: 0.8;
 	}
 
 	.btn-create:hover {
-		background:
-			linear-gradient(180deg,
-				rgba(255, 255, 255, 0.25) 0%,
-				rgba(255, 255, 255, 0.08) 50%,
-				transparent 50%,
-				rgba(0, 0, 0, 0.03) 100%
-			),
-			linear-gradient(180deg, #5ea8ff 0%, #4a90f7 40%, #3b82f6 100%);
-		box-shadow:
-			0 0 16px rgba(59, 130, 246, 0.35),
-			0 2px 0 #1e40af,
-			0 4px 6px rgba(30, 64, 175, 0.35),
-			inset 0 1px 0 rgba(255, 255, 255, 0.4),
-			inset 0 0 12px rgba(255, 255, 255, 0.15),
-			inset 0 -1px 1px rgba(0, 0, 0, 0.08);
+		background: rgba(59, 130, 246, 0.2);
+		color: #93c5fd;
 	}
 
 	.btn-create:active {
-		transform: translateY(1px);
-		background:
-			linear-gradient(180deg,
-				rgba(255, 255, 255, 0.08) 0%,
-				transparent 50%,
-				rgba(0, 0, 0, 0.08) 100%
-			),
-			linear-gradient(180deg, #3b82f6 0%, #2563eb 40%, #1d4ed8 100%);
-		box-shadow:
-			0 0 8px rgba(59, 130, 246, 0.2),
-			0 1px 0 #1e40af,
-			inset 0 1px 2px rgba(0, 0, 0, 0.15),
-			inset 0 0 4px rgba(0, 0, 0, 0.05);
+		background: rgba(59, 130, 246, 0.25);
 	}
 
 	:global(.app.light) .btn-create {
-		background:
-			linear-gradient(180deg,
-				rgba(255, 255, 255, 0.3) 0%,
-				rgba(255, 255, 255, 0.1) 50%,
-				transparent 50%,
-				rgba(0, 0, 0, 0.05) 100%
-			),
-			linear-gradient(180deg, #4a9fff 0%, #3b82f6 40%, #2563eb 100%);
-		box-shadow:
-			0 0 10px rgba(59, 130, 246, 0.2),
-			0 2px 0 #1d4ed8,
-			0 3px 4px rgba(29, 78, 216, 0.25),
-			inset 0 1px 0 rgba(255, 255, 255, 0.45),
-			inset 0 0 8px rgba(255, 255, 255, 0.15),
-			inset 0 -1px 1px rgba(0, 0, 0, 0.08);
+		background: rgba(59, 130, 246, 0.1);
+		color: #2563eb;
 	}
 
 	:global(.app.light) .btn-create:hover {
-		background:
-			linear-gradient(180deg,
-				rgba(255, 255, 255, 0.35) 0%,
-				rgba(255, 255, 255, 0.12) 50%,
-				transparent 50%,
-				rgba(0, 0, 0, 0.03) 100%
-			),
-			linear-gradient(180deg, #5ea8ff 0%, #4a90f7 40%, #3b82f6 100%);
-		box-shadow:
-			0 0 14px rgba(59, 130, 246, 0.3),
-			0 2px 0 #1d4ed8,
-			0 4px 6px rgba(29, 78, 216, 0.2),
-			inset 0 1px 0 rgba(255, 255, 255, 0.5),
-			inset 0 0 12px rgba(255, 255, 255, 0.2),
-			inset 0 -1px 1px rgba(0, 0, 0, 0.06);
-	}
-
-	.btn-create-icon,
-	.btn-create-text {
-		color: rgba(255, 255, 255, 0.75);
-		text-shadow:
-			0 -1px 0 rgba(0, 0, 0, 0.35),
-			0 1px 0 rgba(255, 255, 255, 0.15);
-	}
-
-	.btn-create-icon {
-		font-size: 1rem;
-		line-height: 1;
+		background: rgba(59, 130, 246, 0.15);
+		color: #1d4ed8;
 	}
 
 	.btn-create-text {
-		font-weight: 600;
+		font-weight: 500;
 	}
 
 	.create-hotkey {
 		font-family: ui-monospace, 'SF Mono', monospace;
-		font-size: 0.625rem;
-		font-weight: 600;
-		padding: 0.125rem 0.3rem;
-		background: rgba(0, 0, 0, 0.2);
-		border: 0.5px solid rgba(255, 255, 255, 0.15);
-		border-radius: 3px;
-		margin-left: 0.5rem;
-		color: rgba(255, 255, 255, 0.6);
-		text-shadow: none;
-	}
-
-	:global(.app.light) .create-hotkey {
-		background: rgba(0, 0, 0, 0.12);
-		border-color: rgba(0, 0, 0, 0.15);
-		color: rgba(0, 0, 0, 0.5);
+		font-size: 0.5rem;
+		font-weight: 500;
+		padding: 0.0625rem 0.25rem;
+		background: rgba(59, 130, 246, 0.15);
+		border: none;
+		border-radius: 2px;
+		margin-left: 0.25rem;
+		color: inherit;
+		opacity: 0.7;
 	}
 
 	/* Icon buttons (Help, Theme, Settings) */
 	.icon-btn {
-		width: 2rem;
-		height: 2rem;
+		width: 1.625rem;
+		height: 1.625rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		background: transparent;
 		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: 0.375rem;
 		color: var(--text-tertiary);
 		cursor: pointer;
 		transition: all var(--transition-fast);
 	}
 
 	.icon-btn :global(svg) {
-		width: 1rem;
-		height: 1rem;
+		width: 0.875rem;
+		height: 0.875rem;
+		opacity: 0.7;
 	}
 
 	.icon-btn:hover {
 		background: rgba(255, 255, 255, 0.06);
 		color: var(--text-secondary);
+	}
+
+	.icon-btn:hover :global(svg) {
+		opacity: 1;
 	}
 
 	:global(.app.light) .icon-btn:hover {
@@ -1140,16 +1046,9 @@
 
 		.btn-create {
 			padding: 0;
-			width: 1.75rem;
-			height: 1.75rem;
+			width: 1.5rem;
+			height: 1.5rem;
 			justify-content: center;
-		}
-
-		.btn-create::after {
-			content: '+';
-			font-size: 1rem;
-			font-weight: 500;
-			color: rgba(255, 255, 255, 0.9);
 		}
 
 		.hotkey-hint {
