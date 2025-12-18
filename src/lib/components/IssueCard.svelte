@@ -62,6 +62,7 @@
 	class:has-blockers={hasOpenBlockers}
 	class:filter-dimmed={filterDimmed}
 	class:flying-hidden={flyingHidden}
+	style="--priority-color: {priorityConfig.color}"
 	draggable="true"
 	ondragstart={ondragstart}
 	ondragend={ondragend}
@@ -69,12 +70,10 @@
 	oncontextmenu={oncontextmenu}
 	use:registerCard={issue.id}
 >
-	<div class="card-priority-bar" style="--priority-bar-color: {priorityConfig.color}">
-		<span class="priority-label">{priorityConfig.label}</span>
-	</div>
 	<div class="card-content">
 		<div class="card-header">
 			<span class="card-id-wrap">
+				<span class="priority-dot" title="{priorityConfig.label}"></span>
 				<span class="card-id">{issue.id}</span>
 				<button
 					class="btn-copy"
@@ -202,150 +201,71 @@
 </article>
 
 <style>
-	/* Card */
+	/* Card - Clean, minimal design */
 	.card {
 		position: relative;
 		display: flex;
 		flex-shrink: 0;
 		margin: 2px 4px;
 		background: var(--bg-secondary);
-		border: none;
 		border-radius: var(--radius-md);
-		box-shadow:
-			0 8px 24px -8px rgba(0, 0, 0, 0.12),
-			inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
-			inset 0 1px 0 rgba(255, 255, 255, 0.06);
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 		cursor: pointer;
 		transition:
-			transform 200ms cubic-bezier(0.34, 1.4, 0.64, 1),
-			box-shadow 250ms cubic-bezier(0, 0, 0.2, 1),
-			background 200ms ease-out;
+			transform 180ms ease-out,
+			box-shadow 180ms ease-out,
+			background 150ms ease-out;
 		overflow: hidden;
 	}
 
 	.card:hover {
-		transform: translateY(-2px);
-		box-shadow:
-			0 12px 32px -10px rgba(0, 0, 0, 0.18),
-			inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
-			inset 0 1px 0 rgba(255, 255, 255, 0.08);
+		transform: translateY(-1px);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 	}
 
 	.card:active {
-		transform: translateY(-1px) scale(0.995);
-		transition:
-			transform 100ms cubic-bezier(0.4, 0, 0.2, 1),
-			box-shadow 100ms ease-out;
-	}
-
-	.card-priority-bar {
-		width: 3px;
-		flex-shrink: 0;
-		position: relative;
-		display: flex;
-		align-items: flex-start;
-		background: var(--priority-bar-color);
-	}
-
-	.priority-label {
-		position: absolute;
-		left: 6px;
-		top: 4px;
-		writing-mode: vertical-rl;
-		text-orientation: mixed;
-		font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
-		font-size: 0.4375rem;
-		font-weight: 500;
-		color: var(--priority-bar-color);
-		letter-spacing: 0.02em;
-		text-transform: uppercase;
-		transform: rotate(180deg);
-		white-space: nowrap;
-		opacity: 0;
-		transition: opacity var(--transition-fast);
-	}
-
-	.card:hover .priority-label,
-	.card.selected .priority-label {
-		opacity: 1;
+		transform: translateY(0) scale(0.995);
+		transition: transform 80ms ease-out;
 	}
 
 	.card-content {
 		flex: 1;
-		padding: 0.875rem;
+		padding: 0.75rem 0.875rem;
 		min-width: 0;
 		overflow: hidden;
-		border-radius: 0 var(--radius-md) var(--radius-md) 0;
-	}
-
-	.card::after {
-		content: '';
-		position: absolute;
-		inset: 0;
-		border-radius: inherit;
-		background: linear-gradient(135deg, rgba(255,255,255,0.02) 0%, transparent 50%);
-		pointer-events: none;
-	}
-
-	.card:active {
-		transform: translateY(0);
-		transition: transform 100ms ease-out;
 	}
 
 	.card.selected {
-		box-shadow:
-			0 0 0 2px var(--accent-primary),
-			var(--shadow-md);
+		box-shadow: 0 0 0 1.5px var(--accent-primary), 0 4px 12px rgba(0, 0, 0, 0.1);
 	}
 
 	.card.dragging {
 		opacity: 0.7;
-		transform: rotate(3deg) scale(1.05);
-		box-shadow: var(--shadow-lg);
+		transform: rotate(2deg) scale(1.02);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 		cursor: grabbing;
 	}
 
 	.card.animating {
-		animation: cardPulse 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+		animation: cardPulse 350ms ease-out;
 		z-index: 10;
 	}
 
 	@keyframes cardPulse {
-		0% {
-			box-shadow:
-				0 0 0 2px rgba(16, 185, 129, 0.8),
-				0 0 20px rgba(16, 185, 129, 0.4),
-				0 8px 24px -8px rgba(0, 0, 0, 0.12);
-		}
-		50% {
-			transform: scale(1.01);
-			box-shadow:
-				0 0 0 3px rgba(16, 185, 129, 0.6),
-				0 0 24px rgba(16, 185, 129, 0.3),
-				0 12px 32px -10px rgba(0, 0, 0, 0.18);
-		}
-		100% {
-			transform: scale(1);
-			box-shadow:
-				0 8px 24px -8px rgba(0, 0, 0, 0.12),
-				inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
-				inset 0 1px 0 rgba(255, 255, 255, 0.06);
-		}
+		0% { box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.6), 0 4px 16px rgba(16, 185, 129, 0.2); }
+		100% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
 	}
 
 	.card.editing {
-		box-shadow:
-			0 0 0 1px var(--accent-primary),
-			inset 0 0 0 1px rgba(10, 132, 255, 0.2),
-			var(--shadow-lg);
+		box-shadow: 0 0 0 1.5px var(--accent-primary), 0 4px 16px rgba(10, 132, 255, 0.12);
 		z-index: 5;
 	}
 
 	.card.filter-dimmed {
-		opacity: 0.25;
+		opacity: 0.2;
 		pointer-events: none;
 		transform: scale(0.98);
-		filter: grayscale(0.5);
+		filter: grayscale(0.4);
 	}
 
 	.card.flying-hidden {
@@ -353,8 +273,17 @@
 		pointer-events: none;
 	}
 
-	.card.has-blockers .card-priority-bar {
-		background: linear-gradient(180deg, #ef4444 0%, var(--priority-bar-color, #ef4444) 100%) !important;
+	.card.has-blockers {
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), inset 0 0 0 1px rgba(239, 68, 68, 0.15);
+	}
+
+	/* Priority dot - elegant inline indicator */
+	.priority-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--priority-color);
+		flex-shrink: 0;
 	}
 
 	.card-header {
