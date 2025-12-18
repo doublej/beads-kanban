@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import type { Pane, SdkSessionInfo } from '$lib/wsStore.svelte';
+	import MarkdownContent from './MarkdownContent.svelte';
 
 	interface Props {
 		wsPanes: Map<string, Pane>;
@@ -306,14 +307,19 @@
 								</div>
 							{/if}
 						{:else}
-							<pre class="content">{size === 'large' ? msg.content : msg.content.slice(0, 3000)}{size !== 'large' && msg.content.length > 3000 ? '…' : ''}</pre>
+							<div class="content">
+								<MarkdownContent content={msg.content} maxLength={size === 'large' ? undefined : 3000} />
+							</div>
 						{/if}
 					</div>
 				{/each}
 				{#if pane.currentDelta}
 					<div class="msg assistant streaming">
 						<span class="role-tag">&lt;</span>
-						<pre class="content">{size === 'large' ? pane.currentDelta : pane.currentDelta.slice(-500)}<span class="cursor"></span></pre>
+						<div class="content streaming-content">
+							<MarkdownContent content={size === 'large' ? pane.currentDelta : pane.currentDelta.slice(-500)} />
+							<span class="cursor"></span>
+						</div>
 					</div>
 				{/if}
 				{#if pane.messages.length === 0 && !pane.currentDelta}
@@ -1024,9 +1030,14 @@
 		flex: 1;
 		margin: 0;
 		color: var(--text-primary);
-		white-space: pre-wrap;
 		word-break: break-word;
 		font: inherit;
+	}
+
+	.streaming-content {
+		display: flex;
+		align-items: flex-end;
+		gap: 2px;
 	}
 
 	.cursor {

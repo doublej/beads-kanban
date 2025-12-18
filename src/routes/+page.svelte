@@ -142,6 +142,9 @@
 	let agentFirstMessage = $state('You are an agent named "{name}". Await further instructions.');
 	let agentSystemPrompt = $state('');
 	let agentToolsExpanded = $state(false);
+	let agentMenuOpen = $state(false);
+	let agentNameInputOpen = $state(false);
+	let agentNameInputRef = $state<HTMLInputElement | null>(null);
 	let teleports = $state<{id: string; from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; startTime: number}[]>([]);
 	let placeholders = $state<{id: string; targetColumn: string; height: number}[]>([]);
 	let cardRefs = $state<Map<string, HTMLElement>>(new Map());
@@ -1668,103 +1671,101 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 {#if wsConnected}
 <div class="agent-bar" class:has-panes={wsPanes.size > 0}>
 	<div class="agent-bar-inner">
-		<form class="agent-add-form" onsubmit={(e) => {
-			e.preventDefault();
-			const name = newPaneName.trim();
-			if (!name) return;
-			const persistedId = getPersistedSdkSessionId(name);
-			if (persistedId) {
-				resumePrompt = { name, sessionId: persistedId };
-			} else {
-				addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt);
-				expandedPanes.add(name);
-				expandedPanes = new Set(expandedPanes);
-			}
-			newPaneName = '';
-		}}>
-			<input type="text" bind:value={newPaneName} placeholder="+ agent" class="agent-add-input" />
-		</form>
-		<div class="session-picker-container">
-			<button class="session-picker-btn" onclick={async () => {
-				if (!showSessionPicker) {
-					sessionSearchQuery = '';
-					loadingSdkSessions = true;
-					sdkSessions = await fetchSdkSessions(currentProjectPath);
-					loadingSdkSessions = false;
-				}
-				showSessionPicker = !showSessionPicker;
-			}} title="Saved sessions">
-				⟳
+		<!-- Agent launcher button with dropdown menu -->
+		<div class="agent-launcher">
+			<button
+				class="launcher-btn"
+				class:active={agentMenuOpen}
+				onclick={() => agentMenuOpen = !agentMenuOpen}
+			>
+				<svg class="launcher-icon" viewBox="0 0 16 16" width="14" height="14">
+					<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/>
+					<path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+				</svg>
+				<span class="launcher-label">Agent</span>
+				<svg class="launcher-caret" class:open={agentMenuOpen} viewBox="0 0 8 8" width="8" height="8">
+					<path d="M2 3l2 2 2-2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+				</svg>
 			</button>
-			{#if showSessionPicker}
-				<div class="session-picker-dropdown">
-					<div class="session-picker-header">
-						<input
-							type="text"
-							class="session-search-input"
-							placeholder="Search sessions..."
-							bind:value={sessionSearchQuery}
-							onclick={(e) => e.stopPropagation()}
-						/>
-						<span class="session-picker-count">{searchedSessions().length}/{filteredSessions.length}</span>
-					</div>
-					{#if loadingSdkSessions}
-						<div class="session-picker-empty">
-							<span class="spinner"></span>
-							Loading sessions...
-						</div>
-					{:else if filteredSessions.length === 0}
-						<div class="session-picker-empty">No saved sessions found</div>
-					{:else if searchedSessions().length === 0}
-						<div class="session-picker-empty">No matches for "{sessionSearchQuery}"</div>
-					{:else}
-						<div class="session-picker-list">
-							{#each searchedSessions() as session}
-								{@const timeAgo = (() => {
-									const diff = Date.now() - new Date(session.timestamp).getTime();
-									const mins = Math.floor(diff / 60000);
-									const hours = Math.floor(diff / 3600000);
-									const days = Math.floor(diff / 86400000);
-									if (mins < 60) return `${mins}m`;
-									if (hours < 24) return `${hours}h`;
-									if (days < 7) return `${days}d`;
-									return new Date(session.timestamp).toLocaleDateString('en', { month: 'short', day: 'numeric' });
-								})()}
-								<button class="session-card" onclick={() => {
-									const name = session.agentName || session.sessionId.slice(0, 8);
-									addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, session.sessionId);
-									expandedPanes.add(name);
-									expandedPanes = new Set(expandedPanes);
-									showSessionPicker = false;
-								}}>
-									<div class="session-card-header">
-										<span class="session-card-name">{session.agentName || 'unnamed'}</span>
-										<span class="session-card-time">{timeAgo}</span>
-									</div>
-									{#if session.summary}
-										<div class="session-card-summary">{session.summary}</div>
-									{/if}
-									<div class="session-card-transcript">
-										{#each session.preview.slice(0, 8) as line, i}
-											<div class="transcript-line" class:assistant={line.startsWith('>')}>{line}</div>
-										{/each}
-										{#if session.preview.length === 0}
-											<div class="transcript-line empty">No conversation</div>
-										{/if}
-									</div>
-									<div class="session-card-footer">
-										<span class="session-card-id">{session.sessionId.slice(0, 8)}</span>
-									</div>
-								</button>
-							{/each}
-						</div>
-					{/if}
+
+			{#if agentMenuOpen}
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div class="launcher-backdrop" onclick={() => agentMenuOpen = false}></div>
+				<div class="launcher-menu">
+					<button class="launcher-option" onclick={() => { agentMenuOpen = false; agentNameInputOpen = true; setTimeout(() => agentNameInputRef?.focus(), 50); }}>
+						<svg viewBox="0 0 16 16" width="14" height="14">
+							<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.2"/>
+							<path d="M8 5.5v5M5.5 8h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+						</svg>
+						<span class="option-label">New Agent</span>
+						<span class="option-hint">Create fresh</span>
+					</button>
+					<button class="launcher-option" onclick={async () => {
+						agentMenuOpen = false;
+						sessionSearchQuery = '';
+						loadingSdkSessions = true;
+						showSessionPicker = true;
+						sdkSessions = await fetchSdkSessions(currentProjectPath);
+						loadingSdkSessions = false;
+					}}>
+						<svg viewBox="0 0 16 16" width="14" height="14">
+							<path d="M3 8a5 5 0 019-2M13 8a5 5 0 01-9 2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+							<path d="M12 3v3h-3M4 13v-3h3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+						</svg>
+						<span class="option-label">Load Session</span>
+						<span class="option-hint">{filteredSessions.length} saved</span>
+					</button>
 				</div>
 			{/if}
 		</div>
+
+		<!-- Name input (appears after clicking New Agent) -->
+		{#if agentNameInputOpen}
+			<form class="agent-name-form" onsubmit={(e) => {
+				e.preventDefault();
+				const name = newPaneName.trim();
+				if (!name) return;
+				const persistedId = getPersistedSdkSessionId(name);
+				if (persistedId) {
+					resumePrompt = { name, sessionId: persistedId };
+				} else {
+					addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt);
+					expandedPanes.add(name);
+					expandedPanes = new Set(expandedPanes);
+				}
+				newPaneName = '';
+				agentNameInputOpen = false;
+			}}>
+				<input
+					type="text"
+					bind:this={agentNameInputRef}
+					bind:value={newPaneName}
+					placeholder="agent name"
+					class="agent-name-input"
+					onblur={() => { if (!newPaneName.trim()) setTimeout(() => agentNameInputOpen = false, 150); }}
+					onkeydown={(e) => { if (e.key === 'Escape') { newPaneName = ''; agentNameInputOpen = false; } }}
+				/>
+				<button type="submit" class="agent-name-submit" disabled={!newPaneName.trim()}>
+					<svg viewBox="0 0 16 16" width="12" height="12">
+						<path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+					</svg>
+				</button>
+				<button type="button" class="agent-name-cancel" onclick={() => { newPaneName = ''; agentNameInputOpen = false; }}>
+					<svg viewBox="0 0 16 16" width="10" height="10">
+						<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+					</svg>
+				</button>
+			</form>
+		{/if}
+
+		<!-- Resume prompt -->
 		{#if resumePrompt}
 			<div class="resume-prompt">
-				<span class="resume-text">Resume "{resumePrompt.name}"?</span>
+				<svg viewBox="0 0 16 16" width="12" height="12" class="resume-icon">
+					<path d="M3 8a5 5 0 019-2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+					<path d="M12 3v3h-3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+				</svg>
+				<span class="resume-text">Resume <strong>{resumePrompt.name}</strong>?</span>
 				<button class="resume-btn yes" onclick={() => {
 					if (resumePrompt) {
 						addPane(resumePrompt.name, currentProjectPath, agentFirstMessage, agentSystemPrompt, resumePrompt.sessionId);
@@ -1772,7 +1773,12 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 						expandedPanes = new Set(expandedPanes);
 						resumePrompt = null;
 					}
-				}}>Yes</button>
+				}}>
+					<svg viewBox="0 0 12 12" width="10" height="10">
+						<path d="M2 6l3 3 5-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+					</svg>
+					Resume
+				</button>
 				<button class="resume-btn no" onclick={() => {
 					if (resumePrompt) {
 						addPane(resumePrompt.name, currentProjectPath, agentFirstMessage, agentSystemPrompt);
@@ -1780,10 +1786,21 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 						expandedPanes = new Set(expandedPanes);
 						resumePrompt = null;
 					}
-				}}>Fresh</button>
-				<button class="resume-btn cancel" onclick={() => { resumePrompt = null; }}>×</button>
+				}}>
+					<svg viewBox="0 0 12 12" width="10" height="10">
+						<circle cx="6" cy="6" r="4" fill="none" stroke="currentColor" stroke-width="1.2"/>
+						<path d="M6 4v4M4 6h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+					</svg>
+					Fresh
+				</button>
+				<button class="resume-btn cancel" onclick={() => { resumePrompt = null; }}>
+					<svg viewBox="0 0 12 12" width="10" height="10">
+						<path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+					</svg>
+				</button>
 			</div>
 		{/if}
+
 		<div class="agent-tabs">
 			{#each [...wsPanes.values()] as pane}
 				{@const unread = getUnreadCount(pane.name)}
