@@ -2241,22 +2241,26 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 
 	@keyframes wipeUp {
 		from {
-			clip-path: inset(0 0 0 0);
+			-webkit-mask-image: linear-gradient(to top, black 0%, black 100%);
+			mask-image: linear-gradient(to top, black 0%, black 100%);
 			opacity: 1;
 		}
 		to {
-			clip-path: inset(0 0 100% 0);
-			opacity: 0.5;
+			-webkit-mask-image: linear-gradient(to top, transparent 0%, transparent 70%, black 100%);
+			mask-image: linear-gradient(to top, transparent 0%, transparent 70%, black 100%);
+			opacity: 0;
 		}
 	}
 
 	@keyframes wipeDown {
 		from {
-			clip-path: inset(100% 0 0 0);
-			opacity: 0.5;
+			-webkit-mask-image: linear-gradient(to bottom, transparent 0%, transparent 70%, black 100%);
+			mask-image: linear-gradient(to bottom, transparent 0%, transparent 70%, black 100%);
+			opacity: 0;
 		}
 		to {
-			clip-path: inset(0 0 0 0);
+			-webkit-mask-image: linear-gradient(to bottom, black 0%, black 100%);
+			mask-image: linear-gradient(to bottom, black 0%, black 100%);
 			opacity: 1;
 		}
 	}
