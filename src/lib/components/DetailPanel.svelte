@@ -1,11 +1,16 @@
 <script lang="ts">
 	import type { Issue, Comment } from '$lib/types';
-	import { getPriorityConfig, getTypeIcon, getDepTypeConfig, formatDate, getIssueColumn, columns } from '$lib/utils';
+	import { getPriorityConfig, getTypeIcon, getDepTypeConfig, formatTimestamp, formatDuration, getIssueColumn, columns } from '$lib/utils';
+	import Icon from './Icon.svelte';
+	import IssueSearch from './IssueSearch.svelte';
+
+	let isEditMode = $state(false);
 
 	interface Props {
 		editingIssue: Issue | null;
 		isCreating: boolean;
-		createForm: { title: string; description: string; priority: number; issue_type: string };
+		createForm: { title: string; description: string; priority: number; issue_type: string; deps?: string[] };
+		allIssues?: Issue[];
 		comments: Comment[];
 		copiedId: string | null;
 		newLabelInput: string;
@@ -14,6 +19,7 @@
 		originalLabels: string[];
 		isPanelDragging: boolean;
 		panelDragOffset: number;
+		issueClosedExternally?: boolean;
 		onclose: () => void;
 		oncreate: () => void;
 		ondelete: (id: string) => void;
@@ -30,12 +36,14 @@
 		updatecreateform: (key: string, value: any) => void;
 		updatenewlabel: (value: string) => void;
 		updatenewcomment: (value: string) => void;
+		ondismissclosedwarning?: () => void;
 	}
 
 	let {
 		editingIssue = $bindable(),
 		isCreating,
 		createForm = $bindable(),
+		allIssues = [],
 		comments,
 		copiedId,
 		newLabelInput = $bindable(),
@@ -44,6 +52,7 @@
 		originalLabels,
 		isPanelDragging,
 		panelDragOffset,
+		issueClosedExternally = false,
 		onclose,
 		oncreate,
 		ondelete,
@@ -59,8 +68,25 @@
 		onpaneltouchend,
 		updatecreateform,
 		updatenewlabel,
-		updatenewcomment
+		updatenewcomment,
+		ondismissclosedwarning
 	}: Props = $props();
+
+	function addDepToCreate(issue: Issue) {
+		const deps = createForm.deps || [];
+		if (!deps.includes(issue.id)) {
+			updatecreateform('deps', [...deps, issue.id]);
+		}
+	}
+
+	function removeDepFromCreate(issueId: string) {
+		const deps = createForm.deps || [];
+		updatecreateform('deps', deps.filter((id: string) => id !== issueId));
+	}
+
+	function getIssueById(id: string): Issue | undefined {
+		return allIssues.find(i => i.id === id);
+	}
 </script>
 
 <aside
@@ -76,9 +102,7 @@
 		<div class="panel-header">
 			<h2>New Issue</h2>
 			<button class="panel-close" onclick={onclose} aria-label="Close panel">
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M18 6L6 18M6 6l12 12"/>
-				</svg>
+				<Icon name="close" size={16} />
 				<kbd class="hotkey-hint hotkey-hint-close">esc</kbd>
 			</button>
 		</div>
@@ -129,17 +153,41 @@
 							class:selected={createForm.issue_type === t}
 							onclick={() => updatecreateform('issue_type', t)}
 						>
-							<span class="type-icon">{getTypeIcon(t)}</span>
+							<span class="type-icon"><Icon name={getTypeIcon(t)} size={12} /></span>
 							{t}
 						</button>
 					{/each}
 				</div>
 			</div>
+			<div class="form-group">
+				<label>Blocked By</label>
+				<IssueSearch
+					issues={allIssues}
+					excludeIds={createForm.deps || []}
+					placeholder="Search issues to link..."
+					onselect={addDepToCreate}
+				/>
+				{#if createForm.deps && createForm.deps.length > 0}
+					<div class="selected-deps">
+						{#each createForm.deps as depId}
+							{@const depIssue = getIssueById(depId)}
+							{#if depIssue}
+								<div class="selected-dep">
+									<span class="dep-link-icon">←</span>
+									<span class="dep-id">{depIssue.id}</span>
+									<span class="dep-title">{depIssue.title}</span>
+									<button class="dep-remove" onclick={() => removeDepFromCreate(depId)}>×</button>
+								</div>
+							{/if}
+						{/each}
+					</div>
+				{/if}
+			</div>
 		</div>
 		<div class="panel-footer">
 			<button class="btn-secondary" onclick={onclose}>Cancel <kbd class="btn-hotkey-subtle">Esc</kbd></button>
 			<button class="btn-create" onclick={oncreate}>
-				<span class="btn-create-icon">+</span>
+				<span class="btn-create-icon"><Icon name="plus" size={16} strokeWidth={2.5} /></span>
 				Create Issue
 				<kbd class="btn-hotkey">⌘↵</kbd>
 			</button>
@@ -157,66 +205,160 @@
 						aria-label="Copy ID"
 					>
 						{#if copiedId === `panel-${editingIssue.id}`}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+							<Icon name="check" size={12} />
 						{:else}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+							<Icon name="copy" size={12} />
 						{/if}
 					</button>
 				</span>
 				<div class="panel-status-bar" style="background: {priorityConfig.color}"></div>
 			</div>
-			<button class="panel-close" onclick={onclose} aria-label="Close panel">
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M18 6L6 18M6 6l12 12"/>
-				</svg>
-				<kbd class="hotkey-hint hotkey-hint-close">esc</kbd>
-			</button>
-		</div>
-		<div class="panel-body">
-			<div class="form-group">
-				<label for="edit-title">Title</label>
-				<input id="edit-title" type="text" bind:value={editingIssue.title} />
-			</div>
-			<div class="form-group">
-				<label for="edit-desc" class="label-with-action">
-					Description
-					{#if editingIssue.description}
-						<button
-							class="btn-copy-inline"
-							class:copied={copiedId === `desc-${editingIssue.id}`}
-							onclick={() => oncopyid(editingIssue.description, `desc-${editingIssue.id}`)}
-							aria-label="Copy description"
-						>
-							{#if copiedId === `desc-${editingIssue.id}`}
-								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-								copied
-							{:else}
-								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-								copy
-							{/if}
-						</button>
+			<div class="panel-header-actions">
+				<button
+					class="panel-mode-toggle"
+					class:active={isEditMode}
+					onclick={() => isEditMode = !isEditMode}
+					aria-label={isEditMode ? 'Switch to view mode' : 'Switch to edit mode'}
+				>
+					{#if isEditMode}
+						<Icon name="circle" size={14} />
+					{:else}
+						<Icon name="edit" size={14} />
 					{/if}
-				</label>
-				<textarea id="edit-desc" bind:value={editingIssue.description} rows="6"></textarea>
+				</button>
+				<button class="panel-close" onclick={onclose} aria-label="Close panel">
+					<Icon name="close" size={16} />
+					<kbd class="hotkey-hint hotkey-hint-close">esc</kbd>
+				</button>
 			</div>
-			<div class="form-group">
-				<label>Status</label>
-				<div class="status-options">
-					{#each columns as col}
-						<button
-							type="button"
-							class="status-option"
-							class:selected={getIssueColumn(editingIssue).key === col.key}
-							style="--status-color: {col.accent}"
-							onclick={() => onsetcolumn(col.key)}
-						>
-							<span class="status-icon">{col.icon}</span>
-							{col.label}
-						</button>
-					{/each}
+		</div>
+		{#if issueClosedExternally}
+			<div class="closed-warning">
+				<span class="closed-warning-icon"><Icon name="alert-circle" size={14} /></span>
+				<span class="closed-warning-text">This issue was closed</span>
+				<button class="closed-warning-dismiss" onclick={ondismissclosedwarning}><Icon name="close" size={14} /></button>
+			</div>
+		{/if}
+		<div class="panel-body">
+			{#if !isEditMode}
+				<!-- View Mode: Content focused -->
+				{@const currentColumn = getIssueColumn(editingIssue)}
+				<div class="view-header">
+					<h2 class="view-title">{editingIssue.title}</h2>
+					<div class="view-meta">
+						<span class="view-status" style="--status-color: {currentColumn.accent}">
+							<span class="status-icon"><Icon name={currentColumn.icon} size={10} /></span>
+							{currentColumn.label}
+						</span>
+						<span class="view-priority" style="--priority-color: {priorityConfig.color}">
+							<span class="priority-dot"></span>
+							{priorityConfig.label}
+						</span>
+						<span class="view-type">
+							<Icon name={getTypeIcon(editingIssue.issue_type)} size={12} />
+							{editingIssue.issue_type}
+						</span>
+					</div>
+					{#if editingIssue.created_at}
+						{@const created = formatTimestamp(editingIssue.created_at)}
+						{@const updated = editingIssue.updated_at ? formatTimestamp(editingIssue.updated_at) : null}
+						{@const closed = editingIssue.closed_at ? formatTimestamp(editingIssue.closed_at) : null}
+						{@const duration = editingIssue.closed_at ? formatDuration(editingIssue.created_at, editingIssue.closed_at) : null}
+						<div class="view-timestamps">
+							<span class="timestamp-item">
+								<span class="timestamp-label">Created</span>
+								<span class="timestamp-value">{created.absolute} at {created.time}</span>
+								<span class="timestamp-relative">{created.relative}</span>
+							</span>
+							{#if updated && updated.absolute !== created.absolute}
+								<span class="timestamp-item">
+									<span class="timestamp-label">Updated</span>
+									<span class="timestamp-value">{updated.absolute} at {updated.time}</span>
+									<span class="timestamp-relative">{updated.relative}</span>
+								</span>
+							{/if}
+							{#if closed}
+								<span class="timestamp-item closed">
+									<span class="timestamp-label">Closed</span>
+									<span class="timestamp-value">{closed.absolute} at {closed.time}</span>
+									<span class="timestamp-relative">{duration}</span>
+								</span>
+							{/if}
+						</div>
+					{/if}
 				</div>
-			</div>
-			<div class="form-group">
+				{#if editingIssue.description}
+					<div class="view-section">
+						<div class="view-section-header">
+							<span class="view-section-label">Description</span>
+							<button
+								class="btn-copy-inline"
+								class:copied={copiedId === `desc-${editingIssue.id}`}
+								onclick={() => oncopyid(editingIssue.description, `desc-${editingIssue.id}`)}
+							>
+								{#if copiedId === `desc-${editingIssue.id}`}
+									<Icon name="check" size={10} />
+								{:else}
+									<Icon name="copy" size={10} />
+								{/if}
+							</button>
+						</div>
+						<div class="view-content">{editingIssue.description}</div>
+					</div>
+				{/if}
+				{#if editingIssue.design}
+					<div class="view-section">
+						<span class="view-section-label">Design Notes</span>
+						<div class="view-content">{editingIssue.design}</div>
+					</div>
+				{/if}
+				{#if editingIssue.acceptance_criteria}
+					<div class="view-section">
+						<span class="view-section-label">Acceptance Criteria</span>
+						<div class="view-content">{editingIssue.acceptance_criteria}</div>
+					</div>
+				{/if}
+				{#if editingIssue.notes}
+					<div class="view-section">
+						<span class="view-section-label">Implementation Notes</span>
+						<div class="view-content">{editingIssue.notes}</div>
+					</div>
+				{/if}
+				{#if editingIssue.labels && editingIssue.labels.length > 0}
+					<div class="view-labels">
+						{#each editingIssue.labels as label}
+							<span class="label-chip view-label">{label}</span>
+						{/each}
+					</div>
+				{/if}
+			{:else}
+				<!-- Edit Mode: Full form fields -->
+				<div class="form-group">
+					<label for="edit-title">Title</label>
+					<input id="edit-title" type="text" bind:value={editingIssue.title} />
+				</div>
+				<div class="form-group">
+					<label for="edit-desc">Description</label>
+					<textarea id="edit-desc" bind:value={editingIssue.description} rows="6"></textarea>
+				</div>
+				<div class="form-group">
+					<label>Status</label>
+					<div class="status-options">
+						{#each columns as col}
+							<button
+								type="button"
+								class="status-option"
+								class:selected={getIssueColumn(editingIssue).key === col.key}
+								style="--status-color: {col.accent}"
+								onclick={() => onsetcolumn(col.key)}
+							>
+								<span class="status-icon"><Icon name={col.icon} size={11} /></span>
+								{col.label}
+							</button>
+						{/each}
+					</div>
+				</div>
+				<div class="form-group">
 				<label>Priority</label>
 				<div class="priority-options">
 					{#each [0, 1, 2, 3, 4] as p}
@@ -244,7 +386,7 @@
 							class:selected={editingIssue.issue_type === t}
 							onclick={() => editingIssue.issue_type = t}
 						>
-							<span class="type-icon">{getTypeIcon(t)}</span>
+							<span class="type-icon"><Icon name={getTypeIcon(t)} size={12} /></span>
 							{t}
 						</button>
 					{/each}
@@ -281,19 +423,19 @@
 				<div class="add-sections">
 					{#if !editingIssue.design && !editingIssue._showDesign}
 						<button class="btn-add-section" onclick={() => editingIssue._showDesign = true}>
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+							<Icon name="plus" size={12} />
 							Design
 						</button>
 					{/if}
 					{#if !editingIssue.acceptance_criteria && !editingIssue._showAcceptance}
 						<button class="btn-add-section" onclick={() => editingIssue._showAcceptance = true}>
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+							<Icon name="plus" size={12} />
 							Acceptance
 						</button>
 					{/if}
 					{#if !editingIssue.notes && !editingIssue._showNotes}
 						<button class="btn-add-section" onclick={() => editingIssue._showNotes = true}>
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+							<Icon name="plus" size={12} />
 							Notes
 						</button>
 					{/if}
@@ -331,7 +473,7 @@
 						{#each editingIssue.dependencies as dep}
 							{@const depConfig = getDepTypeConfig(dep.dependency_type)}
 							<div class="dep-item blocked-by">
-								<span class="dep-type-badge" style="background: {depConfig.color}20; color: {depConfig.color}" title="{depConfig.label}">{depConfig.icon}</span>
+								<span class="dep-type-badge" style="background: {depConfig.color}20; color: {depConfig.color}" title="{depConfig.label}"><Icon name={depConfig.icon} size={10} /></span>
 								<span class="dep-status" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:closed={dep.status === 'closed'}></span>
 								<span class="dep-id">{dep.id}</span>
 								<span class="dep-title">{dep.title}</span>
@@ -348,7 +490,7 @@
 						{#each editingIssue.dependents as dep}
 							{@const depConfig = getDepTypeConfig(dep.dependency_type)}
 							<div class="dep-item blocking">
-								<span class="dep-type-badge" style="background: {depConfig.color}20; color: {depConfig.color}" title="{depConfig.label}">{depConfig.icon}</span>
+								<span class="dep-type-badge" style="background: {depConfig.color}20; color: {depConfig.color}" title="{depConfig.label}"><Icon name={depConfig.icon} size={10} /></span>
 								<span class="dep-status" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:closed={dep.status === 'closed'}></span>
 								<span class="dep-id">{dep.id}</span>
 								<span class="dep-title">{dep.title}</span>
@@ -358,16 +500,19 @@
 					</div>
 				</div>
 			{/if}
+			{/if}
+			<!-- Comments section visible in both modes -->
 			<div class="form-group">
 				<label>Comments {#if loadingComments}<span class="loading-indicator">...</span>{/if}</label>
 				<div class="comments-section">
 					{#if comments.length > 0}
 						<div class="comments-list">
 							{#each comments as comment}
+								{@const commentTs = formatTimestamp(comment.created_at)}
 								<div class="comment">
 									<div class="comment-header">
 										<span class="comment-author">{comment.author}</span>
-										<span class="comment-date">{formatDate(comment.created_at)}</span>
+										<span class="comment-date" title="{commentTs.absolute} at {commentTs.time}">{commentTs.relative}</span>
 									</div>
 									<p class="comment-text">{comment.text}</p>
 								</div>
@@ -384,9 +529,7 @@
 							onkeydown={(e) => { if (e.key === 'Enter' && e.metaKey) onaddcomment(); }}
 						></textarea>
 						<button class="btn-comment" onclick={onaddcomment} disabled={!newComment.trim()}>
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-							</svg>
+							<Icon name="send" size={16} />
 						</button>
 					</div>
 				</div>
@@ -394,9 +537,7 @@
 		</div>
 		<div class="panel-footer">
 			<button class="btn-danger" onclick={() => ondelete(editingIssue.id)}>
-				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-				</svg>
+				<Icon name="trash" size={14} />
 				Delete
 			</button>
 			<button class="btn-primary" onclick={() => {
@@ -496,7 +637,7 @@
 		transition: all var(--transition-fast);
 	}
 
-	.btn-copy.panel-copy svg {
+	.btn-copy.panel-copy :global(svg) {
 		width: 0.75rem;
 		height: 0.75rem;
 	}
@@ -529,7 +670,7 @@
 		transition: all var(--transition-fast);
 	}
 
-	.btn-copy-inline svg {
+	.btn-copy-inline :global(svg) {
 		width: 0.625rem;
 		height: 0.625rem;
 	}
@@ -564,7 +705,7 @@
 		position: relative;
 	}
 
-	.panel-close svg {
+	.panel-close :global(svg) {
 		width: 1rem;
 		height: 1rem;
 	}
@@ -579,6 +720,181 @@
 		padding: 1.25rem;
 		overflow-y: auto;
 		overflow-x: hidden;
+	}
+
+	/* View Mode Styles */
+	.view-header {
+		margin-bottom: 1.5rem;
+	}
+
+	.view-title {
+		font-size: 1.25rem;
+		font-weight: 600;
+		color: var(--text-primary);
+		line-height: 1.4;
+		margin-bottom: 0.75rem;
+	}
+
+	.view-meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.view-status,
+	.view-priority,
+	.view-type {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 0.25rem 0.5rem;
+		border-radius: var(--radius-sm);
+		font-size: 0.6875rem;
+		font-weight: 500;
+	}
+
+	.view-status {
+		background: var(--status-color);
+		color: white;
+	}
+
+	.view-priority {
+		background: rgba(var(--priority-color), 0.15);
+		color: var(--priority-color);
+		border: 1px solid var(--priority-color);
+	}
+
+	.view-priority .priority-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--priority-color);
+	}
+
+	.view-type {
+		background: var(--bg-elevated);
+		color: var(--text-secondary);
+		text-transform: capitalize;
+	}
+
+	.view-timestamps {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 1rem;
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
+	.timestamp-item {
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+	}
+
+	.timestamp-label {
+		font-size: 0.625rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-tertiary);
+	}
+
+	.timestamp-value {
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+		font-family: 'JetBrains Mono', ui-monospace, monospace;
+	}
+
+	.timestamp-relative {
+		font-size: 0.6875rem;
+		color: var(--text-tertiary);
+	}
+
+	.timestamp-item.closed .timestamp-label {
+		color: #10b981;
+	}
+
+	.timestamp-item.closed .timestamp-relative {
+		color: #10b981;
+		font-weight: 500;
+	}
+
+	.view-section {
+		margin-bottom: 1.25rem;
+	}
+
+	.view-section-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 0.5rem;
+	}
+
+	.view-section-label {
+		font-size: 0.6875rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-tertiary);
+	}
+
+	.view-content {
+		font-size: 0.875rem;
+		color: var(--text-primary);
+		line-height: 1.6;
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+
+	.view-labels {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.375rem;
+		margin-top: 1rem;
+	}
+
+	.view-label {
+		cursor: default;
+	}
+
+	/* Panel mode toggle button */
+	.panel-header-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.panel-mode-toggle {
+		width: 2rem;
+		height: 2rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
+		color: var(--text-tertiary);
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.panel-mode-toggle:hover {
+		background: var(--bg-elevated);
+		color: var(--text-primary);
+		border-color: var(--border-default);
+	}
+
+	.panel-mode-toggle.active {
+		background: var(--accent-primary);
+		border-color: var(--accent-primary);
+		color: white;
+	}
+
+	.panel-mode-toggle :global(svg) {
+		width: 14px;
+		height: 14px;
 	}
 
 	.panel-footer {
@@ -911,7 +1227,7 @@
 		cursor: not-allowed;
 	}
 
-	.btn-comment svg {
+	.btn-comment :global(svg) {
 		width: 1rem;
 		height: 1rem;
 	}
@@ -978,7 +1294,7 @@
 		transition: all var(--transition-fast);
 	}
 
-	.btn-add-section svg {
+	.btn-add-section :global(svg) {
 		width: 0.75rem;
 		height: 0.75rem;
 	}
@@ -1061,6 +1377,63 @@
 		opacity: 0.8;
 	}
 
+	/* Dependency Search */
+	.selected-deps {
+		display: flex;
+		flex-direction: column;
+		gap: 0.375rem;
+		margin-top: 0.5rem;
+	}
+
+	.selected-dep {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		padding: 0.375rem 0.5rem;
+		background: var(--bg-elevated);
+		border-radius: var(--radius-sm);
+		font-size: 0.75rem;
+	}
+
+	.dep-link-icon {
+		color: #ef4444;
+		font-weight: 600;
+	}
+
+	.dep-id {
+		font-family: 'JetBrains Mono', monospace;
+		font-size: 0.625rem;
+		color: var(--text-tertiary);
+	}
+
+	.dep-title {
+		flex: 1;
+		color: var(--text-secondary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.dep-remove {
+		width: 1.25rem;
+		height: 1.25rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--text-tertiary);
+		font-size: 0.875rem;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.dep-remove:hover {
+		background: rgba(239, 68, 68, 0.2);
+		color: #ef4444;
+	}
+
 	/* Buttons */
 	.btn-secondary,
 	.btn-primary,
@@ -1118,7 +1491,7 @@
 		transform: scale(0.98);
 	}
 
-	.btn-danger svg {
+	.btn-danger :global(svg) {
 		width: 0.875rem;
 		height: 0.875rem;
 	}
@@ -1267,5 +1640,48 @@
 			min-width: 560px;
 			max-width: 560px;
 		}
+	}
+
+	/* Closed warning banner */
+	.closed-warning {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.625rem 1rem;
+		background: rgba(239, 68, 68, 0.15);
+		border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+		color: #fca5a5;
+		font-size: 0.8125rem;
+		animation: warningSlideIn 300ms ease-out;
+	}
+
+	@keyframes warningSlideIn {
+		from { opacity: 0; transform: translateY(-8px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	.closed-warning-icon {
+		font-size: 0.875rem;
+	}
+
+	.closed-warning-text {
+		flex: 1;
+	}
+
+	.closed-warning-dismiss {
+		background: transparent;
+		border: none;
+		color: #fca5a5;
+		font-size: 1rem;
+		cursor: pointer;
+		padding: 0.125rem 0.375rem;
+		border-radius: var(--radius-sm);
+		opacity: 0.7;
+		transition: opacity 150ms ease;
+	}
+
+	.closed-warning-dismiss:hover {
+		opacity: 1;
+		background: rgba(239, 68, 68, 0.2);
 	}
 </style>

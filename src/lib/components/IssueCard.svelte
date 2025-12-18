@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Issue } from '$lib/types';
-	import { getPriorityConfig, getTypeIcon, getDepTypeConfig, formatDate } from '$lib/utils';
+	import { getPriorityConfig, getTypeIcon, getDepTypeConfig, formatTimestamp, formatDuration } from '$lib/utils';
+	import Icon from './Icon.svelte';
 
 	interface Props {
 		issue: Issue;
@@ -60,7 +61,6 @@
 	<div class="card-priority-bar" style="--priority-bar-color: {priorityConfig.color}">
 		<span class="priority-label">{priorityConfig.label}</span>
 	</div>
-	<span class="type-indicator" title={issue.issue_type}>{getTypeIcon(issue.issue_type)} {issue.issue_type}</span>
 	<div class="card-content">
 		<div class="card-header">
 			<span class="card-id-wrap">
@@ -72,23 +72,27 @@
 					aria-label="Copy ID"
 				>
 					{#if copiedId === issue.id}
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+						<Icon name="check" size={10} />
 					{:else}
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+						<Icon name="copy" size={10} />
 					{/if}
 				</button>
 			</span>
 			{#if hasOpenBlockers}
-				<span class="blocked-indicator" title="Blocked by open dependencies">⊘</span>
+				<span class="blocked-indicator" title="Blocked by open dependencies"><Icon name="dep-blocks" size={14} /></span>
+			{/if}
+			{#if (issue.dependencies && issue.dependencies.length > 0) || (issue.dependents && issue.dependents.length > 0)}
+				{@const totalDeps = (issue.dependencies?.length || 0) + (issue.dependents?.length || 0)}
+				<span class="deps-indicator" title="{issue.dependencies?.length || 0} dependencies, {issue.dependents?.length || 0} dependents">
+					<Icon name="link" size={10} />
+					<span class="count">{totalDeps}</span>
+				</span>
 			{/if}
 		</div>
 		{#if issue.status === 'in_progress' && issue.assignee}
 			<div class="agent-chip">
 				<span class="agent-pulse"></span>
-				<svg class="agent-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<circle cx="12" cy="12" r="3"/>
-					<path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-				</svg>
+				<span class="agent-icon"><Icon name="agent" size={14} /></span>
 				<span class="agent-name">{issue.assignee}</span>
 				<span class="agent-status">working</span>
 			</div>
@@ -123,7 +127,7 @@
 						{#each issue.dependencies.slice(0, 3) as dep}
 							{@const depConfig = getDepTypeConfig(dep.dependency_type)}
 							<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
-								<span class="dep-type-indicator" style="color: {depConfig.color}">{depConfig.icon}</span>{dep.id}
+								<span class="dep-type-indicator" style="color: {depConfig.color}"><Icon name={depConfig.icon} size={10} /></span>{dep.id}
 							</span>
 						{/each}
 						{#if issue.dependencies.length > 3}
@@ -137,7 +141,7 @@
 						{#each issue.dependents.slice(0, 3) as dep}
 							{@const depConfig = getDepTypeConfig(dep.dependency_type)}
 							<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
-								<span class="dep-type-indicator" style="color: {depConfig.color}">{depConfig.icon}</span>{dep.id}
+								<span class="dep-type-indicator" style="color: {depConfig.color}"><Icon name={depConfig.icon} size={10} /></span>{dep.id}
 							</span>
 						{/each}
 						{#if issue.dependents.length > 3}
@@ -147,19 +151,23 @@
 				{/if}
 			</div>
 		{/if}
-		{#if issue.created_at}
-			<div class="card-meta">
-				<span class="meta-item" title="Created {new Date(issue.created_at).toLocaleString()}">
-					{formatDate(issue.created_at)}
+		<div class="card-meta">
+			{#if issue.created_at}
+				{@const created = formatTimestamp(issue.created_at)}
+				{@const closed = issue.closed_at ? formatTimestamp(issue.closed_at) : null}
+				{@const duration = issue.closed_at ? formatDuration(issue.created_at, issue.closed_at) : null}
+				<span class="meta-item" title="Created {created.absolute} at {created.time}">
+					{created.relative}
 				</span>
-				{#if issue.closed_at}
-					<span class="meta-separator">→</span>
-					<span class="meta-item closed" title="Closed {new Date(issue.closed_at).toLocaleString()}">
-						{formatDate(issue.closed_at)}
+				{#if closed}
+					<span class="meta-sep">→</span>
+					<span class="meta-item closed" title="Closed {closed.absolute} at {closed.time} ({duration})">
+						{closed.relative}
 					</span>
 				{/if}
-			</div>
-		{/if}
+			{/if}
+			<span class="meta-type"><Icon name={getTypeIcon(issue.issue_type)} size={10} /> {issue.issue_type}</span>
+		</div>
 	</div>
 </article>
 
@@ -174,10 +182,9 @@
 		border: none;
 		border-radius: var(--radius-md);
 		box-shadow:
-			0 4px 12px -2px rgba(0, 0, 0, 0.08),
-			0 2px 6px -1px rgba(0, 0, 0, 0.04),
-			inset 0 1px 0 rgba(255, 255, 255, 0.12),
-			inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+			0 8px 24px -8px rgba(0, 0, 0, 0.12),
+			inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
+			inset 0 1px 0 rgba(255, 255, 255, 0.06);
 		cursor: pointer;
 		transition:
 			transform 200ms cubic-bezier(0.34, 1.4, 0.64, 1),
@@ -187,12 +194,11 @@
 	}
 
 	.card:hover {
-		transform: translateY(-3px) scale(1.005);
+		transform: translateY(-2px);
 		box-shadow:
-			0 8px 20px -4px rgba(0, 0, 0, 0.15),
-			0 4px 10px -2px rgba(0, 0, 0, 0.08),
-			inset 0 1px 0 rgba(255, 255, 255, 0.15),
-			inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+			0 12px 32px -10px rgba(0, 0, 0, 0.18),
+			inset 0 0 0 0.5px rgba(255, 255, 255, 0.12),
+			inset 0 1px 0 rgba(255, 255, 255, 0.08);
 	}
 
 	.card:active {
@@ -234,23 +240,6 @@
 		opacity: 1;
 	}
 
-	.type-indicator {
-		position: absolute;
-		bottom: 0.5rem;
-		right: 0.625rem;
-		font-size: 0.5625rem;
-		font-family: ui-monospace, 'SF Mono', monospace;
-		text-transform: uppercase;
-		letter-spacing: 0.02em;
-		color: var(--text-tertiary);
-		opacity: 0.5;
-		z-index: 1;
-	}
-
-	.card:hover .type-indicator {
-		opacity: 0.8;
-	}
-
 	.card-content {
 		flex: 1;
 		padding: 0.875rem;
@@ -287,8 +276,31 @@
 	}
 
 	.card.animating {
-		animation: cardEnter 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
+		animation: cardPulse 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
 		z-index: 10;
+	}
+
+	@keyframes cardPulse {
+		0% {
+			box-shadow:
+				0 0 0 2px rgba(16, 185, 129, 0.8),
+				0 0 20px rgba(16, 185, 129, 0.4),
+				0 8px 24px -8px rgba(0, 0, 0, 0.12);
+		}
+		50% {
+			transform: scale(1.01);
+			box-shadow:
+				0 0 0 3px rgba(16, 185, 129, 0.6),
+				0 0 24px rgba(16, 185, 129, 0.3),
+				0 12px 32px -10px rgba(0, 0, 0, 0.18);
+		}
+		100% {
+			transform: scale(1);
+			box-shadow:
+				0 8px 24px -8px rgba(0, 0, 0, 0.12),
+				inset 0 0 0 0.5px rgba(255, 255, 255, 0.08),
+				inset 0 1px 0 rgba(255, 255, 255, 0.06);
+		}
 	}
 
 	.card.editing {
@@ -311,10 +323,6 @@
 		pointer-events: none;
 	}
 
-	.card.has-blockers {
-		border-left: 3px solid #ef4444;
-	}
-
 	.card.has-blockers .card-priority-bar {
 		background: linear-gradient(180deg, #ef4444 0%, var(--priority-bar-color, #ef4444) 100%) !important;
 	}
@@ -327,6 +335,29 @@
 		gap: 0.5rem;
 	}
 
+	/* Dependency indicator badge */
+	.deps-indicator {
+		display: flex;
+		align-items: center;
+		gap: 0.125rem;
+		padding: 0.125rem 0.25rem;
+		background: rgba(99, 102, 241, 0.1);
+		border-radius: 3px;
+		font-size: 0.5625rem;
+		color: var(--text-tertiary);
+	}
+
+	.deps-indicator :global(svg) {
+		width: 10px;
+		height: 10px;
+		opacity: 0.7;
+	}
+
+	.deps-indicator .count {
+		font-family: ui-monospace, 'SF Mono', monospace;
+		font-weight: 500;
+	}
+
 	.card-id-wrap {
 		display: inline-flex;
 		align-items: center;
@@ -334,7 +365,7 @@
 	}
 
 	.card-id {
-		font-family: 'JetBrains Mono', monospace;
+		font-family: ui-monospace, 'SF Mono', monospace;
 		font-size: 0.625rem;
 		font-weight: 500;
 		color: var(--text-tertiary);
@@ -342,64 +373,42 @@
 	}
 
 	.btn-copy {
-		width: 1.5rem;
-		height: 1.5rem;
-		min-width: 2.75rem; /* 44px touch target */
-		min-height: 2.75rem;
-		margin: -0.625rem; /* Expand touch area without visual change */
-		padding: 0.625rem;
+		width: 16px;
+		height: 16px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		background: transparent;
 		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: 3px;
 		color: var(--text-tertiary);
 		cursor: pointer;
 		opacity: 0;
-		transition: all var(--transition-fast);
-		padding: 0;
+		transition: opacity 120ms ease, color 120ms ease;
 	}
 
-	.btn-copy svg {
-		width: 0.75rem;
-		height: 0.75rem;
-		transition: transform 150ms ease-out;
+	.btn-copy :global(svg) {
+		width: 10px;
+		height: 10px;
 	}
 
 	.card:hover .btn-copy {
-		opacity: 0.6;
+		opacity: 0.5;
 	}
 
 	.btn-copy:hover {
 		opacity: 1 !important;
 		color: var(--text-secondary);
-		background: var(--bg-elevated);
-	}
-
-	.btn-copy:hover svg {
-		transform: scale(1.1);
-	}
-
-	.btn-copy:active svg {
-		transform: scale(0.9);
 	}
 
 	.btn-copy.copied {
 		opacity: 1 !important;
 		color: #34c759;
-		animation: copySuccess 400ms ease-out;
-	}
-
-	@keyframes copySuccess {
-		0% { transform: scale(1); }
-		50% { transform: scale(1.2); }
-		100% { transform: scale(1); }
 	}
 
 	.blocked-indicator {
+		display: flex;
 		color: #ef4444;
-		font-size: 0.875rem;
 		margin-left: 0.25rem;
 		cursor: help;
 	}
@@ -432,8 +441,7 @@
 	}
 
 	.agent-icon {
-		width: 14px;
-		height: 14px;
+		display: flex;
 		color: #10b981;
 		animation: agent-icon-spin 8s linear infinite;
 		flex-shrink: 0;
@@ -562,7 +570,7 @@
 	}
 
 	.link-id {
-		font-family: 'JetBrains Mono', monospace;
+		font-family: ui-monospace, 'SF Mono', monospace;
 		padding: 0.125rem 0.25rem;
 		background: var(--bg-elevated);
 		border-radius: 3px;
@@ -581,33 +589,39 @@
 	}
 
 	.dep-type-indicator {
-		font-size: 0.625rem;
+		display: inline-flex;
 		margin-right: 0.125rem;
 	}
 
-	/* Card Meta (timestamps) */
+	/* Card Meta (footer row) */
 	.card-meta {
 		display: flex;
 		align-items: center;
-		gap: 0.25rem;
+		gap: 0.375rem;
 		margin-top: 0.5rem;
 		padding-top: 0.5rem;
 		border-top: 1px solid var(--border-subtle);
-		font-size: 0.625rem;
+		font-family: ui-monospace, 'SF Mono', monospace;
+		font-size: 0.5625rem;
 		color: var(--text-tertiary);
 	}
 
 	.meta-item {
-		display: flex;
-		align-items: center;
-		gap: 0.1875rem;
+		letter-spacing: 0.01em;
 	}
 
 	.meta-item.closed {
 		color: #10b981;
 	}
 
-	.meta-separator {
-		opacity: 0.5;
+	.meta-sep {
+		opacity: 0.4;
+	}
+
+	.meta-type {
+		margin-left: auto;
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
+		opacity: 0.6;
 	}
 </style>

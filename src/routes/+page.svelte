@@ -520,6 +520,11 @@
 			const updated = { ...issues[idx], ...updates, updated_at: new Date().toISOString() };
 			issues = [...issues.slice(0, idx), updated, ...issues.slice(idx + 1)];
 		}
+		// Flash animation for feedback
+		animatingIds = new Set([...animatingIds, id]);
+		setTimeout(() => {
+			animatingIds = new Set([...animatingIds].filter(x => x !== id));
+		}, 600);
 		await fetch(`/api/issues/${id}`, {
 			method: 'PATCH',
 			headers: { 'Content-Type': 'application/json' },
@@ -533,9 +538,14 @@
 		// Optimistic update - mark as closed immediately
 		const idx = issues.findIndex(i => i.id === id);
 		if (idx !== -1) {
-			const closed = { ...issues[idx], status: 'closed', updated_at: new Date().toISOString() };
+			const closed = { ...issues[idx], status: 'closed' as const, updated_at: new Date().toISOString() };
 			issues = [...issues.slice(0, idx), closed, ...issues.slice(idx + 1)];
 		}
+		// Flash animation for feedback
+		animatingIds = new Set([...animatingIds, id]);
+		setTimeout(() => {
+			animatingIds = new Set([...animatingIds].filter(x => x !== id));
+		}, 600);
 		if (editingIssue?.id === id) {
 			editingIssue = null;
 		}
@@ -575,7 +585,7 @@
 			title: createForm.title,
 			description: createForm.description,
 			status: 'open',
-			priority: createForm.priority,
+			priority: createForm.priority as Issue['priority'],
 			issue_type: createForm.issue_type,
 			labels: [],
 			dependencies: [],
@@ -584,6 +594,11 @@
 			updated_at: new Date().toISOString()
 		};
 		issues = [tempIssue, ...issues];
+		// Flash animation for feedback
+		animatingIds = new Set([...animatingIds, tempId]);
+		setTimeout(() => {
+			animatingIds = new Set([...animatingIds].filter(x => x !== tempId));
+		}, 600);
 		createForm = { title: '', description: '', priority: 2, issue_type: 'task', deps: [] };
 		isCreating = false;
 
@@ -1459,15 +1474,21 @@
 	/* Project switching 3D column rotation */
 	.app.project-switching {
 		perspective: 1200px;
+		overflow: hidden;
 	}
 
 	.app.project-switching :global(.board) {
 		transform-style: preserve-3d;
+		/* Prevent layout shift during animation */
+		position: relative;
 	}
 
 	.app.project-switching :global(.column) {
 		animation: columnRotateOut 600ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 		transform-origin: center center;
+		/* Prevent flicker and improve 3D rendering */
+		backface-visibility: hidden;
+		will-change: transform, opacity;
 	}
 
 	.app.project-switching :global(.column:nth-child(1)) { animation-delay: 0ms; }
