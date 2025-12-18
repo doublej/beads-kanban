@@ -208,16 +208,18 @@
 
 				<!-- Centered title -->
 				<div class="window-title-center">
-					{#if pane.streaming}
-						<svg class="status-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-							<circle cx="12" cy="12" r="3"/>
-							<path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-						</svg>
-					{/if}
 					<span class="agent-name">{pane.name}</span>
 					{#if pane.sdkSessionId}
 						<span class="session-id" class:compacted={pane.compacted} title="{pane.sdkSessionId}&#10;{pane.cwd || 'no cwd'}">
 							{pane.sdkSessionId.slice(0, 6)}
+						</span>
+					{/if}
+					{#if pane.usage}
+						{@const total = pane.usage.inputTokens + pane.usage.outputTokens}
+						{@const cached = pane.usage.cacheRead}
+						{@const pct = total > 0 ? Math.round((cached / total) * 100) : 0}
+						<span class="usage-tag" title="Input: {pane.usage.inputTokens.toLocaleString()}&#10;Output: {pane.usage.outputTokens.toLocaleString()}&#10;Cache read: {cached.toLocaleString()} ({pct}%)&#10;Cache created: {pane.usage.cacheCreation.toLocaleString()}">
+							{total >= 1000 ? `${(total / 1000).toFixed(0)}k` : total}
 						</span>
 					{/if}
 				</div>
@@ -713,17 +715,6 @@
 		overflow: hidden;
 	}
 
-	.status-sun {
-		color: #f59e0b;
-		flex-shrink: 0;
-		animation: sun-spin 8s linear infinite;
-	}
-
-	@keyframes sun-spin {
-		from { transform: rotate(0deg); }
-		to { transform: rotate(360deg); }
-	}
-
 	.agent-name {
 		font: 500 11px/1 -apple-system, BlinkMacSystemFont, system-ui;
 		color: var(--text-secondary, #888);
@@ -746,6 +737,15 @@
 	.session-id.compacted {
 		background: rgba(16, 185, 129, 0.12);
 		color: rgba(16, 185, 129, 0.8);
+	}
+
+	.usage-tag {
+		font: 500 8px/1 'JetBrains Mono', monospace;
+		padding: 2px 4px;
+		border-radius: 3px;
+		background: rgba(251, 191, 36, 0.12);
+		color: rgba(251, 191, 36, 0.9);
+		cursor: help;
 	}
 
 	/* Right actions */

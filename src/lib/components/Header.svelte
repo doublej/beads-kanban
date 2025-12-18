@@ -14,12 +14,15 @@
 		isDarkMode: boolean;
 		totalIssues: number;
 		projectName: string;
+		agentPaneCount: number;
+		showAgentPanes: boolean;
 		ontoggleTheme: () => void;
 		onopenKeyboardHelp: () => void;
 		onopenCreatePanel: () => void;
 		onopenSettings?: () => void;
 		onpreviewchange?: (previewing: boolean) => void;
 		oneditProject?: () => void;
+		ontoggleAgentPanes?: () => void;
 	}
 
 	let {
@@ -34,12 +37,15 @@
 		isDarkMode,
 		totalIssues,
 		projectName,
+		agentPaneCount = 0,
+		showAgentPanes = true,
 		ontoggleTheme,
 		onopenKeyboardHelp,
 		onopenCreatePanel,
 		onopenSettings,
 		onpreviewchange,
-		oneditProject
+		oneditProject,
+		ontoggleAgentPanes
 	}: Props = $props();
 
 	let showHelpMenu = $state(false);
@@ -113,9 +119,9 @@
 </script>
 
 <header class="header">
-	<!-- Row 1: Global Top Bar -->
-	<div class="global-bar">
-		<div class="global-left">
+	<div class="toolbar">
+		<!-- Left: Logo -->
+		<div class="toolbar-left">
 			<button class="logo-lockup" onclick={oneditProject} title="Change project">
 				<span class="logo-app">strandkanban</span>
 				<span class="logo-divider">/</span>
@@ -123,68 +129,10 @@
 			</button>
 		</div>
 
-		<div class="global-center">
-			<div class="search-container">
-				<span class="search-icon"><Icon name="search" size={14} /></span>
-				<input
-					type="text"
-					placeholder="Search issues..."
-					bind:value={searchQuery}
-					class="search-input"
-					onfocus={() => isSearchFocused = true}
-					onblur={() => isSearchFocused = false}
-				/>
-				{#if searchQuery}
-					<button class="search-clear" onclick={() => searchQuery = ''}>×</button>
-				{:else}
-					<kbd class="hotkey-hint">⌘K</kbd>
-				{/if}
-			</div>
-			<button class="btn-create" onclick={onopenCreatePanel}>
-				<span class="btn-create-text">New Issue</span>
-				<kbd class="create-hotkey">N</kbd>
-			</button>
-		</div>
-
-		<div class="global-right">
-			<div class="help-wrapper">
-				<button class="icon-btn" onclick={() => showHelpMenu = !showHelpMenu} aria-label="Help">
-					<Icon name="help" size={16} />
-				</button>
-				{#if showHelpMenu}
-					<div class="dropdown-menu" role="menu">
-						<a href="/about" class="dropdown-item" onclick={() => showHelpMenu = false}>
-							<Icon name="info" size={14} />
-							About
-						</a>
-						<a href="/prompts" class="dropdown-item" onclick={() => showHelpMenu = false}>
-							<Icon name="message" size={14} />
-							Prompts
-						</a>
-						<button class="dropdown-item" onclick={() => { showHelpMenu = false; onopenKeyboardHelp(); }}>
-							<Icon name="keyboard" size={14} />
-							Keyboard Shortcuts
-							<kbd>?</kbd>
-						</button>
-					</div>
-				{/if}
-			</div>
-			<button class="icon-btn" onclick={ontoggleTheme} aria-label="Toggle theme">
-				{#if isDarkMode}
-					<Icon name="sun" size={16} />
-				{:else}
-					<Icon name="moon" size={16} />
-				{/if}
-			</button>
-			<button class="icon-btn" onclick={onopenSettings} aria-label="Settings">
-				<Icon name="settings" size={16} />
-			</button>
-		</div>
-	</div>
-
-	<!-- Row 2: Page Controls -->
-	<div class="page-controls">
-		<div class="view-toggle">
+		<!-- Center: Views, Filters, Activity -->
+		<div class="toolbar-center">
+			<!-- View Toggle -->
+			<div class="view-toggle">
 				{#each viewModes as mode}
 					<button
 						class="view-btn"
@@ -192,22 +140,25 @@
 						onclick={() => viewMode = mode.key}
 						title={mode.label}
 					>
-						<span class="view-icon"><Icon name={mode.icon} size={14} /></span>
+						<Icon name={mode.icon} size={13} />
 						<span class="view-label">{mode.label}</span>
 					</button>
 				{/each}
 			</div>
 
+			<span class="toolbar-sep"></span>
+
+			<!-- Filters -->
 			<div class="filters-wrapper" onmouseenter={() => isFilterHovering = true} onmouseleave={() => isFilterHovering = false}>
 				<button
-					class="filters-btn"
+					class="toolbar-btn"
 					class:active={hasActiveFilters}
 					onclick={() => showFilters = !showFilters}
 				>
-					<Icon name="filter" size={14} />
+					<Icon name="filter" size={13} />
 					<span>Filters</span>
 					{#if hasActiveFilters}
-						<span class="filter-badge">{activeFilterCount}</span>
+						<span class="toolbar-badge">{activeFilterCount}</span>
 					{/if}
 				</button>
 				{#if showFilters}
@@ -301,30 +252,184 @@
 					</div>
 				{/if}
 			</div>
+
+			<!-- Chat UI Toggle -->
+			<button
+				class="toolbar-btn"
+				class:active={showAgentPanes}
+				onclick={ontoggleAgentPanes}
+				title="Toggle chat UI"
+			>
+				<Icon name="message" size={13} />
+				<span>Chat</span>
+				{#if agentPaneCount > 0}
+					<span class="toolbar-badge">{agentPaneCount}</span>
+				{/if}
+			</button>
+		</div>
+
+		<!-- Right: Search, Create, Icons -->
+		<div class="toolbar-right">
+			<div class="search-container">
+				<span class="search-icon"><Icon name="search" size={13} /></span>
+				<input
+					type="text"
+					placeholder="Search..."
+					bind:value={searchQuery}
+					class="search-input"
+					onfocus={() => isSearchFocused = true}
+					onblur={() => isSearchFocused = false}
+				/>
+				{#if searchQuery}
+					<button class="search-clear" onclick={() => searchQuery = ''}>×</button>
+				{:else}
+					<kbd class="hotkey-hint">⌘K</kbd>
+				{/if}
+			</div>
+
+			<button class="btn-create" onclick={onopenCreatePanel}>
+				<span class="btn-create-text">New</span>
+				<kbd class="create-hotkey">N</kbd>
+			</button>
+
+			<span class="toolbar-sep"></span>
+
+			<div class="help-wrapper">
+				<button class="icon-btn" onclick={() => showHelpMenu = !showHelpMenu} aria-label="Help">
+					<Icon name="help" size={15} />
+				</button>
+				{#if showHelpMenu}
+					<div class="dropdown-menu" role="menu">
+						<a href="/about" class="dropdown-item" onclick={() => showHelpMenu = false}>
+							<Icon name="info" size={14} />
+							About
+						</a>
+						<a href="/prompts" class="dropdown-item" onclick={() => showHelpMenu = false}>
+							<Icon name="message" size={14} />
+							Prompts
+						</a>
+						<button class="dropdown-item" onclick={() => { showHelpMenu = false; onopenKeyboardHelp(); }}>
+							<Icon name="keyboard" size={14} />
+							Keyboard Shortcuts
+							<kbd>?</kbd>
+						</button>
+					</div>
+				{/if}
+			</div>
+			<button class="icon-btn" onclick={ontoggleTheme} aria-label="Toggle theme">
+				{#if isDarkMode}
+					<Icon name="sun" size={15} />
+				{:else}
+					<Icon name="moon" size={15} />
+				{/if}
+			</button>
+			<button class="icon-btn" onclick={onopenSettings} aria-label="Settings">
+				<Icon name="settings" size={15} />
+			</button>
+		</div>
 	</div>
 </header>
 
 <style>
-	/* Header - Two Row Layout */
+	/* Header - Single Row Unified Toolbar */
 	.header {
-		display: flex;
-		flex-direction: column;
-		gap: 0;
 		z-index: 100;
 		flex-shrink: 0;
 	}
 
-	/* Row 1: Global Bar */
-	.global-bar {
+	.toolbar {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.625rem 1.5rem;
-		gap: 1.5rem;
+		padding: 0.5rem 1rem;
+		gap: 1rem;
 	}
 
-	.global-left {
+	.toolbar-left {
 		flex-shrink: 0;
+	}
+
+	.toolbar-center {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+	}
+
+	.toolbar-right {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		flex-shrink: 0;
+	}
+
+	.toolbar-sep {
+		width: 1px;
+		height: 1rem;
+		background: rgba(255, 255, 255, 0.1);
+		margin: 0 0.25rem;
+	}
+
+	:global(.app.light) .toolbar-sep {
+		background: rgba(0, 0, 0, 0.1);
+	}
+
+	/* Toolbar button (Filters, Activity) */
+	.toolbar-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		height: 1.625rem;
+		padding: 0 0.5rem;
+		background: transparent;
+		border: none;
+		border-radius: 0.375rem;
+		color: var(--text-secondary);
+		font-family: inherit;
+		font-size: 0.6875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all var(--transition-fast);
+	}
+
+	.toolbar-btn :global(svg) {
+		opacity: 0.7;
+	}
+
+	.toolbar-btn:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text-primary);
+	}
+
+	.toolbar-btn.active {
+		background: rgba(59, 130, 246, 0.12);
+		color: #60a5fa;
+	}
+
+	.toolbar-btn.active :global(svg) {
+		opacity: 1;
+	}
+
+	:global(.app.light) .toolbar-btn:hover {
+		background: rgba(0, 0, 0, 0.05);
+	}
+
+	:global(.app.light) .toolbar-btn.active {
+		background: rgba(59, 130, 246, 0.1);
+		color: #2563eb;
+	}
+
+	.toolbar-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 0.875rem;
+		height: 0.875rem;
+		padding: 0 0.1875rem;
+		background: #3b82f6;
+		border-radius: 999px;
+		color: white;
+		font-size: 0.5rem;
+		font-weight: 600;
 	}
 
 	.logo-lockup {
@@ -384,19 +489,11 @@
 		color: rgba(0, 0, 0, 0.9);
 	}
 
-	.global-center {
-		flex: 1;
-		max-width: 480px;
-		display: flex;
-		align-items: center;
-		gap: 0.625rem;
-	}
-
 	.search-container {
 		position: relative;
 		display: flex;
 		align-items: center;
-		flex: 1;
+		width: 160px;
 	}
 
 	.search-icon {
@@ -655,13 +752,6 @@
 		color: rgba(0, 0, 0, 0.5);
 	}
 
-	.global-right {
-		display: flex;
-		align-items: center;
-		gap: 0.25rem;
-		flex-shrink: 0;
-	}
-
 	/* Icon buttons (Help, Theme, Settings) */
 	.icon-btn {
 		width: 2rem;
@@ -780,14 +870,6 @@
 		color: #f87171;
 	}
 
-	/* Row 2: Page Controls */
-	.page-controls {
-		display: flex;
-		align-items: center;
-		padding: 0.25rem 1rem;
-		gap: 0.5rem;
-	}
-
 	/* View toggle */
 	.view-toggle {
 		display: flex;
@@ -795,15 +877,14 @@
 		height: 1.625rem;
 		gap: 1px;
 		padding: 0 2px;
-		margin-left: auto;
 		background: rgba(255, 255, 255, 0.04);
 		border-radius: 0.375rem;
-		border: 0.5px solid rgba(255, 255, 255, 0.12);
+		border: 0.5px solid rgba(255, 255, 255, 0.1);
 	}
 
 	:global(.app.light) .view-toggle {
 		background: rgba(0, 0, 0, 0.03);
-		border-color: rgba(0, 0, 0, 0.12);
+		border-color: rgba(0, 0, 0, 0.1);
 	}
 
 	.view-btn {
@@ -857,73 +938,6 @@
 	/* Filters */
 	.filters-wrapper {
 		position: relative;
-	}
-
-	.filters-btn {
-		display: flex;
-		align-items: center;
-		gap: 0.25rem;
-		height: 1.625rem;
-		padding: 0 0.5rem;
-		background: rgba(255, 255, 255, 0.04);
-		border: 0.5px solid rgba(255, 255, 255, 0.12);
-		border-radius: 0.375rem;
-		color: var(--text-secondary);
-		font-family: inherit;
-		font-size: 0.6875rem;
-		font-weight: 400;
-		cursor: pointer;
-		transition: all var(--transition-fast);
-	}
-
-	.filters-btn :global(svg) {
-		width: 0.75rem;
-		height: 0.75rem;
-		opacity: 0.7;
-	}
-
-	.filters-btn:hover {
-		background: rgba(255, 255, 255, 0.06);
-		border-color: rgba(255, 255, 255, 0.16);
-	}
-
-	.filters-btn.active {
-		background: rgba(59, 130, 246, 0.1);
-		border-color: rgba(59, 130, 246, 0.25);
-		color: #60a5fa;
-	}
-
-	.filters-btn.active svg {
-		opacity: 1;
-	}
-
-	:global(.app.light) .filters-btn {
-		background: rgba(0, 0, 0, 0.03);
-		border-color: rgba(0, 0, 0, 0.12);
-	}
-
-	:global(.app.light) .filters-btn:hover {
-		background: rgba(0, 0, 0, 0.05);
-		border-color: rgba(0, 0, 0, 0.16);
-	}
-
-	:global(.app.light) .filters-btn.active {
-		background: rgba(59, 130, 246, 0.08);
-		color: #2563eb;
-	}
-
-	.filter-badge {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 0.875rem;
-		height: 0.875rem;
-		padding: 0 0.1875rem;
-		background: #3b82f6;
-		border-radius: 999px;
-		color: white;
-		font-size: 0.5625rem;
-		font-weight: 600;
 	}
 
 	.filters-popover {
@@ -1032,24 +1046,33 @@
 
 	/* Mobile responsive styles */
 	@media (max-width: 768px) {
-		.global-bar {
-			padding: 0.625rem 0.75rem;
-			padding-top: max(0.625rem, env(safe-area-inset-top));
+		.toolbar {
+			padding: 0.5rem 0.75rem;
+			padding-top: max(0.5rem, env(safe-area-inset-top));
 			padding-left: max(0.75rem, env(safe-area-inset-left));
 			padding-right: max(0.75rem, env(safe-area-inset-right));
+			gap: 0.5rem;
 		}
 
-		.global-left {
+		.toolbar-left {
 			display: none;
 		}
 
-		.global-center {
+		.toolbar-center {
 			flex: 1;
-			max-width: none;
+			justify-content: center;
 		}
 
-		.global-right {
-			gap: 0.125rem;
+		.toolbar-right {
+			gap: 0.25rem;
+		}
+
+		.toolbar-sep {
+			display: none;
+		}
+
+		.search-container {
+			width: 120px;
 		}
 
 		.btn-create-text,
@@ -1058,11 +1081,9 @@
 		}
 
 		.btn-create {
-			padding: 0.5rem;
-		}
-
-		.btn-create-icon {
-			font-size: 1.125rem;
+			padding: 0 0.5rem;
+			width: 1.75rem;
+			justify-content: center;
 		}
 
 		.hotkey-hint {
@@ -1074,26 +1095,12 @@
 			display: none;
 		}
 
-		.page-controls {
-			padding: 0.25rem 0.5rem;
-			padding-left: max(0.5rem, env(safe-area-inset-left));
-			padding-right: max(0.5rem, env(safe-area-inset-right));
-		}
-
-		.page-title {
-			font-size: 0.875rem;
-		}
-
-		.page-meta {
-			font-size: 0.6875rem;
-		}
-
 		.view-label {
 			display: none;
 		}
 
-		.view-btn {
-			padding: 0.25rem 0.375rem;
+		.toolbar-btn span:not(.toolbar-badge) {
+			display: none;
 		}
 
 		.filters-popover {

@@ -85,7 +85,7 @@
 	let loadingComments = $state(false);
 	let attachments = $state<Attachment[]>([]);
 	let loadingAttachments = $state(false);
-	let showPaneActivity = $state(true);
+	let showActivityBar = $state(true);
 	let newPaneName = $state('');
 	let resumePrompt = $state<{ name: string; sessionId: string } | null>(null);
 	let showSessionPicker = $state(false);
@@ -1558,12 +1558,15 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		{isDarkMode}
 		{projectName}
 		totalIssues={issues.length}
+		agentPaneCount={wsPanes.size}
+		showAgentPanes={showActivityBar}
 		ontoggleTheme={toggleTheme}
 		onopenKeyboardHelp={() => showKeyboardHelp = true}
 		onopenCreatePanel={openCreatePanel}
 		onopenSettings={() => showSettings = true}
 		onpreviewchange={(previewing) => isFilterPreviewing = previewing}
 		oneditProject={() => showSettings = true}
+		ontoggleAgentPanes={() => showActivityBar = !showActivityBar}
 	/>
 
 	{#if viewMode === 'kanban'}
@@ -1652,7 +1655,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	{/if}
 
 <!-- Agent Bar - Pinned to bottom -->
-{#if wsConnected}
+{#if wsConnected && showActivityBar}
 <div class="agent-bar" class:has-panes={wsPanes.size > 0}>
 	<div class="agent-bar-inner">
 		<!-- Agent launcher button with dropdown menu -->

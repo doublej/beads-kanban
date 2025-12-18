@@ -5,7 +5,6 @@
 
 	interface Props {
 		show: boolean;
-		tickerRange: number;
 		isDarkMode: boolean;
 		agentEnabled: boolean;
 		agentHost: string;
@@ -22,7 +21,6 @@
 
 	let {
 		show = $bindable(),
-		tickerRange = $bindable(),
 		isDarkMode,
 		agentEnabled = $bindable(),
 		agentHost = $bindable(),
@@ -60,15 +58,6 @@
 			projects = data.projects || [];
 		}
 	}
-
-	const tickerRangeOptions = [
-		{ value: 15, label: '15m' },
-		{ value: 60, label: '1h' },
-		{ value: 60 * 6, label: '6h' },
-		{ value: 60 * 24, label: '24h' },
-		{ value: 60 * 24 * 7, label: '7d' },
-		{ value: 60 * 24 * 30, label: '30d' }
-	];
 
 	onMount(() => {
 		fetchCwd();
@@ -345,28 +334,6 @@
 							<span class="toggle-thumb"></span>
 						</span>
 					</button>
-				</div>
-			</section>
-
-			<!-- Activity Feed Section -->
-			<section class="settings-section">
-				<h3 class="section-label">Activity Feed</h3>
-				<div class="setting-row">
-					<div class="setting-info">
-						<span class="setting-name">Ticker Range</span>
-						<span class="setting-desc">Show events from the last...</span>
-					</div>
-				</div>
-				<div class="range-selector">
-					{#each tickerRangeOptions as opt}
-						<button
-							class="range-chip"
-							class:active={tickerRange === opt.value}
-							onclick={() => tickerRange = opt.value}
-						>
-							{opt.label}
-						</button>
-					{/each}
 				</div>
 			</section>
 
