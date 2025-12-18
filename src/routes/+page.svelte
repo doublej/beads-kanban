@@ -849,6 +849,8 @@ ${savedForm.description ? `- **Description**: ${savedForm.description}` : ''}
 
 Start by claiming the ticket (set status to in_progress), then implement the required changes.`;
 			addPane(agentName, currentProjectPath, briefing, agentSystemPrompt);
+			expandedPanes.add(agentName);
+			expandedPanes = new Set(expandedPanes);
 		}
 	}
 
@@ -864,6 +866,11 @@ ${issue.description ? `- **Description**: ${issue.description}` : ''}
 
 Start by claiming the ticket (set status to in_progress), then implement the required changes.`;
 		addPane(agentName, currentProjectPath, briefing, agentSystemPrompt);
+		expandedPanes.add(agentName);
+		expandedPanes = new Set(expandedPanes);
+		// Close panel to show agent activity
+		editingIssue = null;
+		isCreating = false;
 	}
 
 	function openAgentPane(paneName: string) {
@@ -1758,12 +1765,12 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 					onblur={() => { if (!newPaneName.trim()) setTimeout(() => agentNameInputOpen = false, 150); }}
 					onkeydown={(e) => { if (e.key === 'Escape') { newPaneName = ''; agentNameInputOpen = false; } }}
 				/>
-				<button type="submit" class="agent-name-submit" disabled={!newPaneName.trim()}>
+				<button type="submit" class="cta cta-icon" disabled={!newPaneName.trim()}>
 					<svg viewBox="0 0 16 16" width="12" height="12">
 						<path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 					</svg>
 				</button>
-				<button type="button" class="agent-name-cancel" onclick={() => { newPaneName = ''; agentNameInputOpen = false; }}>
+				<button type="button" class="cta cta-icon danger" onclick={() => { newPaneName = ''; agentNameInputOpen = false; }}>
 					<svg viewBox="0 0 16 16" width="10" height="10">
 						<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 					</svg>
@@ -1779,7 +1786,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 					<path d="M12 3v3h-3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
 				</svg>
 				<span class="resume-text">Resume <strong>{resumePrompt.name}</strong>?</span>
-				<button class="resume-btn yes" onclick={() => {
+				<button class="cta cta-primary" onclick={() => {
 					if (resumePrompt) {
 						addPane(resumePrompt.name, currentProjectPath, agentFirstMessage, agentSystemPrompt, resumePrompt.sessionId);
 						expandedPanes.add(resumePrompt.name);
@@ -1792,7 +1799,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 					</svg>
 					Resume
 				</button>
-				<button class="resume-btn no" onclick={() => {
+				<button class="cta cta-ghost" onclick={() => {
 					if (resumePrompt) {
 						addPane(resumePrompt.name, currentProjectPath, agentFirstMessage, agentSystemPrompt);
 						expandedPanes.add(resumePrompt.name);
@@ -1806,7 +1813,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 					</svg>
 					Fresh
 				</button>
-				<button class="resume-btn cancel" onclick={() => { resumePrompt = null; }}>
+				<button class="cta cta-icon danger" onclick={() => { resumePrompt = null; }}>
 					<svg viewBox="0 0 12 12" width="10" height="10">
 						<path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 					</svg>
@@ -2086,6 +2093,185 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		--shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
 		--shadow-md: 0 4px 24px rgba(0, 0, 0, 0.2);
 		--shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.3);
+		/* CTA Button Palette */
+		--cta-primary: #6366f1;
+		--cta-primary-hover: #4f46e5;
+		--cta-secondary: #3b82f6;
+		--cta-secondary-hover: #2563eb;
+		--cta-danger: #ef4444;
+		--cta-danger-hover: #dc2626;
+		--cta-muted: rgba(255, 255, 255, 0.08);
+		--cta-muted-hover: rgba(255, 255, 255, 0.14);
+	}
+
+	/* ═══════════════════════════════════════════════════════════════
+	   CTA Button System - 5 variants
+	   ═══════════════════════════════════════════════════════════════ */
+
+	/* Base CTA styles */
+	.cta {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		font: 600 11px/1 system-ui, -apple-system, sans-serif;
+		border: none;
+		border-radius: 5px;
+		cursor: pointer;
+		transition: all 100ms ease;
+		white-space: nowrap;
+	}
+
+	.cta:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+		pointer-events: none;
+	}
+
+	/* 1. Primary - solid indigo, main actions */
+	.cta-primary {
+		padding: 7px 12px;
+		background: linear-gradient(135deg, var(--cta-primary) 0%, var(--cta-primary-hover) 100%);
+		color: white;
+		box-shadow: 0 1px 3px rgba(99, 102, 241, 0.3);
+	}
+
+	.cta-primary:hover:not(:disabled) {
+		background: linear-gradient(135deg, #7c7ff7 0%, var(--cta-primary) 100%);
+		transform: translateY(-1px);
+		box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+	}
+
+	.cta-primary:active:not(:disabled) {
+		transform: translateY(0);
+	}
+
+	/* 2. Secondary - outlined, less prominent */
+	.cta-secondary {
+		padding: 6px 11px;
+		background: rgba(99, 102, 241, 0.1);
+		border: 1px solid rgba(99, 102, 241, 0.25);
+		color: #a5b4fc;
+	}
+
+	.cta-secondary:hover:not(:disabled) {
+		background: rgba(99, 102, 241, 0.18);
+		border-color: rgba(99, 102, 241, 0.4);
+		color: #c7d2fe;
+	}
+
+	/* 3. Ghost - minimal, text-only feel */
+	.cta-ghost {
+		padding: 6px 10px;
+		background: var(--cta-muted);
+		border: 1px solid rgba(255, 255, 255, 0.06);
+		color: var(--text-secondary);
+	}
+
+	.cta-ghost:hover:not(:disabled) {
+		background: var(--cta-muted-hover);
+		border-color: rgba(255, 255, 255, 0.12);
+		color: var(--text-primary);
+	}
+
+	/* 4. Danger - destructive actions */
+	.cta-danger {
+		padding: 6px 11px;
+		background: rgba(239, 68, 68, 0.12);
+		border: 1px solid rgba(239, 68, 68, 0.2);
+		color: #fca5a5;
+	}
+
+	.cta-danger:hover:not(:disabled) {
+		background: rgba(239, 68, 68, 0.22);
+		border-color: rgba(239, 68, 68, 0.35);
+		color: #fecaca;
+	}
+
+	/* 5. Icon-only - square buttons for icons */
+	.cta-icon {
+		width: 26px;
+		height: 26px;
+		padding: 0;
+		background: rgba(99, 102, 241, 0.12);
+		border: 1px solid rgba(99, 102, 241, 0.2);
+		color: #a5b4fc;
+	}
+
+	.cta-icon:hover:not(:disabled) {
+		background: rgba(99, 102, 241, 0.22);
+		border-color: rgba(99, 102, 241, 0.35);
+		color: #c7d2fe;
+	}
+
+	.cta-icon.danger {
+		background: rgba(239, 68, 68, 0.1);
+		border-color: rgba(239, 68, 68, 0.15);
+		color: var(--text-tertiary);
+	}
+
+	.cta-icon.danger:hover:not(:disabled) {
+		background: rgba(239, 68, 68, 0.2);
+		border-color: rgba(239, 68, 68, 0.3);
+		color: #ef4444;
+	}
+
+	/* Light mode variants */
+	.app.light .cta-secondary {
+		background: rgba(99, 102, 241, 0.08);
+		border-color: rgba(99, 102, 241, 0.2);
+		color: #6366f1;
+	}
+
+	.app.light .cta-secondary:hover:not(:disabled) {
+		background: rgba(99, 102, 241, 0.14);
+		border-color: rgba(99, 102, 241, 0.3);
+		color: #4f46e5;
+	}
+
+	.app.light .cta-ghost {
+		background: rgba(0, 0, 0, 0.04);
+		border-color: rgba(0, 0, 0, 0.06);
+		color: var(--text-secondary);
+	}
+
+	.app.light .cta-ghost:hover:not(:disabled) {
+		background: rgba(0, 0, 0, 0.08);
+		border-color: rgba(0, 0, 0, 0.1);
+	}
+
+	.app.light .cta-danger {
+		background: rgba(239, 68, 68, 0.08);
+		border-color: rgba(239, 68, 68, 0.15);
+		color: #dc2626;
+	}
+
+	.app.light .cta-danger:hover:not(:disabled) {
+		background: rgba(239, 68, 68, 0.14);
+		border-color: rgba(239, 68, 68, 0.25);
+	}
+
+	.app.light .cta-icon {
+		background: rgba(99, 102, 241, 0.08);
+		border-color: rgba(99, 102, 241, 0.15);
+		color: #6366f1;
+	}
+
+	.app.light .cta-icon:hover:not(:disabled) {
+		background: rgba(99, 102, 241, 0.14);
+		border-color: rgba(99, 102, 241, 0.25);
+	}
+
+	.app.light .cta-icon.danger {
+		background: rgba(239, 68, 68, 0.06);
+		border-color: rgba(239, 68, 68, 0.1);
+		color: var(--text-tertiary);
+	}
+
+	.app.light .cta-icon.danger:hover:not(:disabled) {
+		background: rgba(239, 68, 68, 0.12);
+		border-color: rgba(239, 68, 68, 0.2);
+		color: #dc2626;
 	}
 
 	:global(*) {
@@ -2712,44 +2898,6 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		font-style: italic;
 	}
 
-	.agent-name-submit,
-	.agent-name-cancel {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 24px;
-		height: 24px;
-		padding: 0;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-		transition: all 80ms ease;
-	}
-
-	.agent-name-submit {
-		background: rgba(34, 197, 94, 0.15);
-		color: #22c55e;
-	}
-
-	.agent-name-submit:hover:not(:disabled) {
-		background: rgba(34, 197, 94, 0.25);
-	}
-
-	.agent-name-submit:disabled {
-		opacity: 0.3;
-		cursor: not-allowed;
-	}
-
-	.agent-name-cancel {
-		background: rgba(239, 68, 68, 0.1);
-		color: var(--text-tertiary);
-	}
-
-	.agent-name-cancel:hover {
-		background: rgba(239, 68, 68, 0.2);
-		color: #ef4444;
-	}
-
 	.app.light .agent-name-input {
 		background: rgba(0, 0, 0, 0.04);
 		border-color: rgba(99, 102, 241, 0.25);
@@ -3061,59 +3209,6 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	.resume-text strong {
 		color: var(--text-primary);
 		font-weight: 600;
-	}
-
-	.resume-btn {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		padding: 5px 10px;
-		font: 600 10px/1 system-ui;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-		transition: all 80ms ease;
-	}
-
-	.resume-btn svg {
-		flex-shrink: 0;
-	}
-
-	.resume-btn.yes {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.9) 0%, rgba(99, 102, 241, 0.7) 100%);
-		color: white;
-		box-shadow: 0 1px 3px rgba(99, 102, 241, 0.3);
-	}
-
-	.resume-btn.yes:hover {
-		background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-		transform: translateY(-1px);
-	}
-
-	.resume-btn.no {
-		background: rgba(255, 255, 255, 0.08);
-		color: var(--text-secondary);
-	}
-
-	.resume-btn.no:hover {
-		background: rgba(255, 255, 255, 0.12);
-		color: var(--text-primary);
-	}
-
-	.resume-btn.cancel {
-		width: 24px;
-		height: 24px;
-		padding: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: transparent;
-		color: var(--text-tertiary);
-	}
-
-	.resume-btn.cancel:hover {
-		background: rgba(239, 68, 68, 0.15);
-		color: #ef4444;
 	}
 
 	.app.light .resume-prompt {
