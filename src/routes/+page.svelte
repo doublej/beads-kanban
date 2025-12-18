@@ -91,7 +91,29 @@
 	let resumePrompt = $state<{ name: string; sessionId: string } | null>(null);
 	let showSessionPicker = $state(false);
 	let sdkSessions = $state<SdkSessionInfo[]>([]);
+	// Filter out empty/failed sessions (warmup-only, no conversation, or failed starts)
+	function isValidSession(s: SdkSessionInfo): boolean {
+		if (s.preview.length === 0) return false;
+		// Filter out warmup-only or failed session patterns
+		const warmupPatterns = [/^warmup$/i, /^no conversation$/i, /^i'll explore/i, /^let me/i];
+		const meaningfulLines = s.preview.filter(line => {
+			const clean = line.replace(/^>\s*/, '').trim();
+			return clean.length > 20 && !warmupPatterns.some(p => p.test(clean));
+		});
+		return meaningfulLines.length >= 2 || !!s.summary;
+	}
+	let filteredSessions = $derived(sdkSessions.filter(isValidSession));
 	let loadingSdkSessions = $state(false);
+	let sessionSearchQuery = $state('');
+	let searchedSessions = $derived(() => {
+		const q = sessionSearchQuery.trim().toLowerCase();
+		if (!q) return filteredSessions;
+		return filteredSessions.filter(s =>
+			(s.agentName?.toLowerCase().includes(q)) ||
+			(s.summary?.toLowerCase().includes(q)) ||
+			s.preview.some(line => line.toLowerCase().includes(q))
+		);
+	});
 	let paneMessageInputs = $state<Record<string, string>>({});
 	let expandedPanes = $state<Set<string>>(new Set());
 	let paneSizes = $state<Record<string, 'compact' | 'medium' | 'large'>>({});
@@ -1658,6 +1680,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		<div class="session-picker-container">
 			<button class="session-picker-btn" onclick={async () => {
 				if (!showSessionPicker) {
+					sessionSearchQuery = '';
 					loadingSdkSessions = true;
 					sdkSessions = await fetchSdkSessions(currentProjectPath);
 					loadingSdkSessions = false;
@@ -1669,46 +1692,62 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 			{#if showSessionPicker}
 				<div class="session-picker-dropdown">
 					<div class="session-picker-header">
-						<span class="session-picker-title">Recent Sessions</span>
-						<span class="session-picker-count">{sdkSessions.length}</span>
+						<input
+							type="text"
+							class="session-search-input"
+							placeholder="Search sessions..."
+							bind:value={sessionSearchQuery}
+							onclick={(e) => e.stopPropagation()}
+						/>
+						<span class="session-picker-count">{searchedSessions().length}/{filteredSessions.length}</span>
 					</div>
 					{#if loadingSdkSessions}
 						<div class="session-picker-empty">
 							<span class="spinner"></span>
 							Loading sessions...
 						</div>
-					{:else if sdkSessions.length === 0}
+					{:else if filteredSessions.length === 0}
 						<div class="session-picker-empty">No saved sessions found</div>
+					{:else if searchedSessions().length === 0}
+						<div class="session-picker-empty">No matches for "{sessionSearchQuery}"</div>
 					{:else}
 						<div class="session-picker-list">
-							{#each sdkSessions as session}
+							{#each searchedSessions() as session}
 								{@const timeAgo = (() => {
 									const diff = Date.now() - new Date(session.timestamp).getTime();
 									const mins = Math.floor(diff / 60000);
 									const hours = Math.floor(diff / 3600000);
 									const days = Math.floor(diff / 86400000);
-									if (mins < 60) return `${mins}m ago`;
-									if (hours < 24) return `${hours}h ago`;
-									if (days < 7) return `${days}d ago`;
-									return new Date(session.timestamp).toLocaleDateString();
+									if (mins < 60) return `${mins}m`;
+									if (hours < 24) return `${hours}h`;
+									if (days < 7) return `${days}d`;
+									return new Date(session.timestamp).toLocaleDateString('en', { month: 'short', day: 'numeric' });
 								})()}
 								<button class="session-card" onclick={() => {
-									const name = session.agentId || session.sessionId.slice(0, 8);
+									const name = session.agentName || session.sessionId.slice(0, 8);
 									addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, session.sessionId);
 									expandedPanes.add(name);
 									expandedPanes = new Set(expandedPanes);
 									showSessionPicker = false;
 								}}>
 									<div class="session-card-header">
-										<span class="session-card-name">{session.agentId || session.sessionId.slice(0, 8)}</span>
+										<span class="session-card-name">{session.agentName || 'unnamed'}</span>
 										<span class="session-card-time">{timeAgo}</span>
 									</div>
-									{#if session.firstMessage}
-										<div class="session-card-preview">{session.firstMessage}</div>
-									{:else}
-										<div class="session-card-preview empty">No message preview</div>
+									{#if session.summary}
+										<div class="session-card-summary">{session.summary}</div>
 									{/if}
-									<div class="session-card-id">{session.sessionId.slice(0, 12)}...</div>
+									<div class="session-card-transcript">
+										{#each session.preview.slice(0, 8) as line, i}
+											<div class="transcript-line" class:assistant={line.startsWith('>')}>{line}</div>
+										{/each}
+										{#if session.preview.length === 0}
+											<div class="transcript-line empty">No conversation</div>
+										{/if}
+									</div>
+									<div class="session-card-footer">
+										<span class="session-card-id">{session.sessionId.slice(0, 8)}</span>
+									</div>
 								</button>
 							{/each}
 						</div>
@@ -1777,8 +1816,29 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		onMouseUp={handleMouseUp}
 		onEndSession={endSession}
 		onClearSession={clearSession}
-		onContinueSession={continueSession}
+		onContinueSession={(name) => {
+			// Resume using the pane's stored SDK session ID
+			const pane = wsPanes.get(name);
+			const sessionId = pane?.sdkSessionId || getPersistedSdkSessionId(name);
+			if (sessionId) {
+				removePane(name);
+				addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, sessionId);
+				expandedPanes.add(name);
+				expandedPanes = new Set(expandedPanes);
+			} else {
+				// No session to resume, just continue
+				continueSession(name);
+			}
+		}}
 		onCompactSession={compactSession}
+		onFetchSessions={() => fetchSdkSessions(currentProjectPath)}
+		onResumeSession={(name, sessionId) => {
+			// Remove existing pane and add new one with session
+			removePane(name);
+			addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, sessionId);
+			expandedPanes.add(name);
+			expandedPanes = new Set(expandedPanes);
+		}}
 	/>
 </div>
 {/if}
@@ -2302,8 +2362,8 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		bottom: 100%;
 		left: 0;
 		margin-bottom: 6px;
-		width: 280px;
-		max-height: 360px;
+		width: 340px;
+		max-height: 480px;
 		background: var(--bg-secondary);
 		border: 1px solid rgba(255, 255, 255, 0.12);
 		border-radius: 8px;
@@ -2316,28 +2376,53 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.625rem 0.75rem;
+		gap: 0.5rem;
+		padding: 0.5rem 0.625rem;
 		background: rgba(255, 255, 255, 0.03);
 		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 	}
 
-	.session-picker-title {
-		font: 600 11px/1 system-ui;
-		color: var(--text-secondary);
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
+	.session-search-input {
+		flex: 1;
+		padding: 0.375rem 0.5rem;
+		font: 11px/1.2 'JetBrains Mono', ui-monospace, monospace;
+		background: rgba(255, 255, 255, 0.06);
+		border: 1px solid transparent;
+		border-radius: 4px;
+		color: var(--text-primary);
+		transition: all 100ms ease;
+	}
+
+	.session-search-input:focus {
+		outline: none;
+		background: rgba(255, 255, 255, 0.1);
+		border-color: rgba(99, 102, 241, 0.4);
+	}
+
+	.session-search-input::placeholder {
+		color: var(--text-tertiary);
+		opacity: 0.6;
+	}
+
+	:global(.app.light) .session-search-input {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	:global(.app.light) .session-search-input:focus {
+		background: rgba(0, 0, 0, 0.06);
 	}
 
 	.session-picker-count {
-		font: 500 10px/1 'JetBrains Mono', monospace;
+		font: 500 9px/1 'JetBrains Mono', monospace;
 		color: var(--text-tertiary);
 		background: rgba(99, 102, 241, 0.2);
 		padding: 2px 6px;
 		border-radius: 10px;
+		white-space: nowrap;
 	}
 
 	.session-picker-list {
-		max-height: 300px;
+		max-height: 420px;
 		overflow-y: auto;
 		padding: 0.375rem;
 	}
@@ -2395,38 +2480,73 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	}
 
 	.session-card-name {
-		font: 600 12px/1 'JetBrains Mono', ui-monospace, monospace;
+		font: 600 11px/1 'JetBrains Mono', ui-monospace, monospace;
 		color: var(--text-primary);
 	}
 
 	.session-card-time {
-		font: 500 10px/1 system-ui;
+		font: 500 8px/1 'JetBrains Mono', monospace;
 		color: var(--text-tertiary);
-		background: rgba(255, 255, 255, 0.05);
-		padding: 2px 6px;
+		background: rgba(255, 255, 255, 0.06);
+		padding: 2px 5px;
 		border-radius: 3px;
 	}
 
-	.session-card-preview {
-		font: 11px/1.4 system-ui;
-		color: var(--text-secondary);
+	.session-card-summary {
+		font: 500 9px/1.3 system-ui;
+		color: rgba(99, 102, 241, 0.9);
 		margin-bottom: 0.375rem;
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		-webkit-box-orient: vertical;
+		padding: 3px 6px;
+		background: rgba(99, 102, 241, 0.1);
+		border-radius: 3px;
+		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
-	.session-card-preview.empty {
+	.session-card-transcript {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		margin-bottom: 0.25rem;
+		max-height: 120px;
+		overflow: hidden;
+	}
+
+	.transcript-line {
+		font: 8px/1.35 'JetBrains Mono', ui-monospace, monospace;
+		color: var(--text-secondary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		padding: 1px 0;
+		opacity: 0.8;
+	}
+
+	.transcript-line.assistant {
+		color: var(--text-tertiary);
+		opacity: 0.6;
+		padding-left: 6px;
+	}
+
+	.transcript-line.empty {
 		color: var(--text-tertiary);
 		font-style: italic;
+		opacity: 0.5;
+	}
+
+	.session-card-footer {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: 0.25rem;
+		padding-top: 0.25rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.04);
 	}
 
 	.session-card-id {
-		font: 9px/1 'JetBrains Mono', ui-monospace, monospace;
+		font: 7px/1 'JetBrains Mono', ui-monospace, monospace;
 		color: var(--text-tertiary);
-		opacity: 0.6;
+		opacity: 0.4;
 	}
 
 	.resume-prompt {
