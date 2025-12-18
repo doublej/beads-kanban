@@ -177,7 +177,7 @@
 		margin-left: 8px;
 		border: none;
 		border-radius: 4px;
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
 		font-size: 9px;
 		font-weight: 600;
 		letter-spacing: 0.02em;
@@ -244,7 +244,7 @@
 		margin-left: 4px;
 		background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
 		border-radius: 8px;
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
 		font-size: 9px;
 		font-weight: 700;
 		color: #fff;

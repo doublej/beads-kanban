@@ -191,7 +191,7 @@
 	}
 
 	.item-id {
-		font-family: 'JetBrains Mono', monospace;
+		font-family: 'IBM Plex Mono', monospace;
 		font-size: 0.625rem;
 		color: var(--text-tertiary);
 		flex-shrink: 0;

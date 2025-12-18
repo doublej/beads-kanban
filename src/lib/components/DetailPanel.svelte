@@ -699,7 +699,7 @@
 		height: 22px;
 		padding: 0 8px;
 		border-radius: 4px;
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
 		font-size: 9px;
 		font-weight: 600;
 		text-transform: uppercase;
@@ -736,7 +736,7 @@
 
 	/* Time - plain text, no chip */
 	.spec-time {
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
 		font-size: 9px;
 		font-weight: 500;
 		color: var(--text-tertiary);
@@ -820,7 +820,7 @@
 		align-items: center;
 		gap: 0.25rem;
 		color: #10b981;
-		font-family: 'JetBrains Mono', ui-monospace, monospace;
+		font-family: 'IBM Plex Mono', ui-monospace, monospace;
 		font-size: 9px;
 		font-weight: 600;
 		text-transform: uppercase;
@@ -1155,7 +1155,7 @@
 	.rel-status.closed { background: #10b981; }
 
 	.rel-id {
-		font-family: 'JetBrains Mono', monospace;
+		font-family: 'IBM Plex Mono', monospace;
 		font-size: 0.5625rem;
 		color: var(--text-tertiary);
 	}
@@ -1516,7 +1516,7 @@
 	}
 
 	.dep-chip-id {
-		font-family: 'JetBrains Mono', monospace;
+		font-family: 'IBM Plex Mono', monospace;
 		font-size: 0.5625rem;
 		color: var(--text-tertiary);
 	}
