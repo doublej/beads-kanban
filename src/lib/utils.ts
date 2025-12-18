@@ -137,3 +137,43 @@ export function issueMatchesFilters(
 export async function copyToClipboard(text: string): Promise<void> {
 	await navigator.clipboard.writeText(text);
 }
+
+/**
+ * Calculate impact score for an issue based on:
+ * - Dependent count (how many issues are blocked by this one): 30% weight
+ * - Priority (inverted, higher priority = higher score): 20% weight
+ * - Staleness (days since last update, capped): 15% weight
+ * - Blocker ratio (if this issue has blockers): 15% weight
+ * Returns a score from 0-100
+ */
+export function calculateImpactScore(issue: Issue): number {
+	// Dependent score: each dependent adds 10 points, max 30
+	const dependentCount = issue.dependent_count || issue.dependents?.length || 0;
+	const dependentScore = Math.min(dependentCount * 10, 30);
+
+	// Priority score: P0=20, P1=16, P2=12, P3=8, P4=4
+	const priorityScore = (4 - issue.priority) * 4 + 4;
+
+	// Staleness score: 1 point per day stale, max 15
+	const daysSinceUpdate = issue.updated_at
+		? Math.floor((Date.now() - new Date(issue.updated_at).getTime()) / (1000 * 60 * 60 * 24))
+		: 0;
+	const stalenessScore = Math.min(daysSinceUpdate, 15);
+
+	// Blocker ratio: if this issue has unresolved dependencies, it's less impactful to work on
+	// Invert this: if it has NO blockers, add bonus
+	const hasBlockers = hasOpenBlockers(issue);
+	const blockerBonus = hasBlockers ? 0 : 10;
+
+	// Type bonus: bugs and blockers get priority
+	const typeBonus = issue.issue_type === 'bug' ? 5 : 0;
+
+	return Math.min(dependentScore + priorityScore + stalenessScore + blockerBonus + typeBonus, 100);
+}
+
+export function getImpactLevel(score: number): { level: 'critical' | 'high' | 'medium' | 'low'; color: string; label: string } {
+	if (score >= 60) return { level: 'critical', color: '#ef4444', label: 'Critical Impact' };
+	if (score >= 40) return { level: 'high', color: '#f59e0b', label: 'High Impact' };
+	if (score >= 20) return { level: 'medium', color: '#6366f1', label: 'Medium Impact' };
+	return { level: 'low', color: '#6b7280', label: 'Low Impact' };
+}

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Issue } from '$lib/types';
-	import { getPriorityConfig, getTypeIcon, getDepTypeConfig, formatTimestamp, formatDuration } from '$lib/utils';
+	import { getPriorityConfig, getTypeIcon, getDepTypeConfig, formatTimestamp, formatDuration, calculateImpactScore, getImpactLevel } from '$lib/utils';
 	import Icon from './Icon.svelte';
 
 	interface Props {
@@ -13,6 +13,7 @@
 		editing?: boolean;
 		filterDimmed?: boolean;
 		flyingHidden?: boolean;
+		showImpact?: boolean;
 		registerCard: (node: HTMLElement, id: string) => void;
 		onclick: () => void;
 		ondragstart: (e: DragEvent) => void;
@@ -31,6 +32,7 @@
 		editing = false,
 		filterDimmed = false,
 		flyingHidden = false,
+		showImpact = true,
 		registerCard,
 		onclick,
 		ondragstart,
@@ -40,6 +42,8 @@
 	}: Props = $props();
 
 	const priorityConfig = $derived(getPriorityConfig(issue.priority));
+	const impactScore = $derived(calculateImpactScore(issue));
+	const impactLevel = $derived(getImpactLevel(impactScore));
 </script>
 
 <article
@@ -78,6 +82,12 @@
 					{/if}
 				</button>
 			</span>
+			{#if showImpact && impactScore >= 40}
+				<span class="impact-badge" class:critical={impactLevel.level === 'critical'} class:high={impactLevel.level === 'high'} style="--impact-color: {impactLevel.color}" title="{impactLevel.label} (Score: {impactScore})">
+					<Icon name="zap" size={10} />
+					<span class="impact-score">{impactScore}</span>
+				</span>
+			{/if}
 			{#if hasOpenBlockers}
 				<span class="blocked-indicator" title="Blocked by open dependencies"><Icon name="dep-blocks" size={14} /></span>
 			{/if}
@@ -411,6 +421,46 @@
 		color: #ef4444;
 		margin-left: 0.25rem;
 		cursor: help;
+	}
+
+	/* Impact Badge */
+	.impact-badge {
+		display: flex;
+		align-items: center;
+		gap: 0.125rem;
+		padding: 0.125rem 0.3rem;
+		background: rgba(var(--impact-color), 0.12);
+		border-radius: 4px;
+		font-family: ui-monospace, 'SF Mono', monospace;
+		font-size: 0.5625rem;
+		font-weight: 600;
+		color: var(--impact-color);
+		cursor: help;
+	}
+
+	.impact-badge.critical {
+		background: rgba(239, 68, 68, 0.15);
+		color: #ef4444;
+		animation: impactPulse 2s ease-in-out infinite;
+	}
+
+	.impact-badge.high {
+		background: rgba(245, 158, 11, 0.12);
+		color: #f59e0b;
+	}
+
+	.impact-badge :global(svg) {
+		width: 10px;
+		height: 10px;
+	}
+
+	.impact-score {
+		letter-spacing: 0.02em;
+	}
+
+	@keyframes impactPulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.7; }
 	}
 
 	/* Agent Chip - Prominent AI worker indicator */
