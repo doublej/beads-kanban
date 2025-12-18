@@ -215,19 +215,16 @@ async function updateIssue(id: string, updates: Partial<Issue>) {
 }
 
 async function deleteIssue(id: string) {
-	if (!confirm('Delete this issue?')) return;
-	const idx = issues.findIndex(i => i.id === id);
-	if (idx !== -1) {
-		const closed = { ...issues[idx], status: 'closed' as const, updated_at: new Date().toISOString() };
-		issues = [...issues.slice(0, idx), closed, ...issues.slice(idx + 1)];
-	}
+	if (!confirm('Delete this issue permanently?')) return;
 	animatingIds = new Set([...animatingIds, id]);
-	setTimeout(() => {
-		animatingIds = new Set([...animatingIds].filter(x => x !== id));
-	}, 600);
 	if (editingIssue?.id === id) {
 		editingIssue = null;
 	}
+	// Remove from UI immediately
+	issues = issues.filter(i => i.id !== id);
+	setTimeout(() => {
+		animatingIds = new Set([...animatingIds].filter(x => x !== id));
+	}, 600);
 	await fetch(`/api/issues/${id}`, { method: 'DELETE' });
 	fetchMutations();
 }

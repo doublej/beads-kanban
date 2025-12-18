@@ -54,7 +54,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 
 export const DELETE: RequestHandler = async ({ params }) => {
 	try {
-		await execAsync(`bd ${getBdDbFlag()} close ${params.id} --reason "Deleted from Kanban"`);
+		await execAsync(`bd ${getBdDbFlag()} delete ${params.id}`);
 		return json({ success: true });
 	} catch (err: unknown) {
 		const error = err as { stderr?: string; message?: string };
