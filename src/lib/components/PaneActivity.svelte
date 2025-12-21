@@ -467,7 +467,7 @@
 					<div class="msg assistant streaming">
 						<span class="role-tag">&lt;</span>
 						<div class="content streaming-content">
-							<MarkdownContent content={size === 'large' ? pane.currentDelta : pane.currentDelta.slice(-500)} />
+							<MarkdownContent content={pane.currentDelta} />
 							<span class="cursor"></span>
 						</div>
 					</div>
