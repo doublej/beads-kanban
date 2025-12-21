@@ -25,6 +25,7 @@ export interface Issue {
 	dependency_count?: number;
 	dependent_count?: number;
 	attachments?: Attachment[];
+	comments?: Comment[];
 	// UI state
 	_showDesign?: boolean;
 	_showAcceptance?: boolean;

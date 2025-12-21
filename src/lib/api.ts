@@ -12,6 +12,15 @@ export async function deleteIssueApi(id: string): Promise<void> {
 	await fetch(`/api/issues/${id}`, { method: 'DELETE' });
 }
 
+export async function closeIssueApi(id: string, reason = 'Completed'): Promise<{ success?: boolean; error?: string }> {
+	const res = await fetch(`/api/issues/${id}/close`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ reason })
+	});
+	return res.json();
+}
+
 export async function createIssueApi(form: { title: string; description: string; priority: number; issue_type: string }): Promise<void> {
 	await fetch('/api/issues', {
 		method: 'POST',

@@ -5,7 +5,7 @@
 import Database from 'better-sqlite3';
 import { join, resolve } from 'path';
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
-import type { Issue, Dependency, MutationEntry, MutationType, Attachment } from './types';
+import type { Issue, Dependency, MutationEntry, MutationType, Attachment, Comment } from './types';
 import { getMimetype } from './attachments';
 
 const CONFIG_FILE = '/Users/jurrejan/Documents/development/_management/beads-kanban/.beads-cwd';
@@ -117,8 +117,9 @@ export function getAllIssues(): Issue[] {
 		labelsMap.set(l.issue_id, list);
 	}
 
-	// Get all attachments in one pass
+	// Get all attachments and comments in one pass
 	const attachmentsMap = getAllAttachments();
+	const commentsMap = getAllComments();
 
 	return issues.map((row) => ({
 		id: row.id,
@@ -139,7 +140,8 @@ export function getAllIssues(): Issue[] {
 		dependents: dependentsMap.get(row.id) ?? [],
 		dependency_count: depsMap.get(row.id)?.length ?? 0,
 		dependent_count: dependentsMap.get(row.id)?.length ?? 0,
-		attachments: attachmentsMap.get(row.id) ?? []
+		attachments: attachmentsMap.get(row.id) ?? [],
+		comments: commentsMap.get(row.id) ?? []
 	}));
 }
 
@@ -225,7 +227,7 @@ interface DbComment {
 	created_at: string;
 }
 
-export function getComments(issueId: string): { id: number; author: string; text: string; created_at: string }[] {
+export function getComments(issueId: string): Comment[] {
 	const db = openReadonly();
 	const rows = db.prepare(`
 		SELECT id, issue_id, author, text, created_at
@@ -234,6 +236,23 @@ export function getComments(issueId: string): { id: number; author: string; text
 	db.close();
 
 	return rows.map(c => ({ id: c.id, author: c.author, text: c.text, created_at: c.created_at }));
+}
+
+export function getAllComments(): Map<string, Comment[]> {
+	const db = openReadonly();
+	const rows = db.prepare(`
+		SELECT id, issue_id, author, text, created_at
+		FROM comments ORDER BY created_at ASC
+	`).all() as DbComment[];
+	db.close();
+
+	const result = new Map<string, Comment[]>();
+	for (const c of rows) {
+		const list = result.get(c.issue_id) ?? [];
+		list.push({ id: c.id, author: c.author, text: c.text, created_at: c.created_at });
+		result.set(c.issue_id, list);
+	}
+	return result;
 }
 
 export function getAttachmentsForIssue(issueId: string): Attachment[] {
