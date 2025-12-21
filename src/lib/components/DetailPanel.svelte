@@ -128,6 +128,20 @@
 		}
 	}
 
+	function handlePaste(e: ClipboardEvent) {
+		const items = e.clipboardData?.items;
+		if (!items) return;
+
+		for (const item of items) {
+			if (item.type.startsWith('image/')) {
+				e.preventDefault();
+				const file = item.getAsFile();
+				if (file) onuploadattachment(file);
+				return;
+			}
+		}
+	}
+
 	// Combine dependencies and dependents for unified relations view
 	const relations = $derived(() => {
 		if (!editingIssue) return [];
@@ -158,6 +172,7 @@
 	ontouchstart={onpaneltouchstart}
 	ontouchmove={onpaneltouchmove}
 	ontouchend={onpaneltouchend}
+	onpaste={handlePaste}
 >
 	<div class="drag-handle"></div>
 
