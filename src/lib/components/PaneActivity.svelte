@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import type { Pane, SdkSessionInfo } from '$lib/wsStore.svelte';
+	import type { Pane, SdkSessionInfo, SlashCommandInfo } from '$lib/wsStore.svelte';
 	import MarkdownContent from './MarkdownContent.svelte';
 
 	interface Props {
@@ -161,16 +161,16 @@
 		}
 	}
 
-	function getFilteredSlashCommands(paneName: string): string[] {
+	function getFilteredSlashCommands(paneName: string): SlashCommandInfo[] {
 		const pane = wsPanes.get(paneName);
 		const commands = pane?.slashCommands || [];
 		const input = paneMessageInputs[paneName] || '';
 		if (!input.startsWith('/')) return [];
 		const query = input.slice(1).toLowerCase();
-		// Commands may or may not have / prefix - normalize and filter
 		return commands.filter(cmd => {
-			const normalized = cmd.toLowerCase().replace(/^\//, '');
-			return normalized.startsWith(query) || normalized.includes(query);
+			const name = cmd.name.toLowerCase();
+			return name.startsWith(query) || name.includes(query) ||
+				cmd.description.toLowerCase().includes(query);
 		});
 	}
 
@@ -199,8 +199,7 @@
 			if (slashMenuPane && filtered.length > 0) {
 				e.preventDefault();
 				const cmd = filtered[slashMenuIndex];
-				const displayCmd = cmd.startsWith('/') ? cmd : '/' + cmd;
-				paneMessageInputs[paneName] = displayCmd + ' ';
+				paneMessageInputs[paneName] = '/' + cmd.name + ' ';
 				slashMenuPane = null;
 			}
 		} else if (e.key === 'Escape') {
@@ -582,14 +581,19 @@
 						{#if filtered.length > 0}
 							<div class="slash-menu">
 								{#each filtered.slice(0, 8) as cmd, i}
-									{@const displayCmd = cmd.startsWith('/') ? cmd : '/' + cmd}
 									<button
 										type="button"
 										class="slash-item"
 										class:selected={i === slashMenuIndex}
-										onmousedown={() => selectSlashCommand(pane.name, displayCmd)}
+										onmousedown={() => selectSlashCommand(pane.name, '/' + cmd.name)}
 									>
-										<span class="slash-cmd">{displayCmd}</span>
+										<span class="slash-cmd">/{cmd.name}</span>
+										{#if cmd.argumentHint}
+											<span class="slash-hint">{cmd.argumentHint}</span>
+										{/if}
+										{#if cmd.description}
+											<span class="slash-desc">{cmd.description}</span>
+										{/if}
 									</button>
 								{/each}
 							</div>
@@ -1654,6 +1658,27 @@
 	.slash-cmd {
 		color: #6366f1;
 		font-weight: 500;
+		flex-shrink: 0;
+	}
+
+	.slash-hint {
+		color: var(--text-tertiary, #666);
+		font-size: 10px;
+		flex-shrink: 0;
+	}
+
+	.slash-desc {
+		color: var(--text-secondary, #888);
+		font-size: 10px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		flex: 1;
+		text-align: right;
+	}
+
+	.slash-item {
+		gap: 8px;
 	}
 
 	:global(.app.light) .slash-menu {
