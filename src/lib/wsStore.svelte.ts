@@ -1,5 +1,6 @@
 // WebSocket store for embedded agent server at ws://localhost:9347
 // Each session gets its own WebSocket connection for proper isolation
+// Uses tab coordination to prevent branching when multiple tabs are open
 import { untrack } from 'svelte';
 import {
 	persistSdkSessionId,
@@ -7,6 +8,7 @@ import {
 	loadSessions,
 	saveSessions,
 } from './session-persistence';
+import { tabCoordinator, type ActionRequest } from './tabCoordinator';
 
 // Re-export persistence functions for external use
 export {
@@ -17,13 +19,16 @@ export {
 	type SdkSessionInfo,
 } from './session-persistence';
 
+export type NotificationType = 'comment' | 'dependency' | 'attachment' | 'status' | 'priority' | 'assignee' | 'label';
+
 export interface ChatMessage {
-	role: 'user' | 'assistant' | 'tool';
+	role: 'user' | 'assistant' | 'tool' | 'notification';
 	content: string;
 	toolName?: string;
 	toolInput?: Record<string, unknown>;
 	toolResult?: string;
 	timestamp?: string;
+	notificationType?: NotificationType;
 }
 
 export interface TokenUsage {
@@ -103,6 +108,8 @@ let sessions = $state<Map<string, AgentSession>>(loadSessions());
 let sessionSockets = new Map<string, WebSocket>();
 let serverAvailable = $state(false);
 let checkTimer: ReturnType<typeof setTimeout> | null = null;
+let isTabLeader = $state(false);
+let tabCoordinatorInitialized = false;
 
 // Save sessions whenever they change (debounced)
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -126,6 +133,109 @@ function updateSession(name: string, updates: Partial<AgentSession>) {
 	if (!session) return;
 	sessions.set(name, { ...session, ...updates });
 	sessions = new Map(sessions);
+	// Broadcast to follower tabs if we're the leader
+	if (isTabLeader) {
+		broadcastSessionsToFollowers();
+	}
+}
+
+// Broadcast session state to follower tabs (debounced)
+let broadcastTimeout: ReturnType<typeof setTimeout> | null = null;
+function broadcastSessionsToFollowers() {
+	if (broadcastTimeout) clearTimeout(broadcastTimeout);
+	broadcastTimeout = setTimeout(() => {
+		const arr = Array.from(sessions.entries());
+		tabCoordinator.broadcastState(arr);
+	}, 50);
+}
+
+// Apply session state received from leader tab
+function applySessionsFromLeader(state: unknown) {
+	if (!Array.isArray(state)) return;
+	try {
+		const newSessions = new Map<string, AgentSession>(state as [string, AgentSession][]);
+		sessions = newSessions;
+	} catch {
+		// Invalid state, ignore
+	}
+}
+
+// Handle becoming the leader tab
+function onBecomeLeader() {
+	console.log('[wsStore] This tab is now the leader');
+	isTabLeader = true;
+	// Resume sessions that have serverIds
+	for (const [name, session] of sessions) {
+		if (session.serverId && !session.streaming) {
+			resumeSession(name);
+		}
+	}
+}
+
+// Handle becoming a follower tab
+function onBecomeFollower() {
+	console.log('[wsStore] This tab is now a follower');
+	isTabLeader = false;
+	// Close all WebSocket connections - leader will handle them
+	for (const [, ws] of sessionSockets) {
+		ws.close();
+	}
+	sessionSockets.clear();
+}
+
+// Handle action requests forwarded from follower tabs
+function handleActionRequest(request: ActionRequest) {
+	const { action, sessionName, args } = request;
+	console.log(`[wsStore] Handling action request: ${action} for ${sessionName}`);
+
+	switch (action) {
+		case 'startSession':
+			startSessionInternal(sessionName, ...(args as [string, string, string?, string?]));
+			break;
+		case 'sendMessage':
+			sendMessageInternal(sessionName, args[0] as string);
+			break;
+		case 'interrupt':
+			interruptInternal(sessionName);
+			break;
+		case 'killSession':
+			killSessionInternal(sessionName);
+			break;
+		case 'endSession':
+			endSessionInternal(sessionName);
+			break;
+		case 'clearSession':
+			clearSessionInternal(sessionName);
+			break;
+		case 'continueSession':
+			continueSessionInternal(sessionName);
+			break;
+		case 'compactSession':
+			compactSessionInternal(sessionName);
+			break;
+	}
+}
+
+// Initialize tab coordinator
+function initTabCoordinator() {
+	if (tabCoordinatorInitialized || typeof window === 'undefined') return;
+	tabCoordinatorInitialized = true;
+
+	tabCoordinator.init(
+		(leader) => {
+			if (leader) {
+				onBecomeLeader();
+			} else {
+				onBecomeFollower();
+			}
+		},
+		(state) => {
+			if (!isTabLeader) {
+				applySessionsFromLeader(state);
+			}
+		},
+		handleActionRequest
+	);
 }
 
 function createMessageHandler(sessionName: string) {
@@ -337,6 +447,12 @@ function handleStream(name: string, session: AgentSession, data: StreamEvent | A
 }
 
 function getOrCreateSocket(sessionName: string): WebSocket | null {
+	// Only the leader tab creates WebSocket connections
+	if (!isTabLeader) {
+		console.log(`[agent:${sessionName}] not leader, skipping socket creation`);
+		return null;
+	}
+
 	let ws = sessionSockets.get(sessionName);
 	if (ws?.readyState === WebSocket.OPEN) return ws;
 
@@ -402,24 +518,30 @@ function resumeSession(name: string) {
 // Check if server is available and resume sessions
 export function connect() {
 	if (typeof window === 'undefined') return;
+
+	// Initialize tab coordination first
+	initTabCoordinator();
+
 	const ws = new WebSocket(getWsUrl());
 	ws.onopen = () => {
 		serverAvailable = true;
 		ws.close();
-		// Resume all sessions that have serverId
-		for (const [name, session] of sessions) {
-			if (session.serverId && !session.streaming) {
-				resumeSession(name);
+		// Only leader tab resumes sessions
+		if (isTabLeader) {
+			for (const [name, session] of sessions) {
+				if (session.serverId && !session.streaming) {
+					resumeSession(name);
+				}
 			}
 		}
 	};
 	ws.onerror = () => {
 		serverAvailable = false;
 	};
-	// Schedule periodic check
+	// Schedule periodic check (only leader needs to do this)
 	if (!checkTimer) {
 		checkTimer = setInterval(() => {
-			if (!serverAvailable) connect();
+			if (!serverAvailable && isTabLeader) connect();
 		}, 5000);
 	}
 }
@@ -429,17 +551,20 @@ export function disconnect() {
 		clearInterval(checkTimer);
 		checkTimer = null;
 	}
-	for (const [name, ws] of sessionSockets) {
+	for (const [, ws] of sessionSockets) {
 		ws.close();
 	}
 	sessionSockets.clear();
 	serverAvailable = false;
+	tabCoordinator.destroy();
+	tabCoordinatorInitialized = false;
 }
 
 export function getSessions() { return sessions; }
 export function isConnected() { return serverAvailable; }
 export function getConnected() { return serverAvailable; }
 export function getPanes() { return sessions; }
+export function isLeaderTab() { return isTabLeader; }
 export type Pane = AgentSession;
 
 // Mark pane as read - update lastReadCount to current message count
@@ -468,10 +593,10 @@ export function getUnreadCount(name: string): number {
 	return Math.max(0, session.messages.length - lastRead);
 }
 
-export function startSession(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string) {
+// Internal functions that do the actual work (called by leader tab)
+function startSessionInternal(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string) {
 	console.log('[agent] startSession:', name, 'cwd:', cwd, resumeSessionId ? `resuming: ${resumeSessionId}` : '');
 
-	// Create session entry first
 	const existing = sessions.get(name);
 	const session: AgentSession = {
 		id: crypto.randomUUID(),
@@ -487,7 +612,6 @@ export function startSession(name: string, cwd: string, briefing: string, system
 	sessions.set(name, session);
 	sessions = new Map(sessions);
 
-	// Create socket and send start
 	const ws = getOrCreateSocket(name);
 	if (!ws) return;
 
@@ -502,11 +626,10 @@ export function startSession(name: string, cwd: string, briefing: string, system
 	}
 }
 
-export function sendMessage(name: string, text: string) {
+function sendMessageInternal(name: string, text: string) {
 	const session = sessions.get(name);
 	if (!session) return;
 
-	// Add to local messages
 	updateSession(name, {
 		messages: [...session.messages, {
 			role: 'user',
@@ -518,17 +641,11 @@ export function sendMessage(name: string, text: string) {
 	sendToSocket(name, { type: 'message', text });
 }
 
-export function interrupt(name: string) {
+function interruptInternal(name: string) {
 	sendToSocket(name, { type: 'interrupt' });
 }
 
-export function addPane(name: string, cwd: string, firstMessage?: string, systemPrompt?: string, resumeSessionId?: string) {
-	const briefing = firstMessage ? firstMessage.replace('{name}', name) : `You are an agent named "${name}". Await further instructions.`;
-	const prompt = systemPrompt ? systemPrompt.replace('{name}', name) : undefined;
-	startSession(name, cwd, briefing, prompt, resumeSessionId);
-}
-
-export function killSession(name: string) {
+function killSessionInternal(name: string) {
 	const session = sessions.get(name);
 	if (session?.streaming) {
 		sendToSocket(name, { type: 'interrupt' });
@@ -540,6 +657,61 @@ export function killSession(name: string) {
 	}
 	sessions.delete(name);
 	sessions = new Map(sessions);
+}
+
+function endSessionInternal(name: string) {
+	sendToSocket(name, { type: 'end' });
+}
+
+function clearSessionInternal(name: string) {
+	sendToSocket(name, { type: 'clear' });
+}
+
+function continueSessionInternal(name: string) {
+	sendToSocket(name, { type: 'continue' });
+}
+
+function compactSessionInternal(name: string) {
+	sendToSocket(name, { type: 'compact' });
+}
+
+// Public functions that forward to leader if not the leader tab
+export function startSession(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string) {
+	if (isTabLeader) {
+		startSessionInternal(name, cwd, briefing, systemPromptAppend, resumeSessionId);
+	} else {
+		tabCoordinator.requestAction({ action: 'startSession', sessionName: name, args: [cwd, briefing, systemPromptAppend, resumeSessionId] });
+	}
+}
+
+export function sendMessage(name: string, text: string) {
+	if (isTabLeader) {
+		sendMessageInternal(name, text);
+	} else {
+		tabCoordinator.requestAction({ action: 'sendMessage', sessionName: name, args: [text] });
+	}
+}
+
+export function interrupt(name: string) {
+	if (isTabLeader) {
+		interruptInternal(name);
+	} else {
+		tabCoordinator.requestAction({ action: 'interrupt', sessionName: name, args: [] });
+	}
+}
+
+export function addPane(name: string, cwd: string, firstMessage?: string, systemPrompt?: string, resumeSessionId?: string) {
+	const briefing = firstMessage ? firstMessage.replace('{name}', name) : `You are an agent named "${name}". Await further instructions.`;
+	const prompt = systemPrompt ? systemPrompt.replace('{name}', name) : undefined;
+	startSession(name, cwd, briefing, prompt, resumeSessionId);
+}
+
+export function killSession(name: string) {
+	if (isTabLeader) {
+		killSessionInternal(name);
+	} else {
+		tabCoordinator.requestAction({ action: 'killSession', sessionName: name, args: [] });
+	}
 }
 
 export function removePane(name: string) {
@@ -559,37 +731,78 @@ export function sendToPane(name: string, message: string, cwd: string) {
 	if (!session) {
 		startSession(name, cwd, message);
 	} else if (!session.streaming) {
-		// Existing session, not streaming - send follow-up
 		updateSession(name, { streaming: true });
-
-		const ws = getOrCreateSocket(name);
-		if (!ws) return;
-
-		const send = () => sendToSocket(name, { type: 'message', text: message });
-		if (ws.readyState === WebSocket.OPEN) {
-			send();
+		if (isTabLeader) {
+			const ws = getOrCreateSocket(name);
+			if (!ws) return;
+			const send = () => sendToSocket(name, { type: 'message', text: message });
+			if (ws.readyState === WebSocket.OPEN) {
+				send();
+			} else {
+				ws.addEventListener('open', send, { once: true });
+			}
 		} else {
-			ws.addEventListener('open', send, { once: true });
+			tabCoordinator.requestAction({ action: 'sendMessage', sessionName: name, args: [message] });
 		}
 	} else {
-		// Active session - send message
 		sendMessage(name, message);
 	}
 }
 
 // Session control commands
 export function endSession(name: string) {
-	sendToSocket(name, { type: 'end' });
+	if (isTabLeader) {
+		endSessionInternal(name);
+	} else {
+		tabCoordinator.requestAction({ action: 'endSession', sessionName: name, args: [] });
+	}
 }
 
 export function clearSession(name: string) {
-	sendToSocket(name, { type: 'clear' });
+	if (isTabLeader) {
+		clearSessionInternal(name);
+	} else {
+		tabCoordinator.requestAction({ action: 'clearSession', sessionName: name, args: [] });
+	}
 }
 
 export function continueSession(name: string) {
-	sendToSocket(name, { type: 'continue' });
+	if (isTabLeader) {
+		continueSessionInternal(name);
+	} else {
+		tabCoordinator.requestAction({ action: 'continueSession', sessionName: name, args: [] });
+	}
 }
 
 export function compactSession(name: string) {
-	sendToSocket(name, { type: 'compact' });
+	if (isTabLeader) {
+		compactSessionInternal(name);
+	} else {
+		tabCoordinator.requestAction({ action: 'compactSession', sessionName: name, args: [] });
+	}
+}
+
+// Inject a notification message into an agent session
+export function injectNotification(name: string, content: string, notificationType: NotificationType) {
+	const session = sessions.get(name);
+	if (!session) return;
+
+	updateSession(name, {
+		messages: [...session.messages, {
+			role: 'notification',
+			content,
+			notificationType,
+			timestamp: new Date().toISOString()
+		}]
+	});
+}
+
+// Notify agent about ticket update (finds agent by ticket ID)
+export function notifyAgentOfTicketUpdate(ticketId: string, content: string, notificationType: NotificationType) {
+	const agentName = `${ticketId}-agent`;
+	const session = sessions.get(agentName);
+	if (!session) return false;
+
+	injectNotification(agentName, content, notificationType);
+	return true;
 }
