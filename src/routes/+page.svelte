@@ -1686,7 +1686,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		onopenKeyboardHelp={() => showKeyboardHelp = true}
 		onopenCreatePanel={openCreatePanel}
 		onopenSettings={() => showSettings = true}
-		onopenPrompts={() => showPrompts = true}
+		onopenPrompts={() => { showSettings = true; showPrompts = true; }}
 		onpreviewchange={(previewing) => isFilterPreviewing = previewing}
 		oneditProject={() => showSettings = true}
 		ontoggleAgentPanes={() => showActivityBar = !showActivityBar}
