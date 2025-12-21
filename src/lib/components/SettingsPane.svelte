@@ -2,11 +2,13 @@
 	import { onMount } from 'svelte';
 	import Icon from './Icon.svelte';
 	import PromptsWindow from './PromptsWindow.svelte';
+	import PromptsEditor from './PromptsEditor.svelte';
 	import type { Project } from '$lib/types';
 
 	interface Props {
 		show: boolean;
 		showPrompts: boolean;
+		showPromptsEditor: boolean;
 		isDarkMode: boolean;
 		agentEnabled: boolean;
 		agentHost: string;
@@ -20,12 +22,12 @@
 		ontoggleTheme: () => void;
 		onsetColorScheme: (scheme: string) => void;
 		ontoggleNotifications: () => void;
-		onopenPromptsEditor?: () => void;
 	}
 
 	let {
 		show = $bindable(),
 		showPrompts = $bindable(),
+		showPromptsEditor = $bindable(),
 		isDarkMode,
 		agentEnabled = $bindable(),
 		agentHost = $bindable(),
@@ -38,8 +40,7 @@
 		notificationsEnabled,
 		ontoggleTheme,
 		onsetColorScheme,
-		ontoggleNotifications,
-		onopenPromptsEditor
+		ontoggleNotifications
 	}: Props = $props();
 
 	const colorSchemes = [
@@ -130,6 +131,12 @@
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div class="settings-overlay" onclick={handleOverlayClick} role="presentation">
 	<PromptsWindow bind:show={showPrompts} />
+	<PromptsEditor
+		bind:show={showPromptsEditor}
+		bind:agentFirstMessage
+		bind:agentSystemPrompt
+		bind:agentWorkflow
+	/>
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 	<aside class="settings-pane" onclick={handlePanelClick} role="dialog" aria-label="Settings">
 		<header class="settings-header">
@@ -249,7 +256,7 @@
 							<span class="setting-name">Agent Prompts</span>
 							<span class="setting-desc">First message, system prompt & workflow</span>
 						</div>
-						<button class="btn-edit-prompts" onclick={onopenPromptsEditor}>
+						<button class="btn-edit-prompts" onclick={() => showPromptsEditor = true}>
 							<Icon name="edit" size={12} />
 							<span>Edit</span>
 						</button>

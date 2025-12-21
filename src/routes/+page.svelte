@@ -43,7 +43,6 @@
 	import GraphView from '$lib/components/GraphView.svelte';
 		import MutationLog from '$lib/components/MutationLog.svelte';
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
-	import PromptsEditor from '$lib/components/PromptsEditor.svelte';
 	import { fetchMutations } from '$lib/mutationStore.svelte';
 	import StatsView from '$lib/components/StatsView.svelte';
 	import ThemeTransition from '$lib/components/ThemeTransition.svelte';
@@ -1643,15 +1642,10 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 />
 
 <KeyboardHelp bind:show={showKeyboardHelp} />
-<PromptsEditor
-	bind:show={showPromptsEditor}
-	bind:agentFirstMessage
-	bind:agentSystemPrompt
-	bind:agentWorkflow
-/>
 <SettingsPane
 	bind:show={showSettings}
 	bind:showPrompts
+	bind:showPromptsEditor
 	bind:agentEnabled
 	bind:agentHost
 	bind:agentPort
@@ -1665,7 +1659,6 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	ontoggleTheme={toggleTheme}
 	onsetColorScheme={(scheme) => colorScheme = scheme}
 	ontoggleNotifications={toggleNotifications}
-	onopenPromptsEditor={() => showPromptsEditor = true}
 />
 	<Header
 		bind:searchQuery

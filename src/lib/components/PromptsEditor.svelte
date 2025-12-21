@@ -49,14 +49,6 @@
 		else agentWorkflow = value;
 	}
 
-	function handleOverlayClick() {
-		show = false;
-	}
-
-	function handlePanelClick(e: MouseEvent) {
-		e.stopPropagation();
-	}
-
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
 			show = false;
@@ -67,10 +59,7 @@
 <svelte:window onkeydown={show ? handleKeydown : undefined} />
 
 {#if show}
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="editor-overlay" onclick={handleOverlayClick} role="presentation">
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-	<div class="editor-window" onclick={handlePanelClick} role="dialog" aria-label="Prompts Editor" tabindex="-1">
+<aside class="editor-window" role="dialog" aria-label="Prompts Editor" tabindex="-1">
 		<header class="editor-header">
 			<div class="header-left">
 				<Icon name="sliders" size={16} />
@@ -140,54 +129,36 @@
 			</div>
 		</div>
 
-		<footer class="editor-footer">
-			<div class="footer-hint">
-				<kbd>Esc</kbd> close
-			</div>
-			<div class="footer-stats">
-				{activeContent.length} characters
-			</div>
-		</footer>
-	</div>
-</div>
+	<footer class="editor-footer">
+		<div class="footer-hint">
+			<kbd>Esc</kbd> close
+		</div>
+		<div class="footer-stats">
+			{activeContent.length} characters
+		</div>
+	</footer>
+</aside>
 {/if}
 
 <style>
-	.editor-overlay {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.7);
-		backdrop-filter: blur(8px);
-		z-index: 10000;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 2rem;
-		animation: overlayFadeIn 200ms ease-out;
-	}
-
-	@keyframes overlayFadeIn {
-		from { opacity: 0; }
-		to { opacity: 1; }
-	}
-
 	.editor-window {
-		width: 100%;
-		max-width: 1000px;
-		height: 100%;
-		max-height: 700px;
+		position: absolute;
+		top: 0;
+		right: 340px; /* Position to left of settings pane */
+		bottom: 0;
+		width: 680px;
+		max-width: calc(100vw - 340px);
 		background: var(--bg-primary);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-lg);
+		border-right: 1px solid var(--border-subtle);
 		display: flex;
 		flex-direction: column;
-		animation: windowSlideIn 280ms cubic-bezier(0.32, 0.72, 0, 1);
-		box-shadow: 0 32px 64px rgba(0, 0, 0, 0.5);
+		animation: slideIn 280ms cubic-bezier(0.32, 0.72, 0, 1);
+		box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
 	}
 
-	@keyframes windowSlideIn {
-		from { opacity: 0; transform: scale(0.96) translateY(16px); }
-		to { opacity: 1; transform: scale(1) translateY(0); }
+	@keyframes slideIn {
+		from { transform: translateX(100%); opacity: 0; }
+		to { transform: translateX(0); opacity: 1; }
 	}
 
 	.editor-header {
@@ -197,7 +168,6 @@
 		padding: 0.875rem 1.25rem;
 		border-bottom: 1px solid var(--border-subtle);
 		background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 100%);
-		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 	}
 
 	:global(.app.light) .editor-header {
@@ -444,7 +414,6 @@
 		padding: 0.75rem 1.25rem;
 		border-top: 1px solid var(--border-subtle);
 		background: rgba(0, 0, 0, 0.1);
-		border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 	}
 
 	:global(.app.light) .editor-footer {
@@ -486,22 +455,16 @@
 		font-family: ui-monospace, 'SF Mono', monospace;
 	}
 
-	@media (max-width: 768px) {
-		.editor-overlay {
-			padding: 0;
-		}
-
+	@media (max-width: 1020px) {
 		.editor-window {
+			right: 0;
+			width: 100%;
 			max-width: none;
-			max-height: none;
-			border-radius: 0;
+			border-right: none;
 		}
+	}
 
-		.editor-header,
-		.editor-footer {
-			border-radius: 0;
-		}
-
+	@media (max-width: 768px) {
 		.editor-tabs {
 			width: auto;
 			flex-direction: row;
