@@ -903,7 +903,7 @@ Work on this ticket:
 ${savedForm.description ? `- **Description**: ${savedForm.description}` : ''}
 
 Start by claiming the ticket (set status to in_progress), then implement the required changes.`;
-			addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt);
+			addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt, undefined, data.id);
 			expandedPanes.add(agentName);
 			expandedPanes = new Set(expandedPanes);
 		}
@@ -920,7 +920,7 @@ Work on this ticket:
 ${issue.description ? `- **Description**: ${issue.description}` : ''}
 
 Start by claiming the ticket (set status to in_progress), then implement the required changes.`;
-		addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt);
+		addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt, undefined, issue.id);
 		expandedPanes.add(agentName);
 		expandedPanes = new Set(expandedPanes);
 		// Close panel to show agent activity
