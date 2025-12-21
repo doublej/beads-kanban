@@ -45,7 +45,7 @@
 		activeTab === 'system' ? '# Agent Instructions\n\nAdd custom instructions, context, or guidelines for all agents...' :
 		activeTab === 'workflow' ? '# Ticket Workflow\n\nDefine the mandatory workflow steps for agents...' :
 		activeTab === 'ticket' ? '<assignment id="{id}" name="{name}">\n<task>\n<title>{title}</title>\n<description>{description}</description>\n<comments>{comments}</comments>\n</task>\n</assignment>' :
-		'[Ticket: {id}] "{title}" (from: {sender}) {content}'
+		'<ticket_notification id="{id}" title="{title}">\n<message>\n<sender>{sender}</sender>\n<content>{content}</content>\n</message>\n<instructions>\nReview and apply any required action.\n</instructions>\n</ticket_notification>'
 	);
 
 	const hint = $derived(

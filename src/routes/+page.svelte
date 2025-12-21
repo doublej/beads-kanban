@@ -195,7 +195,20 @@ You are assigned to ticket {id}.
 Start by claiming the ticket (set status to in_progress), then implement the required changes.
 </instructions>
 </assignment>`);
-	let agentTicketNotification = $state(`[Ticket: {id}] "{title}" (from: {sender}) {content}`);
+	let agentTicketNotification = $state(`<ticket_notification id="{id}" title="{title}">
+<context>
+Ticket update notification for {id}.
+</context>
+
+<message>
+<sender>{sender}</sender>
+<content>{content}</content>
+</message>
+
+<instructions>
+Review the notification content and apply any required action to ticket {id}.
+</instructions>
+</ticket_notification>`);
 	let agentToolsExpanded = $state(false);
 	const combinedSystemPrompt = $derived([agentSystemPrompt, agentWorkflow].filter(Boolean).join('\n\n'));
 	let agentMenuOpen = $state(false);
