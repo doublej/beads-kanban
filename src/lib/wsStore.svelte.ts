@@ -843,11 +843,31 @@ function findSessionByTicketId(ticketId: string): [string, AgentSession] | null 
 	return null;
 }
 
+export interface TicketNotificationContext {
+	ticketId: string;
+	ticketTitle?: string;
+	sender?: string;
+}
+
 // Notify agent about ticket update (finds agent by ticket ID)
-export function notifyAgentOfTicketUpdate(ticketId: string, content: string, notificationType: NotificationType) {
+export function notifyAgentOfTicketUpdate(
+	ticketId: string,
+	content: string,
+	notificationType: NotificationType,
+	context?: Omit<TicketNotificationContext, 'ticketId'>
+) {
 	const found = findSessionByTicketId(ticketId);
 	if (!found) return false;
 	const [agentName] = found;
-	injectNotification(agentName, content, notificationType);
+
+	// Build rich notification with context
+	const parts: string[] = [];
+	parts.push(`[Ticket: ${ticketId}]`);
+	if (context?.ticketTitle) parts.push(`"${context.ticketTitle}"`);
+	if (context?.sender) parts.push(`(from: ${context.sender})`);
+	parts.push(content);
+
+	const richContent = parts.join(' ');
+	injectNotification(agentName, richContent, notificationType);
 	return true;
 }
