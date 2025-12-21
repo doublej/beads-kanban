@@ -14,6 +14,7 @@
 		resizingPane: string | null;
 		disabled?: boolean;
 		toolsExpandedByDefault?: boolean;
+		getUnreadCount?: (name: string) => number;
 		onStartDrag: (e: MouseEvent, name: string) => void;
 		onStartResize: (e: MouseEvent, name: string, edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw') => void;
 		onCyclePaneSize: (name: string) => void;
@@ -43,6 +44,7 @@
 		resizingPane,
 		disabled = false,
 		toolsExpandedByDefault = false,
+		getUnreadCount,
 		onStartDrag,
 		onStartResize,
 		onCyclePaneSize,
@@ -67,6 +69,24 @@
 			return name.slice(0, -6); // Remove "-agent" suffix
 		}
 		return null;
+	}
+
+	// Get slice size for pane display
+	function getSliceSize(size: 'compact' | 'medium' | 'large'): number {
+		return size === 'large' ? 200 : size === 'medium' ? 80 : 40;
+	}
+
+	// Compute first unread message index for a pane (relative to displayed slice)
+	function getFirstUnreadIndex(pane: Pane, size: 'compact' | 'medium' | 'large'): number | null {
+		const unread = getUnreadCount?.(pane.name) ?? 0;
+		if (unread <= 0) return null;
+		const sliceSize = getSliceSize(size);
+		const sliceStart = Math.max(0, pane.messages.length - sliceSize);
+		// First unread is at (total messages - unread count)
+		const firstUnreadAbsolute = pane.messages.length - unread;
+		// Convert to slice-relative index
+		const relativeIndex = firstUnreadAbsolute - sliceStart;
+		return relativeIndex >= 0 ? relativeIndex : 0;
 	}
 
 	let messagesRefs = $state<Record<string, HTMLDivElement | null>>({});
@@ -419,15 +439,25 @@
 
 			<!-- Messages -->
 			<div class="messages" bind:this={messagesRefs[pane.name]}>
-				{#each pane.messages.slice(size === 'large' ? -200 : size === 'medium' ? -80 : -40) as msg, i}
+				{#each pane.messages.slice(-getSliceSize(size)) as msg, i}
 					{@const toolKey = `${pane.name}-${i}`}
 					{@const isCollapsed = msg.role === 'tool' && (toolsExpandedByDefault ? collapsedTools.has(toolKey) : !collapsedTools.has(toolKey))}
+					{@const firstUnreadIdx = getFirstUnreadIndex(pane, size)}
+					{@const isUnread = firstUnreadIdx !== null && i >= firstUnreadIdx}
+					{#if firstUnreadIdx !== null && i === firstUnreadIdx}
+						<div class="new-messages-marker">
+							<span class="marker-line"></span>
+							<span class="marker-label">new</span>
+							<span class="marker-line"></span>
+						</div>
+					{/if}
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<div
 						class="msg {msg.role} {msg.role === 'notification' ? msg.notificationType || '' : ''} {msg.role === 'system' ? msg.systemSubtype || '' : ''}"
 						class:collapsed={isCollapsed}
 						class:clickable={msg.role === 'tool'}
+						class:unread={isUnread}
 						onclick={msg.role === 'tool' ? () => toggleToolCollapse(toolKey) : undefined}
 					>
 						{#if msg.role === 'tool'}
@@ -1182,6 +1212,47 @@
 
 	:global(.app.light) .messages::-webkit-scrollbar-thumb:hover {
 		background: rgba(0, 0, 0, 0.2);
+	}
+
+	/* New messages marker */
+	.new-messages-marker {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0.25rem 0;
+		opacity: 0.9;
+	}
+
+	.marker-line {
+		flex: 1;
+		height: 1px;
+		background: rgba(239, 68, 68, 0.4);
+	}
+
+	.marker-label {
+		font: 600 8px/1 'IBM Plex Mono', ui-monospace, monospace;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: #ef4444;
+		padding: 2px 6px;
+		background: rgba(239, 68, 68, 0.1);
+		border-radius: 3px;
+	}
+
+	:global(.app.light) .marker-line {
+		background: rgba(239, 68, 68, 0.35);
+	}
+
+	:global(.app.light) .marker-label {
+		background: rgba(239, 68, 68, 0.08);
+		color: #dc2626;
+	}
+
+	/* Unread message styling */
+	.msg.unread {
+		border-left: 2px solid rgba(239, 68, 68, 0.5);
+		padding-left: calc(0.375rem - 2px);
+		margin-left: 2px;
 	}
 
 	.msg {
