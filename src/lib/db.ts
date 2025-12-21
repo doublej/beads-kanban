@@ -4,8 +4,9 @@
  */
 import Database from 'better-sqlite3';
 import { join, resolve } from 'path';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
-import type { Issue, Dependency, MutationEntry, MutationType } from './types';
+import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
+import type { Issue, Dependency, MutationEntry, MutationType, Attachment } from './types';
+import { getMimetype } from './attachments';
 
 const CONFIG_FILE = '/Users/jurrejan/Documents/development/_management/beads-kanban/.beads-cwd';
 
@@ -116,6 +117,9 @@ export function getAllIssues(): Issue[] {
 		labelsMap.set(l.issue_id, list);
 	}
 
+	// Get all attachments in one pass
+	const attachmentsMap = getAllAttachments();
+
 	return issues.map((row) => ({
 		id: row.id,
 		title: row.title,
@@ -134,7 +138,8 @@ export function getAllIssues(): Issue[] {
 		dependencies: depsMap.get(row.id) ?? [],
 		dependents: dependentsMap.get(row.id) ?? [],
 		dependency_count: depsMap.get(row.id)?.length ?? 0,
-		dependent_count: dependentsMap.get(row.id)?.length ?? 0
+		dependent_count: dependentsMap.get(row.id)?.length ?? 0,
+		attachments: attachmentsMap.get(row.id) ?? []
 	}));
 }
 
@@ -229,4 +234,36 @@ export function getComments(issueId: string): { id: number; author: string; text
 	db.close();
 
 	return rows.map(c => ({ id: c.id, author: c.author, text: c.text, created_at: c.created_at }));
+}
+
+export function getAttachmentsForIssue(issueId: string): Attachment[] {
+	const dir = join(getStoredCwd(), '.beads', 'attachments', issueId);
+	if (!existsSync(dir)) return [];
+
+	return readdirSync(dir).map((filename) => {
+		const filePath = join(dir, filename);
+		const stats = statSync(filePath);
+		return {
+			filename,
+			size: stats.size,
+			mimetype: getMimetype(filename),
+			created_at: stats.birthtime.toISOString(),
+		};
+	});
+}
+
+export function getAllAttachments(): Map<string, Attachment[]> {
+	const attachmentsDir = join(getStoredCwd(), '.beads', 'attachments');
+	if (!existsSync(attachmentsDir)) return new Map();
+
+	const result = new Map<string, Attachment[]>();
+	for (const issueId of readdirSync(attachmentsDir)) {
+		const issueDir = join(attachmentsDir, issueId);
+		const stat = statSync(issueDir);
+		if (!stat.isDirectory()) continue;
+
+		const attachments = getAttachmentsForIssue(issueId);
+		if (attachments.length > 0) result.set(issueId, attachments);
+	}
+	return result;
 }
