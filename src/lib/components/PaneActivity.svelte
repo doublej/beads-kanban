@@ -369,7 +369,7 @@
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<div
-						class="msg {msg.role}"
+						class="msg {msg.role} {msg.role === 'notification' ? msg.notificationType || '' : ''}"
 						class:collapsed={isCollapsed}
 						class:clickable={msg.role === 'tool'}
 						onclick={msg.role === 'tool' ? () => toggleToolCollapse(toolKey) : undefined}
@@ -380,6 +380,22 @@
 									<svg viewBox="0 0 8 8" width="8" height="8"><path d="M2 1l4 3-4 3z" fill="currentColor"/></svg>
 								{:else}
 									<svg viewBox="0 0 8 8" width="8" height="8"><path d="M1 2l3 4 3-4z" fill="currentColor"/></svg>
+								{/if}
+							</span>
+						{:else if msg.role === 'notification'}
+							<span class="notification-icon {msg.notificationType || ''}">
+								{#if msg.notificationType === 'comment'}
+									<svg viewBox="0 0 16 16" width="10" height="10"><path d="M2.5 3A1.5 1.5 0 014 1.5h8A1.5 1.5 0 0113.5 3v7a1.5 1.5 0 01-1.5 1.5H6l-3.5 3V3z" fill="currentColor"/></svg>
+								{:else if msg.notificationType === 'dependency'}
+									<svg viewBox="0 0 16 16" width="10" height="10"><path d="M4 8h8M8 4v8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+								{:else if msg.notificationType === 'attachment'}
+									<svg viewBox="0 0 16 16" width="10" height="10"><path d="M10.5 3.5l-6 6a2.12 2.12 0 003 3l6-6a3.54 3.54 0 00-5-5l-6 6a4.95 4.95 0 007 7l6-6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+								{:else if msg.notificationType === 'status'}
+									<svg viewBox="0 0 16 16" width="10" height="10"><circle cx="8" cy="8" r="5" fill="currentColor"/></svg>
+								{:else if msg.notificationType === 'priority'}
+									<svg viewBox="0 0 16 16" width="10" height="10"><path d="M8 2l2 4 4.5.6-3.3 3.2.8 4.5L8 12l-4 2.3.8-4.5L1.5 6.6 6 6l2-4z" fill="currentColor"/></svg>
+								{:else}
+									<svg viewBox="0 0 16 16" width="10" height="10"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg>
 								{/if}
 							</span>
 						{:else}
@@ -409,6 +425,10 @@
 									{/if}
 								</div>
 							{/if}
+						{:else if msg.role === 'notification'}
+							<div class="notification-content {msg.notificationType || ''}">
+								{msg.content}
+							</div>
 						{:else}
 							<div class="content">
 								<MarkdownContent content={msg.content} maxLength={size === 'large' ? undefined : 3000} />
@@ -1101,6 +1121,63 @@
 	:global(.app.light) .msg.tool {
 		background: rgba(34, 211, 238, 0.06);
 	}
+
+	/* Notification message styles */
+	.msg.notification {
+		background: rgba(251, 191, 36, 0.08);
+		border-left: 2px solid rgba(251, 191, 36, 0.4);
+		padding-left: 0.5rem;
+	}
+
+	.msg.notification.comment { background: rgba(59, 130, 246, 0.08); border-left-color: rgba(59, 130, 246, 0.4); }
+	.msg.notification.dependency { background: rgba(168, 85, 247, 0.08); border-left-color: rgba(168, 85, 247, 0.4); }
+	.msg.notification.attachment { background: rgba(34, 197, 94, 0.08); border-left-color: rgba(34, 197, 94, 0.4); }
+	.msg.notification.status { background: rgba(251, 146, 60, 0.08); border-left-color: rgba(251, 146, 60, 0.4); }
+	.msg.notification.priority { background: rgba(239, 68, 68, 0.08); border-left-color: rgba(239, 68, 68, 0.4); }
+	.msg.notification.assignee { background: rgba(99, 102, 241, 0.08); border-left-color: rgba(99, 102, 241, 0.4); }
+	.msg.notification.label { background: rgba(14, 165, 233, 0.08); border-left-color: rgba(14, 165, 233, 0.4); }
+
+	:global(.app.light) .msg.notification { background: rgba(251, 191, 36, 0.06); }
+	:global(.app.light) .msg.notification.comment { background: rgba(59, 130, 246, 0.06); }
+	:global(.app.light) .msg.notification.dependency { background: rgba(168, 85, 247, 0.06); }
+	:global(.app.light) .msg.notification.attachment { background: rgba(34, 197, 94, 0.06); }
+	:global(.app.light) .msg.notification.status { background: rgba(251, 146, 60, 0.06); }
+	:global(.app.light) .msg.notification.priority { background: rgba(239, 68, 68, 0.06); }
+	:global(.app.light) .msg.notification.assignee { background: rgba(99, 102, 241, 0.06); }
+	:global(.app.light) .msg.notification.label { background: rgba(14, 165, 233, 0.06); }
+
+	.notification-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 14px;
+		height: 14px;
+		flex-shrink: 0;
+		color: #fbbf24;
+	}
+
+	.notification-icon.comment { color: #3b82f6; }
+	.notification-icon.dependency { color: #a855f7; }
+	.notification-icon.attachment { color: #22c55e; }
+	.notification-icon.status { color: #fb923c; }
+	.notification-icon.priority { color: #ef4444; }
+	.notification-icon.assignee { color: #6366f1; }
+	.notification-icon.label { color: #0ea5e9; }
+
+	.notification-content {
+		flex: 1;
+		font: 10px/1.35 'IBM Plex Mono', ui-monospace, monospace;
+		color: var(--text-secondary, #aaa);
+		font-style: italic;
+	}
+
+	.notification-content.comment { color: #60a5fa; }
+	.notification-content.dependency { color: #c084fc; }
+	.notification-content.attachment { color: #4ade80; }
+	.notification-content.status { color: #fdba74; }
+	.notification-content.priority { color: #fca5a5; }
+	.notification-content.assignee { color: #a5b4fc; }
+	.notification-content.label { color: #38bdf8; }
 
 	.role-tag {
 		color: var(--text-tertiary);

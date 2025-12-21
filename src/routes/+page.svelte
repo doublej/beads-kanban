@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { untrack } from 'svelte';
-	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, killSession, clearAllSessions, endSession, clearSession, continueSession, compactSession, getPersistedSdkSessionId, getAllPersistedSessions, deletePersistedSession, fetchSdkSessions, markPaneAsRead, getTotalUnreadCount, getUnreadCount, type Pane, type SdkSessionInfo } from '$lib/wsStore.svelte';
+	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, killSession, clearAllSessions, endSession, clearSession, continueSession, compactSession, getPersistedSdkSessionId, getAllPersistedSessions, deletePersistedSession, fetchSdkSessions, markPaneAsRead, getTotalUnreadCount, getUnreadCount, notifyAgentOfTicketUpdate, type Pane, type SdkSessionInfo } from '$lib/wsStore.svelte';
 	import type { Issue, Comment, Attachment, CardPosition, FlyingCard, ContextMenuState, RopeDragState, SortBy, PaneSize, ViewMode, LoadingStatus as LoadingStatusType, Project } from '$lib/types';
 	import {
 		columns,
@@ -481,8 +481,11 @@
 
 	async function confirmDependency(depType: string) {
 		if (!pendingDep) return;
-		await createDependencyApi(pendingDep.fromId, pendingDep.toId, depType);
-		// Issues are updated via SSE stream
+		const { fromId, toId } = pendingDep;
+		await createDependencyApi(fromId, toId, depType);
+		// Notify both agents if active
+		notifyAgentOfTicketUpdate(fromId, `Dependency added: ${depType} → ${toId}`, 'dependency');
+		notifyAgentOfTicketUpdate(toId, `Dependency added: ${fromId} ${depType} this`, 'dependency');
 		pendingDep = null;
 		closeContextMenu();
 	}
@@ -502,6 +505,9 @@
 			console.error('Failed to create dependency:', data.error);
 			return;
 		}
+		// Notify both agents if active
+		notifyAgentOfTicketUpdate(fromId, `Dependency added: blocks → ${toId}`, 'dependency');
+		notifyAgentOfTicketUpdate(toId, `Dependency added: ${fromId} blocks this`, 'dependency');
 		closeContextMenu();
 	}
 
@@ -524,6 +530,9 @@
 				editingIssue.dependents = editingIssue.dependents.filter(d => d.id !== issueId);
 			}
 		}
+		// Notify both agents if active
+		notifyAgentOfTicketUpdate(issueId, `Dependency removed: → ${dependsOnId}`, 'dependency');
+		notifyAgentOfTicketUpdate(dependsOnId, `Dependency removed: ${issueId} no longer blocks`, 'dependency');
 	}
 
 	function startRopeDrag(e: MouseEvent, issueId: string) {
@@ -967,6 +976,12 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		const attachment = await uploadAttachmentApi(editingIssue.id, file);
 		if (attachment) {
 			attachments = [...attachments, attachment];
+			// Notify agent if one is active for this ticket
+			notifyAgentOfTicketUpdate(
+				editingIssue.id,
+				`Attachment added: ${file.name}`,
+				'attachment'
+			);
 		}
 	}
 
@@ -974,15 +989,23 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		if (!editingIssue) return;
 		await deleteAttachmentApi(editingIssue.id, filename);
 		attachments = attachments.filter(a => a.filename !== filename);
+		notifyAgentOfTicketUpdate(editingIssue.id, `Attachment removed: ${filename}`, 'attachment');
 	}
 
 	async function addComment() {
 		if (!editingIssue || !newComment.trim()) return;
+		const commentText = newComment.trim();
 		await fetch(`/api/issues/${editingIssue.id}/comments`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ text: newComment })
+			body: JSON.stringify({ text: commentText })
 		});
+		// Notify agent if one is active for this ticket
+		notifyAgentOfTicketUpdate(
+			editingIssue.id,
+			`Comment added: "${commentText.slice(0, 100)}${commentText.length > 100 ? '...' : ''}"`,
+			'comment'
+		);
 		newComment = '';
 		await loadComments(editingIssue.id);
 		fetchMutations();
