@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Icon from './Icon.svelte';
+	import PromptsWindow from './PromptsWindow.svelte';
 	import type { Project } from '$lib/types';
 
 	interface Props {
 		show: boolean;
+		showPrompts: boolean;
 		isDarkMode: boolean;
 		agentEnabled: boolean;
 		agentHost: string;
@@ -23,6 +25,7 @@
 
 	let {
 		show = $bindable(),
+		showPrompts = $bindable(),
 		isDarkMode,
 		agentEnabled = $bindable(),
 		agentHost = $bindable(),
@@ -126,6 +129,7 @@
 {#if show}
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 <div class="settings-overlay" onclick={handleOverlayClick} role="presentation">
+	<PromptsWindow bind:show={showPrompts} />
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 	<aside class="settings-pane" onclick={handlePanelClick} role="dialog" aria-label="Settings">
 		<header class="settings-header">

@@ -43,7 +43,6 @@
 	import GraphView from '$lib/components/GraphView.svelte';
 		import MutationLog from '$lib/components/MutationLog.svelte';
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
-	import PromptsWindow from '$lib/components/PromptsWindow.svelte';
 	import PromptsEditor from '$lib/components/PromptsEditor.svelte';
 	import { fetchMutations } from '$lib/mutationStore.svelte';
 	import StatsView from '$lib/components/StatsView.svelte';
@@ -1645,7 +1644,6 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 />
 
 <KeyboardHelp bind:show={showKeyboardHelp} />
-<PromptsWindow bind:show={showPrompts} />
 <PromptsEditor
 	bind:show={showPromptsEditor}
 	bind:agentFirstMessage
@@ -1654,6 +1652,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 />
 <SettingsPane
 	bind:show={showSettings}
+	bind:showPrompts
 	bind:agentEnabled
 	bind:agentHost
 	bind:agentPort

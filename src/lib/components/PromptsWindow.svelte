@@ -109,8 +109,7 @@ NEVER:
 <svelte:window onkeydown={show ? handleKeydown : undefined} />
 
 {#if show}
-<div class="prompts-overlay">
-	<div class="prompts-window" role="dialog" aria-label="Prompts" tabindex="-1">
+<aside class="prompts-window" role="dialog" aria-label="Prompts" tabindex="-1">
 		<header class="prompts-header">
 			<div class="prompts-title-row">
 				<span class="prompts-icon"><Icon name="message" size={18} /></span>
@@ -163,27 +162,17 @@ NEVER:
 			</div>
 		</div>
 
-		<footer class="prompts-footer">
-			<div class="footer-hint">
-				<kbd>↑</kbd><kbd>↓</kbd> navigate
-				<kbd>Enter</kbd> copy
-				<kbd>Esc</kbd> close
-			</div>
-		</footer>
-	</div>
-</div>
+	<footer class="prompts-footer">
+		<div class="footer-hint">
+			<kbd>↑</kbd><kbd>↓</kbd> navigate
+			<kbd>Enter</kbd> copy
+			<kbd>Esc</kbd> close
+		</div>
+	</footer>
+</aside>
 {/if}
 
 <style>
-	.prompts-overlay {
-		position: fixed;
-		inset: 0;
-		z-index: 9999;
-		display: flex;
-		justify-content: flex-end;
-		/* No background or blur - settings overlay handles that */
-	}
-
 	.prompts-window {
 		position: absolute;
 		top: 0;
@@ -192,7 +181,7 @@ NEVER:
 		width: 480px;
 		max-width: calc(100vw - 340px);
 		background: var(--bg-primary);
-		border-left: 1px solid var(--border-subtle);
+		border-right: 1px solid var(--border-subtle);
 		display: flex;
 		flex-direction: column;
 		animation: slideIn 280ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -484,7 +473,7 @@ NEVER:
 			right: 0;
 			width: 100%;
 			max-width: none;
-			border-left: none;
+			border-right: none;
 		}
 	}
 
