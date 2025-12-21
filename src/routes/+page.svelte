@@ -62,6 +62,7 @@
 	let filterTime = $state<string>('all');
 	let filterStatus = $state<string>('all');
 	let filterLabel = $state<string>('all');
+	let filterActionable = $state(false);
 	let isFilterPreviewing = $state(false);
 	let animatingIds = $state<Set<string>>(new Set());
 	let selectedId = $state<string | null>(null);
@@ -539,6 +540,19 @@
 	const panelOpen = $derived(editingIssue !== null || isCreating);
 	const activeAgentNames = $derived([...wsPanes.keys()]);
 
+	function isIssueActionable(issue: Issue): boolean {
+		// Blocked status = not actionable
+		if (issue.status === 'blocked') return false;
+		// Claimed (in_progress with assignee) = not actionable
+		if (issue.status === 'in_progress' && issue.assignee) return false;
+		// Has open blocking dependencies = not actionable
+		const blockingDeps = (issue.dependencies || []).filter(
+			d => d.dependency_type === 'blocks' && d.status !== 'closed'
+		);
+		if (blockingDeps.length > 0) return false;
+		return true;
+	}
+
 	function issueMatchesTimeFilter(issue: Issue): boolean {
 		if (filterTime === 'all') return true;
 		const now = new Date();
@@ -576,10 +590,12 @@
 			(filterStatus.startsWith('!') ? issue.status !== filterStatus.slice(1) : issue.status === filterStatus);
 		// Label filter: issue must have the selected label
 		const matchesLabel = filterLabel === 'all' || (issue.labels || []).includes(filterLabel);
-		return matchesSearch && matchesPriority && matchesType && matchesTime && matchesStatus && matchesLabel;
+		// Actionable filter: hide blocked/claimed/dependency-blocked issues
+		const matchesActionable = !filterActionable || isIssueActionable(issue);
+		return matchesSearch && matchesPriority && matchesType && matchesTime && matchesStatus && matchesLabel && matchesActionable;
 	}
 
-	const hasActiveFilters = $derived(searchQuery !== '' || filterPriority !== 'all' || filterType !== 'all' || filterTime !== 'all' || filterStatus !== 'all' || filterLabel !== 'all');
+	const hasActiveFilters = $derived(searchQuery !== '' || filterPriority !== 'all' || filterType !== 'all' || filterTime !== 'all' || filterStatus !== 'all' || filterLabel !== 'all' || filterActionable);
 
 	// Get all unique labels from issues for filter dropdown
 	const availableLabels = $derived([...new Set(issues.flatMap(i => i.labels || []))].sort());
@@ -1586,6 +1602,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		bind:filterTime
 		bind:filterStatus
 		bind:filterLabel
+		bind:filterActionable
 		{availableLabels}
 		bind:viewMode
 		{isDarkMode}

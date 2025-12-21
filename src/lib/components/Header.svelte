@@ -9,6 +9,7 @@
 		filterTime: string;
 		filterStatus: string;
 		filterLabel: string;
+		filterActionable: boolean;
 		availableLabels: string[];
 		viewMode: ViewMode;
 		isDarkMode: boolean;
@@ -32,6 +33,7 @@
 		filterTime = $bindable(),
 		filterStatus = $bindable(),
 		filterLabel = $bindable(),
+		filterActionable = $bindable(),
 		availableLabels,
 		viewMode = $bindable(),
 		isDarkMode,
@@ -107,6 +109,7 @@
 		filterTime = 'all';
 		filterStatus = 'all';
 		filterLabel = 'all';
+		filterActionable = false;
 	}
 
 	const activeFilterCount = $derived(
@@ -114,7 +117,8 @@
 		(filterType !== 'all' ? 1 : 0) +
 		(filterTime !== 'all' ? 1 : 0) +
 		(filterStatus !== 'all' ? 1 : 0) +
-		(filterLabel !== 'all' ? 1 : 0)
+		(filterLabel !== 'all' ? 1 : 0) +
+		(filterActionable ? 1 : 0)
 	);
 
 	const hasActiveFilters = $derived(activeFilterCount > 0);
@@ -269,6 +273,18 @@
 										{opt.label}
 									</button>
 								{/each}
+							</div>
+						</div>
+						<div class="filter-section">
+							<label class="filter-label">Quick Filters</label>
+							<div class="filter-chips">
+								<button
+									class="filter-chip"
+									class:active={filterActionable}
+									onclick={() => filterActionable = !filterActionable}
+								>
+									Actionable
+								</button>
 							</div>
 						</div>
 						{#if hasActiveFilters}
