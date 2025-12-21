@@ -147,7 +147,11 @@
 		const input = paneMessageInputs[paneName] || '';
 		if (!input.startsWith('/')) return [];
 		const query = input.slice(1).toLowerCase();
-		return commands.filter(cmd => cmd.toLowerCase().startsWith('/' + query) || cmd.toLowerCase().includes(query));
+		// Commands may or may not have / prefix - normalize and filter
+		return commands.filter(cmd => {
+			const normalized = cmd.toLowerCase().replace(/^\//, '');
+			return normalized.startsWith(query) || normalized.includes(query);
+		});
 	}
 
 	function handleInputChange(paneName: string, value: string) {
@@ -174,7 +178,9 @@
 		} else if (e.key === 'Tab' || e.key === 'Enter') {
 			if (slashMenuPane && filtered.length > 0) {
 				e.preventDefault();
-				paneMessageInputs[paneName] = filtered[slashMenuIndex] + ' ';
+				const cmd = filtered[slashMenuIndex];
+				const displayCmd = cmd.startsWith('/') ? cmd : '/' + cmd;
+				paneMessageInputs[paneName] = displayCmd + ' ';
 				slashMenuPane = null;
 			}
 		} else if (e.key === 'Escape') {
@@ -546,13 +552,14 @@
 						{#if filtered.length > 0}
 							<div class="slash-menu">
 								{#each filtered.slice(0, 8) as cmd, i}
+									{@const displayCmd = cmd.startsWith('/') ? cmd : '/' + cmd}
 									<button
 										type="button"
 										class="slash-item"
 										class:selected={i === slashMenuIndex}
-										onmousedown={() => selectSlashCommand(pane.name, cmd)}
+										onmousedown={() => selectSlashCommand(pane.name, displayCmd)}
 									>
-										<span class="slash-cmd">{cmd}</span>
+										<span class="slash-cmd">{displayCmd}</span>
 									</button>
 								{/each}
 							</div>
