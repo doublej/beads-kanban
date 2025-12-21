@@ -477,13 +477,17 @@
 		ropeDrag = null;
 	}
 
+	function getIssueTitle(id: string): string {
+		return issues.find(i => i.id === id)?.title ?? id;
+	}
+
 	async function confirmDependency(depType: string) {
 		if (!pendingDep) return;
 		const { fromId, toId } = pendingDep;
 		await createDependencyApi(fromId, toId, depType);
 		// Notify both agents if active
-		notifyAgentOfTicketUpdate(fromId, `Dependency added: ${depType} → ${toId}`, 'dependency');
-		notifyAgentOfTicketUpdate(toId, `Dependency added: ${fromId} ${depType} this`, 'dependency');
+		notifyAgentOfTicketUpdate(fromId, `Dependency added: ${depType} → ${toId}`, 'dependency', { ticketTitle: getIssueTitle(fromId), sender: 'user' });
+		notifyAgentOfTicketUpdate(toId, `Dependency added: ${fromId} ${depType} this`, 'dependency', { ticketTitle: getIssueTitle(toId), sender: 'user' });
 		closeContextMenu();
 	}
 
@@ -503,8 +507,8 @@
 			return;
 		}
 		// Notify both agents if active
-		notifyAgentOfTicketUpdate(fromId, `Dependency added: blocks → ${toId}`, 'dependency');
-		notifyAgentOfTicketUpdate(toId, `Dependency added: ${fromId} blocks this`, 'dependency');
+		notifyAgentOfTicketUpdate(fromId, `Dependency added: blocks → ${toId}`, 'dependency', { ticketTitle: getIssueTitle(fromId), sender: 'user' });
+		notifyAgentOfTicketUpdate(toId, `Dependency added: ${fromId} blocks this`, 'dependency', { ticketTitle: getIssueTitle(toId), sender: 'user' });
 		closeContextMenu();
 	}
 
@@ -528,8 +532,8 @@
 			}
 		}
 		// Notify both agents if active
-		notifyAgentOfTicketUpdate(issueId, `Dependency removed: → ${dependsOnId}`, 'dependency');
-		notifyAgentOfTicketUpdate(dependsOnId, `Dependency removed: ${issueId} no longer blocks`, 'dependency');
+		notifyAgentOfTicketUpdate(issueId, `Dependency removed: → ${dependsOnId}`, 'dependency', { ticketTitle: getIssueTitle(issueId), sender: 'user' });
+		notifyAgentOfTicketUpdate(dependsOnId, `Dependency removed: ${issueId} no longer blocks`, 'dependency', { ticketTitle: getIssueTitle(dependsOnId), sender: 'user' });
 	}
 
 	function startRopeDrag(e: MouseEvent, issueId: string) {
@@ -762,6 +766,10 @@
 	}
 
 	async function updateIssue(id: string, updates: Partial<Issue>) {
+		// Get original issue for comparison
+		const original = issues.find(i => i.id === id);
+		const title = original?.title ?? id;
+
 		// Optimistic update - apply immediately for instant feedback
 		const idx = issues.findIndex(i => i.id === id);
 		if (idx !== -1) {
@@ -779,6 +787,18 @@
 			body: JSON.stringify(updates)
 		});
 		fetchMutations();
+
+		// Notify agent about significant field changes
+		const ctx = { ticketTitle: title, sender: 'user' };
+		if (updates.status && original?.status !== updates.status) {
+			notifyAgentOfTicketUpdate(id, `Status changed: ${original?.status} → ${updates.status}`, 'status', ctx);
+		}
+		if (updates.priority !== undefined && original?.priority !== updates.priority) {
+			notifyAgentOfTicketUpdate(id, `Priority changed: ${original?.priority} → ${updates.priority}`, 'priority', ctx);
+		}
+		if (updates.assignee !== undefined && original?.assignee !== updates.assignee) {
+			notifyAgentOfTicketUpdate(id, `Assignee changed: ${original?.assignee || 'unassigned'} → ${updates.assignee || 'unassigned'}`, 'assignee', ctx);
+		}
 	}
 
 	async function deleteIssue(id: string) {
@@ -983,7 +1003,8 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 			notifyAgentOfTicketUpdate(
 				editingIssue.id,
 				`Attachment added: ${file.name}`,
-				'attachment'
+				'attachment',
+				{ ticketTitle: editingIssue.title, sender: 'user' }
 			);
 		}
 	}
@@ -992,7 +1013,12 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		if (!editingIssue) return;
 		await deleteAttachmentApi(editingIssue.id, filename);
 		attachments = attachments.filter(a => a.filename !== filename);
-		notifyAgentOfTicketUpdate(editingIssue.id, `Attachment removed: ${filename}`, 'attachment');
+		notifyAgentOfTicketUpdate(
+			editingIssue.id,
+			`Attachment removed: ${filename}`,
+			'attachment',
+			{ ticketTitle: editingIssue.title, sender: 'user' }
+		);
 	}
 
 	async function addComment() {
@@ -1006,8 +1032,9 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		// Notify agent if one is active for this ticket
 		notifyAgentOfTicketUpdate(
 			editingIssue.id,
-			`Comment added: "${commentText.slice(0, 100)}${commentText.length > 100 ? '...' : ''}"`,
-			'comment'
+			`Comment: "${commentText.slice(0, 100)}${commentText.length > 100 ? '...' : ''}"`,
+			'comment',
+			{ ticketTitle: editingIssue.title, sender: 'user' }
 		);
 		newComment = '';
 		await loadComments(editingIssue.id);
