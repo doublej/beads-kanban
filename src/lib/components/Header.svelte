@@ -21,6 +21,7 @@
 		onopenKeyboardHelp: () => void;
 		onopenCreatePanel: () => void;
 		onopenSettings?: () => void;
+		onopenPrompts?: () => void;
 		onpreviewchange?: (previewing: boolean) => void;
 		oneditProject?: () => void;
 		ontoggleAgentPanes?: () => void;
@@ -45,6 +46,7 @@
 		onopenKeyboardHelp,
 		onopenCreatePanel,
 		onopenSettings,
+		onopenPrompts,
 		onpreviewchange,
 		oneditProject,
 		ontoggleAgentPanes
@@ -332,10 +334,10 @@
 							<Icon name="info" size={14} />
 							About
 						</a>
-						<a href="/prompts" class="dropdown-item" onclick={() => showHelpMenu = false}>
+						<button class="dropdown-item" onclick={() => { showHelpMenu = false; onopenPrompts?.(); }}>
 							<Icon name="message" size={14} />
 							Prompts
-						</a>
+						</button>
 						<button class="dropdown-item" onclick={() => { showHelpMenu = false; onopenKeyboardHelp(); }}>
 							<Icon name="keyboard" size={14} />
 							Keyboard Shortcuts

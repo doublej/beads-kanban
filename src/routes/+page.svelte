@@ -43,6 +43,7 @@
 	import GraphView from '$lib/components/GraphView.svelte';
 		import MutationLog from '$lib/components/MutationLog.svelte';
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
+	import PromptsWindow from '$lib/components/PromptsWindow.svelte';
 	import { fetchMutations } from '$lib/mutationStore.svelte';
 	import StatsView from '$lib/components/StatsView.svelte';
 	import ThemeTransition from '$lib/components/ThemeTransition.svelte';
@@ -134,6 +135,7 @@
 	let showKeyboardHelp = $state(false);
 	let showHotkeys = $state(false);
 	let showSettings = $state(false);
+	let showPrompts = $state(false);
 	let projectName = $state('');
 		let agentEnabled = $state(true);
 	let agentHost = $state('localhost');
@@ -1580,6 +1582,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 />
 
 <KeyboardHelp bind:show={showKeyboardHelp} />
+<PromptsWindow bind:show={showPrompts} />
 <SettingsPane
 	bind:show={showSettings}
 	bind:agentEnabled
@@ -1614,6 +1617,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		onopenKeyboardHelp={() => showKeyboardHelp = true}
 		onopenCreatePanel={openCreatePanel}
 		onopenSettings={() => showSettings = true}
+		onopenPrompts={() => showPrompts = true}
 		onpreviewchange={(previewing) => isFilterPreviewing = previewing}
 		oneditProject={() => showSettings = true}
 		ontoggleAgentPanes={() => showActivityBar = !showActivityBar}
