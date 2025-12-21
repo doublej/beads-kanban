@@ -78,6 +78,8 @@
 	let sessionPickerLoading = $state(false);
 	let activePaneName = $state<string | null>(null);
 	let autoscrollEnabled = $state<Record<string, boolean>>({});
+	let slashMenuPane = $state<string | null>(null);
+	let slashMenuIndex = $state(0);
 
 	// Auto-focus input when pane opens and mark as read
 	let prevExpandedPanes: Set<string> = new Set();
@@ -131,11 +133,59 @@
 
 	function handleSubmit(e: Event, paneName: string) {
 		e.preventDefault();
+		slashMenuPane = null;
 		const msg = paneMessageInputs[paneName];
 		if (msg?.trim()) {
 			onSendMessage(paneName, msg.trim());
 			paneMessageInputs[paneName] = '';
 		}
+	}
+
+	function getFilteredSlashCommands(paneName: string): string[] {
+		const pane = wsPanes.get(paneName);
+		const commands = pane?.slashCommands || [];
+		const input = paneMessageInputs[paneName] || '';
+		if (!input.startsWith('/')) return [];
+		const query = input.slice(1).toLowerCase();
+		return commands.filter(cmd => cmd.toLowerCase().startsWith('/' + query) || cmd.toLowerCase().includes(query));
+	}
+
+	function handleInputChange(paneName: string, value: string) {
+		paneMessageInputs[paneName] = value;
+		if (value.startsWith('/') && value.length >= 1) {
+			slashMenuPane = paneName;
+			slashMenuIndex = 0;
+		} else {
+			slashMenuPane = null;
+		}
+	}
+
+	function handleInputKeydown(e: KeyboardEvent, paneName: string) {
+		if (slashMenuPane !== paneName) return;
+		const filtered = getFilteredSlashCommands(paneName);
+		if (filtered.length === 0) return;
+
+		if (e.key === 'ArrowDown') {
+			e.preventDefault();
+			slashMenuIndex = (slashMenuIndex + 1) % filtered.length;
+		} else if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			slashMenuIndex = (slashMenuIndex - 1 + filtered.length) % filtered.length;
+		} else if (e.key === 'Tab' || e.key === 'Enter') {
+			if (slashMenuPane && filtered.length > 0) {
+				e.preventDefault();
+				paneMessageInputs[paneName] = filtered[slashMenuIndex] + ' ';
+				slashMenuPane = null;
+			}
+		} else if (e.key === 'Escape') {
+			slashMenuPane = null;
+		}
+	}
+
+	function selectSlashCommand(paneName: string, command: string) {
+		paneMessageInputs[paneName] = command + ' ';
+		slashMenuPane = null;
+		inputRefs[paneName]?.focus();
 	}
 
 	// Helper to check if autoscroll is enabled for a pane (default: true)
@@ -479,15 +529,36 @@
 
 			<!-- Input -->
 			<form class="input-row" onsubmit={(e) => handleSubmit(e, pane.name)}>
-				<input
-					type="text"
-					bind:this={inputRefs[pane.name]}
-					value={paneMessageInputs[pane.name] || ''}
-					oninput={(e) => paneMessageInputs[pane.name] = e.currentTarget.value}
-					placeholder={disabled ? "connecting..." : ">"}
-					class="msg-input"
-					disabled={disabled}
-				/>
+				<div class="input-wrapper">
+					<input
+						type="text"
+						bind:this={inputRefs[pane.name]}
+						value={paneMessageInputs[pane.name] || ''}
+						oninput={(e) => handleInputChange(pane.name, e.currentTarget.value)}
+						onkeydown={(e) => handleInputKeydown(e, pane.name)}
+						onblur={() => setTimeout(() => { if (slashMenuPane === pane.name) slashMenuPane = null; }, 150)}
+						placeholder={disabled ? "connecting..." : pane.slashCommands?.length ? "/ for commands" : ">"}
+						class="msg-input"
+						disabled={disabled}
+					/>
+					{#if slashMenuPane === pane.name}
+						{@const filtered = getFilteredSlashCommands(pane.name)}
+						{#if filtered.length > 0}
+							<div class="slash-menu">
+								{#each filtered.slice(0, 8) as cmd, i}
+									<button
+										type="button"
+										class="slash-item"
+										class:selected={i === slashMenuIndex}
+										onmousedown={() => selectSlashCommand(pane.name, cmd)}
+									>
+										<span class="slash-cmd">{cmd}</span>
+									</button>
+								{/each}
+							</div>
+						{/if}
+					{/if}
+				</div>
 				<button type="submit" class="send-btn" disabled={disabled || !paneMessageInputs[pane.name]?.trim()}>
 					{#if disabled}
 						<span class="spinner"></span>
@@ -1450,6 +1521,66 @@
 	:global(.app.light) .input-row {
 		background: rgba(0, 0, 0, 0.03);
 		border-top-color: rgba(0, 0, 0, 0.06);
+	}
+
+	.input-wrapper {
+		position: relative;
+		flex: 1;
+	}
+
+	.slash-menu {
+		position: absolute;
+		bottom: 100%;
+		left: 0;
+		right: 0;
+		margin-bottom: 4px;
+		background: var(--bg-secondary, #1a1a1e);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 6px;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+		overflow: hidden;
+		animation: slashMenuIn 100ms ease;
+		z-index: 100;
+	}
+
+	@keyframes slashMenuIn {
+		from { opacity: 0; transform: translateY(4px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	.slash-item {
+		display: flex;
+		align-items: center;
+		width: 100%;
+		padding: 6px 10px;
+		background: transparent;
+		border: none;
+		font: 11px/1 'IBM Plex Mono', ui-monospace, monospace;
+		color: var(--text-primary);
+		cursor: pointer;
+		text-align: left;
+		transition: background 60ms ease;
+	}
+
+	.slash-item:hover,
+	.slash-item.selected {
+		background: rgba(99, 102, 241, 0.15);
+	}
+
+	.slash-cmd {
+		color: #6366f1;
+		font-weight: 500;
+	}
+
+	:global(.app.light) .slash-menu {
+		background: var(--surface-elevated);
+		border-color: var(--border-default);
+		box-shadow: var(--shadow-lg);
+	}
+
+	:global(.app.light) .slash-item:hover,
+	:global(.app.light) .slash-item.selected {
+		background: rgba(99, 102, 241, 0.1);
 	}
 
 	.msg-input {

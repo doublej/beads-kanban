@@ -54,6 +54,7 @@ export interface AgentSession {
 	sdkSessionId?: string; // Claude SDK session ID for resume
 	compacted?: boolean; // Whether context was compacted
 	usage?: TokenUsage; // Latest token usage from SDK
+	slashCommands?: string[]; // Available slash commands from SDK
 	pane_type: string;
 	backend: string;
 	lastReadCount?: number; // Number of messages when pane was last viewed
@@ -98,7 +99,7 @@ interface ToolResultEvent {
 type ServerMessage =
 	| { type: 'session_started'; sessionId: string; resuming?: boolean }
 	| { type: 'session_resumed'; sessionId: string; sdkSessionId?: string; isRunning?: boolean }
-	| { type: 'sdk_session'; sdkSessionId: string; source: 'new' | 'resume' }
+	| { type: 'sdk_session'; sdkSessionId: string; source: 'new' | 'resume'; slashCommands?: string[] }
 	| { type: 'compacted'; metadata?: unknown }
 	| { type: 'system_message'; subtype: SystemMessageSubtype; content: string; agentName?: string }
 	| { type: 'usage'; inputTokens: number; outputTokens: number; cacheRead: number; cacheCreation: number }
@@ -263,7 +264,10 @@ function createMessageHandler(sessionName: string) {
 				break;
 
 			case 'sdk_session':
-				updateSession(sessionName, { sdkSessionId: msg.sdkSessionId });
+				updateSession(sessionName, {
+					sdkSessionId: msg.sdkSessionId,
+					slashCommands: msg.slashCommands
+				});
 				persistSdkSessionId(sessionName, msg.sdkSessionId);
 				break;
 
