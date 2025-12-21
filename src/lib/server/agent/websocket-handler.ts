@@ -143,6 +143,22 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
         return;
       }
 
+      if (msg.type === "inject_context") {
+        const contextMsg: SDKUserMessage = {
+          type: "user",
+          session_id: session.id,
+          parent_tool_use_id: null,
+          message: { role: "user", content: `<system-reminder>${msg.context}</system-reminder>` },
+        };
+
+        if (session.inputResolver) {
+          session.inputResolver(contextMsg);
+        } else {
+          session.inputQueue.push(contextMsg);
+        }
+        return;
+      }
+
       if (msg.type === "interrupt") {
         session.abortController.abort();
         sendToClient(session, { type: "interrupted" });
