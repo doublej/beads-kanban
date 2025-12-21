@@ -26,6 +26,7 @@ export type ClientMessage =
   | { type: "resume"; sessionId: string }
   | { type: "continue"; text: string }
   | { type: "message"; text: string }
+  | { type: "inject_context"; context: string }
   | { type: "interrupt" }
   | { type: "end" }
   | { type: "clear" }

@@ -21,14 +21,17 @@ export {
 
 export type NotificationType = 'comment' | 'dependency' | 'attachment' | 'status' | 'priority' | 'assignee' | 'label';
 
+export type SystemMessageSubtype = 'init' | 'compact_start' | 'compact_done' | 'subagent_start' | 'subagent_end' | 'info';
+
 export interface ChatMessage {
-	role: 'user' | 'assistant' | 'tool' | 'notification';
+	role: 'user' | 'assistant' | 'tool' | 'notification' | 'system';
 	content: string;
 	toolName?: string;
 	toolInput?: Record<string, unknown>;
 	toolResult?: string;
 	timestamp?: string;
 	notificationType?: NotificationType;
+	systemSubtype?: SystemMessageSubtype;
 }
 
 export interface TokenUsage {
@@ -96,6 +99,7 @@ type ServerMessage =
 	| { type: 'session_resumed'; sessionId: string; sdkSessionId?: string; isRunning?: boolean }
 	| { type: 'sdk_session'; sdkSessionId: string; source: 'new' | 'resume' }
 	| { type: 'compacted'; metadata?: unknown }
+	| { type: 'system_message'; subtype: SystemMessageSubtype; content: string; agentName?: string }
 	| { type: 'usage'; inputTokens: number; outputTokens: number; cacheRead: number; cacheCreation: number }
 	| { type: 'session_ended'; sessionId: string }
 	| { type: 'session_cleared'; sessionId: string }
@@ -213,6 +217,9 @@ function handleActionRequest(request: ActionRequest) {
 		case 'compactSession':
 			compactSessionInternal(sessionName);
 			break;
+		case 'injectNotification':
+			injectNotificationInternal(sessionName, args[0] as string, args[1] as NotificationType);
+			break;
 	}
 }
 
@@ -261,6 +268,17 @@ function createMessageHandler(sessionName: string) {
 
 			case 'compacted':
 				updateSession(sessionName, { compacted: true });
+				break;
+
+			case 'system_message':
+				updateSession(sessionName, {
+					messages: [...session.messages, {
+						role: 'system',
+						content: msg.content,
+						systemSubtype: msg.subtype,
+						timestamp: new Date().toISOString()
+					}]
+				});
 				break;
 
 			case 'usage':
@@ -782,11 +800,12 @@ export function compactSession(name: string) {
 	}
 }
 
-// Inject a notification message into an agent session
-export function injectNotification(name: string, content: string, notificationType: NotificationType) {
+// Internal function to inject notification (called by leader tab)
+function injectNotificationInternal(name: string, content: string, notificationType: NotificationType) {
 	const session = sessions.get(name);
 	if (!session) return;
 
+	// Update the UI message list
 	updateSession(name, {
 		messages: [...session.messages, {
 			role: 'notification',
@@ -795,6 +814,18 @@ export function injectNotification(name: string, content: string, notificationTy
 			timestamp: new Date().toISOString()
 		}]
 	});
+
+	// Send context injection to the running agent
+	sendToSocket(name, { type: 'inject_context', context: `[${notificationType.toUpperCase()}] ${content}` });
+}
+
+// Inject a notification message into an agent session
+export function injectNotification(name: string, content: string, notificationType: NotificationType) {
+	if (isTabLeader) {
+		injectNotificationInternal(name, content, notificationType);
+	} else {
+		tabCoordinator.requestAction({ action: 'injectNotification', sessionName: name, args: [content, notificationType] });
+	}
 }
 
 // Notify agent about ticket update (finds agent by ticket ID)
