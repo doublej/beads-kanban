@@ -44,6 +44,7 @@
 		import MutationLog from '$lib/components/MutationLog.svelte';
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
 	import PromptsWindow from '$lib/components/PromptsWindow.svelte';
+	import PromptsEditor from '$lib/components/PromptsEditor.svelte';
 	import { fetchMutations } from '$lib/mutationStore.svelte';
 	import StatsView from '$lib/components/StatsView.svelte';
 	import ThemeTransition from '$lib/components/ThemeTransition.svelte';
@@ -136,6 +137,7 @@
 	let showHotkeys = $state(false);
 	let showSettings = $state(false);
 	let showPrompts = $state(false);
+	let showPromptsEditor = $state(false);
 	let projectName = $state('');
 		let agentEnabled = $state(true);
 	let agentHost = $state('localhost');
@@ -1621,6 +1623,12 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 
 <KeyboardHelp bind:show={showKeyboardHelp} />
 <PromptsWindow bind:show={showPrompts} />
+<PromptsEditor
+	bind:show={showPromptsEditor}
+	bind:agentFirstMessage
+	bind:agentSystemPrompt
+	bind:agentWorkflow
+/>
 <SettingsPane
 	bind:show={showSettings}
 	bind:agentEnabled
@@ -1636,6 +1644,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	ontoggleTheme={toggleTheme}
 	onsetColorScheme={(scheme) => colorScheme = scheme}
 	ontoggleNotifications={toggleNotifications}
+	onopenPromptsEditor={() => showPromptsEditor = true}
 />
 	<Header
 		bind:searchQuery
