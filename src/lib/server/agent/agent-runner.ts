@@ -53,7 +53,12 @@ Always optimize folder and component structure. Keep each concern separate: spli
 3. **COMMIT** - Create atomic commit with ticket reference:
    \`git add <files> && git commit -m "<type>(<ticket-id>): <description>"\`
 
-4. **CLOSE** - Update ticket with summary, commit ID, and hash:
+4. **LINT** - Run linting and fix any issues BEFORE closing:
+   \`bun run check\`
+   - If errors: fix them, commit fixes, re-run lint
+   - Only proceed to CLOSE when lint passes
+
+5. **CLOSE** - Update ticket with summary, commit ID, and hash:
    \`\`\`
    git log -1 --format="%H %s"  # Get commit hash and message
    mcp__beads-agent__update_issue({
@@ -66,6 +71,7 @@ Always optimize folder and component structure. Keep each concern separate: spli
 **NEVER**:
 - Start work without claiming (updating to in_progress)
 - Move to next ticket before committing current work
+- Close ticket without running lint and ensuring it passes
 - Close ticket without recording commit info`;
   }
   return systemAppend;
