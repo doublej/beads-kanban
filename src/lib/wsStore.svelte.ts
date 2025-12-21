@@ -524,7 +524,8 @@ export function interrupt(name: string) {
 
 export function addPane(name: string, cwd: string, firstMessage?: string, systemPrompt?: string, resumeSessionId?: string) {
 	const briefing = firstMessage ? firstMessage.replace('{name}', name) : `You are an agent named "${name}". Await further instructions.`;
-	startSession(name, cwd, briefing, systemPrompt || undefined, resumeSessionId);
+	const prompt = systemPrompt ? systemPrompt.replace('{name}', name) : undefined;
+	startSession(name, cwd, briefing, prompt, resumeSessionId);
 }
 
 export function killSession(name: string) {

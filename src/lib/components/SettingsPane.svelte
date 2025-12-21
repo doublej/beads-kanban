@@ -266,6 +266,7 @@
 							placeholder="# Agent Instructions&#10;&#10;Add custom instructions, context, or guidelines for all agents..."
 							rows="6"
 						></textarea>
+						<span class="textarea-hint">Use {'{name}'} for agent name</span>
 					</div>
 
 					<!-- Tool Display Preference -->
