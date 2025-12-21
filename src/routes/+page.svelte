@@ -944,6 +944,12 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		}
 	}
 
+	// Extract ticketId from agent name pattern "{ticketId}-agent"
+	function extractTicketIdFromName(name: string): string | undefined {
+		if (name.endsWith('-agent')) return name.slice(0, -6);
+		return undefined;
+	}
+
 	function openCreatePanel() {
 		editingIssue = null;
 		isCreating = true;
@@ -1961,7 +1967,9 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 			const sessionId = pane?.sdkSessionId || getPersistedSdkSessionId(name);
 			if (sessionId) {
 				removePane(name);
-				addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, sessionId);
+				// Preserve ticketId from existing pane or infer from name
+				const ticketId = pane?.ticketId ?? extractTicketIdFromName(name);
+				addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, sessionId, ticketId);
 				expandedPanes.add(name);
 				expandedPanes = new Set(expandedPanes);
 			} else {
@@ -1973,8 +1981,11 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		onFetchSessions={() => fetchSdkSessions(currentProjectPath)}
 		onResumeSession={(name, sessionId) => {
 			// Remove existing pane and add new one with session
+			const pane = wsPanes.get(name);
 			removePane(name);
-			addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, sessionId);
+			// Preserve ticketId from existing pane or infer from name
+			const ticketId = pane?.ticketId ?? extractTicketIdFromName(name);
+			addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, sessionId, ticketId);
 			expandedPanes.add(name);
 			expandedPanes = new Set(expandedPanes);
 		}}
@@ -2052,7 +2063,9 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 							style="animation-delay: {i * 25}ms"
 							onclick={() => {
 								const name = session.agentName || session.sessionId.slice(0, 8);
-								addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, session.sessionId);
+								// Infer ticketId from agent name pattern
+								const ticketId = extractTicketIdFromName(name);
+								addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, session.sessionId, ticketId);
 								expandedPanes.add(name);
 								expandedPanes = new Set(expandedPanes);
 								showSessionPicker = false;
