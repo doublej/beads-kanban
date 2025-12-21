@@ -12,6 +12,38 @@
 
 	const prompts = [
 		{
+			title: 'Ticket Workflow',
+			description: 'MANDATORY sequence for working on each ticket',
+			prompt: `FOR EACH TICKET, follow this EXACT sequence:
+
+1. CLAIM - Update ticket to in_progress BEFORE starting work:
+   mcp__beads-agent__update_issue({ id: "<ticket-id>", status: "in_progress" })
+
+2. WORK - Implement the changes
+
+3. COMMIT - Create atomic commit with ticket reference:
+   git add <files> && git commit -m "<type>(<ticket-id>): <description>"
+
+4. LINT - Run linting and fix any issues BEFORE closing:
+   bun run check
+   - If errors: fix them, commit fixes, re-run lint
+   - Only proceed to CLOSE when lint passes
+
+5. CLOSE - Update ticket with summary, commit ID, and hash:
+   git log -1 --format="%H %s"
+   mcp__beads-agent__update_issue({
+     id: "<ticket-id>",
+     status: "closed",
+     notes: "Summary: <what was done>\\nCommit: <hash> <message>"
+   })
+
+NEVER:
+- Start work without claiming (updating to in_progress)
+- Move to next ticket before committing current work
+- Close ticket without running lint and ensuring it passes
+- Close ticket without recording commit info`
+		},
+		{
 			title: 'Start a work session',
 			description: 'Begin working on the highest priority ready ticket',
 			prompt: 'Check beads for ready tickets using `bd ready`. Pick the highest priority one, claim it with `bd update <id> --status in_progress --assignee claude`, and begin implementing.'
