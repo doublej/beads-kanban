@@ -858,20 +858,31 @@ export function notifyAgentOfTicketUpdate(
 	ticketId: string,
 	content: string,
 	notificationType: NotificationType,
-	context?: Omit<TicketNotificationContext, 'ticketId'>
+	context?: Omit<TicketNotificationContext, 'ticketId'>,
+	formatTemplate?: string
 ) {
 	const found = findSessionByTicketId(ticketId);
 	if (!found) return false;
 	const [agentName] = found;
 
-	// Build rich notification with context
-	const parts: string[] = [];
-	parts.push(`[Ticket: ${ticketId}]`);
-	if (context?.ticketTitle) parts.push(`"${context.ticketTitle}"`);
-	if (context?.sender) parts.push(`(from: ${context.sender})`);
-	parts.push(content);
+	let richContent: string;
+	if (formatTemplate) {
+		// Use provided template with placeholders
+		richContent = formatTemplate
+			.replace(/{id}/g, ticketId)
+			.replace(/{title}/g, context?.ticketTitle || '')
+			.replace(/{sender}/g, context?.sender || '')
+			.replace(/{content}/g, content);
+	} else {
+		// Build notification with default format
+		const parts: string[] = [];
+		parts.push(`[Ticket: ${ticketId}]`);
+		if (context?.ticketTitle) parts.push(`"${context.ticketTitle}"`);
+		if (context?.sender) parts.push(`(from: ${context.sender})`);
+		parts.push(content);
+		richContent = parts.join(' ');
+	}
 
-	const richContent = parts.join(' ');
 	injectNotification(agentName, richContent, notificationType);
 	return true;
 }

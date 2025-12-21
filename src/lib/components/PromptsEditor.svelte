@@ -7,40 +7,53 @@
 		agentFirstMessage: string;
 		agentSystemPrompt: string;
 		agentWorkflow: string;
+		agentTicketDelivery: string;
+		agentTicketNotification: string;
 	}
 
 	let {
 		show = $bindable(),
 		agentFirstMessage = $bindable(),
 		agentSystemPrompt = $bindable(),
-		agentWorkflow = $bindable()
+		agentWorkflow = $bindable(),
+		agentTicketDelivery = $bindable(),
+		agentTicketNotification = $bindable()
 	}: Props = $props();
 
-	let activeTab = $state<'first' | 'system' | 'workflow'>('workflow');
+	type TabId = 'first' | 'system' | 'workflow' | 'ticket' | 'notification';
+	let activeTab = $state<TabId>('workflow');
 	let showPreview = $state(false);
 
-	const tabs = [
-		{ id: 'first' as const, label: 'First Message', icon: 'message' as const },
-		{ id: 'system' as const, label: 'System Prompt', icon: 'file' as const },
-		{ id: 'workflow' as const, label: 'Workflow', icon: 'zap' as const }
+	const tabs: { id: TabId; label: string; icon: 'message' | 'file' | 'zap' | 'send' | 'bell' }[] = [
+		{ id: 'first', label: 'First Message', icon: 'message' },
+		{ id: 'system', label: 'System Prompt', icon: 'file' },
+		{ id: 'workflow', label: 'Workflow', icon: 'zap' },
+		{ id: 'ticket', label: 'Ticket Delivery', icon: 'send' },
+		{ id: 'notification', label: 'Notifications', icon: 'bell' }
 	];
 
 	const activeContent = $derived(
 		activeTab === 'first' ? agentFirstMessage :
 		activeTab === 'system' ? agentSystemPrompt :
-		agentWorkflow
+		activeTab === 'workflow' ? agentWorkflow :
+		activeTab === 'ticket' ? agentTicketDelivery :
+		agentTicketNotification
 	);
 
 	const placeholder = $derived(
 		activeTab === 'first' ? 'You are an agent named "{name}". Await further instructions.' :
 		activeTab === 'system' ? '# Agent Instructions\n\nAdd custom instructions, context, or guidelines for all agents...' :
-		'# Ticket Workflow\n\nDefine the mandatory workflow steps for agents...'
+		activeTab === 'workflow' ? '# Ticket Workflow\n\nDefine the mandatory workflow steps for agents...' :
+		activeTab === 'ticket' ? 'You are agent "{name}" assigned to ticket {id}.\n\n## Your Task\nWork on this ticket:\n- **ID**: {id}\n- **Title**: {title}\n- **Description**: {description}\n\nStart by claiming the ticket...' :
+		'[Ticket: {id}] "{title}" (from: {sender}) {content}'
 	);
 
 	const hint = $derived(
 		activeTab === 'first' ? 'Initial briefing sent to new agents. Use {name} for agent name.' :
 		activeTab === 'system' ? 'Additional context appended to agent system prompt. Use {name} for agent name.' :
-		'Mandatory workflow injected into every agent session.'
+		activeTab === 'workflow' ? 'Mandatory workflow injected into every agent session.' :
+		activeTab === 'ticket' ? 'Message sent when assigning a ticket. Use {name}, {id}, {title}, {description}.' :
+		'Format for ticket notifications. Use {id}, {title}, {sender}, {content}.'
 	);
 
 	const estimatedTokens = $derived(Math.ceil(activeContent.length / 4));
@@ -48,7 +61,9 @@
 	function updateContent(value: string) {
 		if (activeTab === 'first') agentFirstMessage = value;
 		else if (activeTab === 'system') agentSystemPrompt = value;
-		else agentWorkflow = value;
+		else if (activeTab === 'workflow') agentWorkflow = value;
+		else if (activeTab === 'ticket') agentTicketDelivery = value;
+		else agentTicketNotification = value;
 	}
 
 	function handleKeydown(e: KeyboardEvent) {

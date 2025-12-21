@@ -16,6 +16,8 @@
 		agentFirstMessage: string;
 		agentSystemPrompt: string;
 		agentWorkflow: string;
+		agentTicketDelivery: string;
+		agentTicketNotification: string;
 		agentToolsExpanded: boolean;
 		colorScheme: string;
 		notificationsEnabled: boolean;
@@ -35,6 +37,8 @@
 		agentFirstMessage = $bindable(),
 		agentSystemPrompt = $bindable(),
 		agentWorkflow = $bindable(),
+		agentTicketDelivery = $bindable(),
+		agentTicketNotification = $bindable(),
 		agentToolsExpanded = $bindable(),
 		colorScheme,
 		notificationsEnabled,
@@ -136,6 +140,8 @@
 		bind:agentFirstMessage
 		bind:agentSystemPrompt
 		bind:agentWorkflow
+		bind:agentTicketDelivery
+		bind:agentTicketNotification
 	/>
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 	<aside class="settings-pane" onclick={handlePanelClick} role="dialog" aria-label="Settings">

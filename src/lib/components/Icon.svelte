@@ -26,7 +26,7 @@
 		// Agents & AI
 		Bot, Cpu, Activity,
 		// Misc
-		Send, Calendar, Tag, User, Users
+		Send, Calendar, Tag, User, Users, Bell
 	} from 'lucide-svelte';
 
 	type IconName =
@@ -56,7 +56,7 @@
 		// Agents & AI
 		| 'agent' | 'cpu' | 'activity'
 		// Misc
-		| 'send' | 'calendar' | 'tag' | 'user' | 'users';
+		| 'send' | 'calendar' | 'tag' | 'user' | 'users' | 'bell';
 
 	interface Props {
 		name: IconName;
@@ -146,7 +146,8 @@
 		'calendar': Calendar,
 		'tag': Tag,
 		'user': User,
-		'users': Users
+		'users': Users,
+		'bell': Bell
 	};
 
 	const IconComponent = $derived(icons[name]);

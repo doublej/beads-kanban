@@ -174,6 +174,16 @@
 - Move to next ticket before committing current work
 - Close ticket without running lint and ensuring it passes
 - Close ticket without recording commit info`);
+	let agentTicketDelivery = $state(`You are agent "{name}" assigned to ticket {id}.
+
+## Your Task
+Work on this ticket:
+- **ID**: {id}
+- **Title**: {title}
+{description}
+
+Start by claiming the ticket (set status to in_progress), then implement the required changes.`);
+	let agentTicketNotification = $state(`[Ticket: {id}] "{title}" (from: {sender}) {content}`);
 	let agentToolsExpanded = $state(false);
 	const combinedSystemPrompt = $derived([agentSystemPrompt, agentWorkflow].filter(Boolean).join('\n\n'));
 	let agentMenuOpen = $state(false);
@@ -486,8 +496,8 @@
 		const { fromId, toId } = pendingDep;
 		await createDependencyApi(fromId, toId, depType);
 		// Notify both agents if active
-		notifyAgentOfTicketUpdate(fromId, `Dependency added: ${depType} → ${toId}`, 'dependency', { ticketTitle: getIssueTitle(fromId), sender: 'user' });
-		notifyAgentOfTicketUpdate(toId, `Dependency added: ${fromId} ${depType} this`, 'dependency', { ticketTitle: getIssueTitle(toId), sender: 'user' });
+		notifyTicket(fromId, `Dependency added: ${depType} → ${toId}`, 'dependency', { ticketTitle: getIssueTitle(fromId), sender: 'user' });
+		notifyTicket(toId, `Dependency added: ${fromId} ${depType} this`, 'dependency', { ticketTitle: getIssueTitle(toId), sender: 'user' });
 		closeContextMenu();
 	}
 
@@ -507,8 +517,8 @@
 			return;
 		}
 		// Notify both agents if active
-		notifyAgentOfTicketUpdate(fromId, `Dependency added: blocks → ${toId}`, 'dependency', { ticketTitle: getIssueTitle(fromId), sender: 'user' });
-		notifyAgentOfTicketUpdate(toId, `Dependency added: ${fromId} blocks this`, 'dependency', { ticketTitle: getIssueTitle(toId), sender: 'user' });
+		notifyTicket(fromId, `Dependency added: blocks → ${toId}`, 'dependency', { ticketTitle: getIssueTitle(fromId), sender: 'user' });
+		notifyTicket(toId, `Dependency added: ${fromId} blocks this`, 'dependency', { ticketTitle: getIssueTitle(toId), sender: 'user' });
 		closeContextMenu();
 	}
 
@@ -532,8 +542,8 @@
 			}
 		}
 		// Notify both agents if active
-		notifyAgentOfTicketUpdate(issueId, `Dependency removed: → ${dependsOnId}`, 'dependency', { ticketTitle: getIssueTitle(issueId), sender: 'user' });
-		notifyAgentOfTicketUpdate(dependsOnId, `Dependency removed: ${issueId} no longer blocks`, 'dependency', { ticketTitle: getIssueTitle(dependsOnId), sender: 'user' });
+		notifyTicket(issueId, `Dependency removed: → ${dependsOnId}`, 'dependency', { ticketTitle: getIssueTitle(issueId), sender: 'user' });
+		notifyTicket(dependsOnId, `Dependency removed: ${issueId} no longer blocks`, 'dependency', { ticketTitle: getIssueTitle(dependsOnId), sender: 'user' });
 	}
 
 	function startRopeDrag(e: MouseEvent, issueId: string) {
@@ -791,13 +801,13 @@
 		// Notify agent about significant field changes
 		const ctx = { ticketTitle: title, sender: 'user' };
 		if (updates.status && original?.status !== updates.status) {
-			notifyAgentOfTicketUpdate(id, `Status changed: ${original?.status} → ${updates.status}`, 'status', ctx);
+			notifyTicket(id, `Status changed: ${original?.status} → ${updates.status}`, 'status', ctx);
 		}
 		if (updates.priority !== undefined && original?.priority !== updates.priority) {
-			notifyAgentOfTicketUpdate(id, `Priority changed: ${original?.priority} → ${updates.priority}`, 'priority', ctx);
+			notifyTicket(id, `Priority changed: ${original?.priority} → ${updates.priority}`, 'priority', ctx);
 		}
 		if (updates.assignee !== undefined && original?.assignee !== updates.assignee) {
-			notifyAgentOfTicketUpdate(id, `Assignee changed: ${original?.assignee || 'unassigned'} → ${updates.assignee || 'unassigned'}`, 'assignee', ctx);
+			notifyTicket(id, `Assignee changed: ${original?.assignee || 'unassigned'} → ${updates.assignee || 'unassigned'}`, 'assignee', ctx);
 		}
 	}
 
@@ -913,32 +923,34 @@
 		// Start agent with ticket-specific briefing
 		if (data.id) {
 			const agentName = `${data.id}-agent`;
-			const briefing = `You are agent "${agentName}" assigned to ticket ${data.id}.
-
-## Your Task
-Work on this ticket:
-- **ID**: ${data.id}
-- **Title**: ${savedForm.title}
-${savedForm.description ? `- **Description**: ${savedForm.description}` : ''}
-
-Start by claiming the ticket (set status to in_progress), then implement the required changes.`;
+			const briefing = formatTicketDelivery(agentName, data.id, savedForm.title, savedForm.description);
 			addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt, undefined, data.id);
 			expandedPanes.add(agentName);
 			expandedPanes = new Set(expandedPanes);
 		}
 	}
 
+	function formatTicketDelivery(agentName: string, id: string, title: string, description?: string): string {
+		const descLine = description ? `- **Description**: ${description}` : '';
+		return agentTicketDelivery
+			.replace(/{name}/g, agentName)
+			.replace(/{id}/g, id)
+			.replace(/{title}/g, title)
+			.replace(/{description}/g, descLine);
+	}
+
+	function notifyTicket(
+		ticketId: string,
+		content: string,
+		notificationType: 'comment' | 'dependency' | 'attachment' | 'status' | 'priority' | 'assignee' | 'label',
+		context?: { ticketTitle?: string; sender?: string }
+	) {
+		notifyAgentOfTicketUpdate(ticketId, content, notificationType, context, agentTicketNotification);
+	}
+
 	function startAgentForIssue(issue: Issue) {
 		const agentName = `${issue.id}-agent`;
-		const briefing = `You are agent "${agentName}" assigned to ticket ${issue.id}.
-
-## Your Task
-Work on this ticket:
-- **ID**: ${issue.id}
-- **Title**: ${issue.title}
-${issue.description ? `- **Description**: ${issue.description}` : ''}
-
-Start by claiming the ticket (set status to in_progress), then implement the required changes.`;
+		const briefing = formatTicketDelivery(agentName, issue.id, issue.title, issue.description);
 		addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt, undefined, issue.id);
 		expandedPanes.add(agentName);
 		expandedPanes = new Set(expandedPanes);
@@ -1000,7 +1012,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		if (attachment) {
 			attachments = [...attachments, attachment];
 			// Notify agent if one is active for this ticket
-			notifyAgentOfTicketUpdate(
+			notifyTicket(
 				editingIssue.id,
 				`Attachment added: ${file.name}`,
 				'attachment',
@@ -1013,7 +1025,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		if (!editingIssue) return;
 		await deleteAttachmentApi(editingIssue.id, filename);
 		attachments = attachments.filter(a => a.filename !== filename);
-		notifyAgentOfTicketUpdate(
+		notifyTicket(
 			editingIssue.id,
 			`Attachment removed: ${filename}`,
 			'attachment',
@@ -1030,7 +1042,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 			body: JSON.stringify({ text: commentText })
 		});
 		// Notify agent if one is active for this ticket
-		notifyAgentOfTicketUpdate(
+		notifyTicket(
 			editingIssue.id,
 			`Comment: "${commentText.slice(0, 100)}${commentText.length > 100 ? '...' : ''}"`,
 			'comment',
@@ -1503,6 +1515,10 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 			if (savedAgentSystemPrompt) agentSystemPrompt = savedAgentSystemPrompt;
 			const savedAgentWorkflow = localStorage.getItem('agentWorkflow');
 			if (savedAgentWorkflow) agentWorkflow = savedAgentWorkflow;
+			const savedAgentTicketDelivery = localStorage.getItem('agentTicketDelivery');
+			if (savedAgentTicketDelivery) agentTicketDelivery = savedAgentTicketDelivery;
+			const savedAgentTicketNotification = localStorage.getItem('agentTicketNotification');
+			if (savedAgentTicketNotification) agentTicketNotification = savedAgentTicketNotification;
 			const savedAgentToolsExpanded = localStorage.getItem('agentToolsExpanded');
 			if (savedAgentToolsExpanded) agentToolsExpanded = savedAgentToolsExpanded === 'true';
 			const savedColorScheme = localStorage.getItem('colorScheme');
@@ -1530,6 +1546,12 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	});
 	$effect(() => {
 		if (browser) localStorage.setItem('agentWorkflow', agentWorkflow);
+	});
+	$effect(() => {
+		if (browser) localStorage.setItem('agentTicketDelivery', agentTicketDelivery);
+	});
+	$effect(() => {
+		if (browser) localStorage.setItem('agentTicketNotification', agentTicketNotification);
 	});
 	$effect(() => {
 		if (browser) localStorage.setItem('agentToolsExpanded', String(agentToolsExpanded));
@@ -1685,6 +1707,8 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	bind:agentFirstMessage
 	bind:agentSystemPrompt
 	bind:agentWorkflow
+	bind:agentTicketDelivery
+	bind:agentTicketNotification
 	bind:agentToolsExpanded
 	{isDarkMode}
 	{colorScheme}
