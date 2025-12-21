@@ -109,7 +109,8 @@ NEVER:
 <svelte:window onkeydown={show ? handleKeydown : undefined} />
 
 {#if show}
-<aside class="prompts-window" role="dialog" aria-label="Prompts" tabindex="-1">
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
+<aside class="prompts-window" role="dialog" aria-label="Prompts" tabindex="-1" onclick={(e) => e.stopPropagation()}>
 		<header class="prompts-header">
 			<div class="prompts-title-row">
 				<span class="prompts-icon"><Icon name="message" size={18} /></span>
