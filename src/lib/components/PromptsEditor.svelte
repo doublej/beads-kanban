@@ -342,9 +342,11 @@
 		border-radius: var(--radius-md);
 		color: var(--text-primary);
 		font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
-		font-size: 0.875rem;
-		line-height: 1.6;
+		font-size: 0.6875rem;
+		line-height: 1.5;
 		resize: none;
+		white-space: pre;
+		overflow-x: auto;
 	}
 
 	.prompt-textarea:focus {
