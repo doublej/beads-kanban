@@ -561,10 +561,14 @@
 		display: flex;
 		gap: 0.5rem;
 		padding: 0 0.75rem 0.375rem;
-		pointer-events: auto;
+		pointer-events: none;
 		flex-wrap: wrap;
 		justify-content: flex-end;
 		align-items: flex-end;
+	}
+
+	.agent-window {
+		pointer-events: auto;
 	}
 
 	.agent-windows.has-large {
@@ -576,6 +580,7 @@
 		z-index: 999;
 		justify-content: center;
 		align-items: center;
+		pointer-events: auto;
 	}
 
 	/* ===== Window ===== */
