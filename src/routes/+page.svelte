@@ -2121,6 +2121,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		{resizingPane}
 		disabled={!wsConnected}
 		toolsExpandedByDefault={agentToolsExpanded}
+		{getUnreadCount}
 		onStartDrag={startDrag}
 		onStartResize={startResize}
 		onCyclePaneSize={cyclePaneSize}
