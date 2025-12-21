@@ -142,7 +142,40 @@
 	let agentPort = $state(8765);
 	let agentFirstMessage = $state('You are an agent named "{name}". Await further instructions.');
 	let agentSystemPrompt = $state('');
+	let agentWorkflow = $state(`## MANDATORY Ticket Workflow
+
+**FOR EACH TICKET**, follow this EXACT sequence:
+
+1. **CLAIM** - Update ticket to \`in_progress\` BEFORE starting work:
+   \`mcp__beads-agent__update_issue({ id: "<ticket-id>", status: "in_progress" })\`
+
+2. **WORK** - Implement the changes
+
+3. **COMMIT** - Create atomic commit with ticket reference:
+   \`git add <files> && git commit -m "<type>(<ticket-id>): <description>"\`
+
+4. **LINT** - Run linting and fix any issues BEFORE closing:
+   \`bun run check\`
+   - If errors: fix them, commit fixes, re-run lint
+   - Only proceed to CLOSE when lint passes
+
+5. **CLOSE** - Update ticket with summary, commit ID, and hash:
+   \`\`\`
+   git log -1 --format="%H %s"  # Get commit hash and message
+   mcp__beads-agent__update_issue({
+     id: "<ticket-id>",
+     status: "closed",
+     notes: "Summary: <what was done>\\nCommit: <hash> <message>"
+   })
+   \`\`\`
+
+**NEVER**:
+- Start work without claiming (updating to in_progress)
+- Move to next ticket before committing current work
+- Close ticket without running lint and ensuring it passes
+- Close ticket without recording commit info`);
 	let agentToolsExpanded = $state(false);
+	const combinedSystemPrompt = $derived([agentSystemPrompt, agentWorkflow].filter(Boolean).join('\n\n'));
 	let agentMenuOpen = $state(false);
 	let agentNameInputOpen = $state(false);
 	let agentNameInputRef = $state<HTMLInputElement | null>(null);
@@ -861,7 +894,7 @@ Work on this ticket:
 ${savedForm.description ? `- **Description**: ${savedForm.description}` : ''}
 
 Start by claiming the ticket (set status to in_progress), then implement the required changes.`;
-			addPane(agentName, currentProjectPath, briefing, agentSystemPrompt);
+			addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt);
 			expandedPanes.add(agentName);
 			expandedPanes = new Set(expandedPanes);
 		}
@@ -878,7 +911,7 @@ Work on this ticket:
 ${issue.description ? `- **Description**: ${issue.description}` : ''}
 
 Start by claiming the ticket (set status to in_progress), then implement the required changes.`;
-		addPane(agentName, currentProjectPath, briefing, agentSystemPrompt);
+		addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt);
 		expandedPanes.add(agentName);
 		expandedPanes = new Set(expandedPanes);
 		// Close panel to show agent activity
@@ -1413,6 +1446,8 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 			if (savedAgentFirstMessage) agentFirstMessage = savedAgentFirstMessage;
 			const savedAgentSystemPrompt = localStorage.getItem('agentSystemPrompt');
 			if (savedAgentSystemPrompt) agentSystemPrompt = savedAgentSystemPrompt;
+			const savedAgentWorkflow = localStorage.getItem('agentWorkflow');
+			if (savedAgentWorkflow) agentWorkflow = savedAgentWorkflow;
 			const savedAgentToolsExpanded = localStorage.getItem('agentToolsExpanded');
 			if (savedAgentToolsExpanded) agentToolsExpanded = savedAgentToolsExpanded === 'true';
 			const savedColorScheme = localStorage.getItem('colorScheme');
@@ -1437,6 +1472,9 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	});
 	$effect(() => {
 		if (browser) localStorage.setItem('agentSystemPrompt', agentSystemPrompt);
+	});
+	$effect(() => {
+		if (browser) localStorage.setItem('agentWorkflow', agentWorkflow);
 	});
 	$effect(() => {
 		if (browser) localStorage.setItem('agentToolsExpanded', String(agentToolsExpanded));
@@ -1590,6 +1628,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 	bind:agentPort
 	bind:agentFirstMessage
 	bind:agentSystemPrompt
+	bind:agentWorkflow
 	bind:agentToolsExpanded
 	{isDarkMode}
 	{colorScheme}
@@ -1765,7 +1804,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 				if (persistedId) {
 					resumePrompt = { name, sessionId: persistedId };
 				} else {
-					addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt);
+					addPane(name, currentProjectPath, agentFirstMessage, combinedSystemPrompt);
 					expandedPanes.add(name);
 					expandedPanes = new Set(expandedPanes);
 				}

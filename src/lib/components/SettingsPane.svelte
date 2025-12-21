@@ -11,6 +11,7 @@
 		agentPort: number;
 		agentFirstMessage: string;
 		agentSystemPrompt: string;
+		agentWorkflow: string;
 		agentToolsExpanded: boolean;
 		colorScheme: string;
 		notificationsEnabled: boolean;
@@ -27,6 +28,7 @@
 		agentPort = $bindable(),
 		agentFirstMessage = $bindable(),
 		agentSystemPrompt = $bindable(),
+		agentWorkflow = $bindable(),
 		agentToolsExpanded = $bindable(),
 		colorScheme,
 		notificationsEnabled,
@@ -48,6 +50,13 @@
 	let cwdInput = $state('');
 	let cwdError = $state('');
 	let isEditingCwd = $state(false);
+	let activePromptTab = $state<'first' | 'system' | 'workflow'>('first');
+
+	const promptTabs = [
+		{ id: 'first' as const, label: 'First Message', hint: 'Initial briefing sent to new agents' },
+		{ id: 'system' as const, label: 'System Prompt', hint: 'Additional context appended to system prompt' },
+		{ id: 'workflow' as const, label: 'Workflow', hint: 'Mandatory ticket workflow for agents' }
+	];
 	let isChangingCwd = $state(false);
 	let projects = $state<Project[]>([]);
 
@@ -235,38 +244,46 @@
 						</div>
 					</div>
 
-					<!-- Agent First Message -->
-					<div class="setting-row" style="margin-top: 0.75rem">
-						<div class="setting-info">
-							<span class="setting-name">First Message</span>
-							<span class="setting-desc">Initial briefing sent to new agents</span>
+					<!-- Agent Prompts Tabs -->
+					<div class="prompt-tabs-container">
+						<div class="prompt-tabs">
+							{#each promptTabs as tab}
+								<button
+									class="prompt-tab"
+									class:active={activePromptTab === tab.id}
+									onclick={() => activePromptTab = tab.id}
+								>
+									{tab.label}
+								</button>
+							{/each}
 						</div>
-					</div>
-					<div class="agent-textarea-wrapper">
-						<textarea
-							class="agent-textarea"
-							bind:value={agentFirstMessage}
-							placeholder='You are an agent named "{name}". Await further instructions.'
-							rows="3"
-						></textarea>
-						<span class="textarea-hint">Use {'{name}'} for agent name</span>
-					</div>
-
-					<!-- Agent System Prompt -->
-					<div class="setting-row" style="margin-top: 0.75rem">
-						<div class="setting-info">
-							<span class="setting-name">System Prompt (agents.md)</span>
-							<span class="setting-desc">Additional context appended to system prompt</span>
+						<div class="prompt-content">
+							{#if activePromptTab === 'first'}
+								<textarea
+									class="agent-textarea"
+									bind:value={agentFirstMessage}
+									placeholder='You are an agent named "{name}". Await further instructions.'
+									rows="6"
+								></textarea>
+								<span class="textarea-hint">Use {'{name}'} for agent name</span>
+							{:else if activePromptTab === 'system'}
+								<textarea
+									class="agent-textarea"
+									bind:value={agentSystemPrompt}
+									placeholder="# Agent Instructions&#10;&#10;Add custom instructions, context, or guidelines for all agents..."
+									rows="6"
+								></textarea>
+								<span class="textarea-hint">Use {'{name}'} for agent name</span>
+							{:else if activePromptTab === 'workflow'}
+								<textarea
+									class="agent-textarea"
+									bind:value={agentWorkflow}
+									placeholder="# Ticket Workflow&#10;&#10;Define the mandatory workflow steps for agents..."
+									rows="6"
+								></textarea>
+								<span class="textarea-hint">Injected into agent system prompt</span>
+							{/if}
 						</div>
-					</div>
-					<div class="agent-textarea-wrapper">
-						<textarea
-							class="agent-textarea agent-textarea-large"
-							bind:value={agentSystemPrompt}
-							placeholder="# Agent Instructions&#10;&#10;Add custom instructions, context, or guidelines for all agents..."
-							rows="6"
-						></textarea>
-						<span class="textarea-hint">Use {'{name}'} for agent name</span>
 					</div>
 
 					<!-- Tool Display Preference -->
@@ -950,6 +967,61 @@
 		font-size: 0.5625rem;
 		color: var(--text-tertiary);
 		opacity: 0.7;
+	}
+
+	/* Prompt Tabs */
+	.prompt-tabs-container {
+		margin-top: 0.75rem;
+	}
+
+	.prompt-tabs {
+		display: flex;
+		gap: 0.25rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.prompt-tab {
+		flex: 1;
+		padding: 0.5rem 0.625rem;
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.06);
+		border-radius: var(--radius-sm);
+		color: var(--text-tertiary);
+		font-family: inherit;
+		font-size: 0.6875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 150ms ease;
+	}
+
+	.prompt-tab:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text-secondary);
+	}
+
+	.prompt-tab.active {
+		background: rgba(34, 211, 238, 0.12);
+		border-color: rgba(34, 211, 238, 0.25);
+		color: #22d3ee;
+	}
+
+	:global(.app.light) .prompt-tab {
+		background: rgba(0, 0, 0, 0.02);
+		border-color: rgba(0, 0, 0, 0.06);
+	}
+
+	:global(.app.light) .prompt-tab:hover {
+		background: rgba(0, 0, 0, 0.04);
+	}
+
+	:global(.app.light) .prompt-tab.active {
+		background: rgba(6, 182, 212, 0.1);
+		border-color: rgba(6, 182, 212, 0.2);
+		color: #0891b2;
+	}
+
+	.prompt-content {
+		min-height: 140px;
 	}
 
 	/* Theme Toggle */
