@@ -1526,6 +1526,12 @@
 	.input-wrapper {
 		position: relative;
 		flex: 1;
+		display: flex;
+	}
+
+	.input-wrapper .msg-input {
+		flex: 1;
+		width: 100%;
 	}
 
 	.slash-menu {

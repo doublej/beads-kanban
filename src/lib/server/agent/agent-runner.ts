@@ -191,6 +191,7 @@ export async function runAgent(session: AgentSession, briefing: string, opts: Ru
       if (message.type === "system" && message.subtype === "init") {
         session.sdkSessionId = message.session_id;
         const initMsg = message as { slash_commands?: string[] };
+        console.log("[agent] init message slash_commands:", initMsg.slash_commands);
         sendToClient(session, {
           type: "sdk_session",
           sdkSessionId: message.session_id,
