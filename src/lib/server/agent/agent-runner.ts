@@ -144,6 +144,34 @@ export async function runAgent(session: AgentSession, briefing: string, opts: Ru
           return { continue: true };
         }],
       }],
+      SubagentStart: [{
+        hooks: [async (input) => {
+          if (input.hook_event_name === "SubagentStart") {
+            const agentType = (input as any).agent_type || "subagent";
+            sendToClient(session, {
+              type: "system_message",
+              subtype: "subagent_start",
+              content: `Starting subagent: ${agentType}`,
+              agentName: agentType
+            });
+          }
+          return { continue: true };
+        }],
+      }],
+      SubagentStop: [{
+        hooks: [async (input) => {
+          if (input.hook_event_name === "SubagentStop") {
+            const agentId = (input as any).agent_id || "subagent";
+            sendToClient(session, {
+              type: "system_message",
+              subtype: "subagent_end",
+              content: `Subagent completed: ${agentId}`,
+              agentName: agentId
+            });
+          }
+          return { continue: true };
+        }],
+      }],
     },
   };
 
@@ -179,11 +207,31 @@ export async function runAgent(session: AgentSession, briefing: string, opts: Ru
         }
       }
 
-      if (message.type === "system" && message.subtype === "compact_boundary") {
-        sendToClient(session, {
-          type: "compacted",
-          metadata: (message as any).compact_metadata
-        });
+      if (message.type === "system") {
+        const subtype = message.subtype;
+        // Handle compact boundary - compaction complete
+        if (subtype === "compact_boundary") {
+          sendToClient(session, {
+            type: "compacted",
+            metadata: (message as any).compact_metadata
+          });
+          sendToClient(session, {
+            type: "system_message",
+            subtype: "compact_done",
+            content: "Context compacted successfully"
+          });
+        }
+        // Handle status messages (e.g., compacting status)
+        else if (subtype === "status") {
+          const status = (message as any).status;
+          if (status === "compacting") {
+            sendToClient(session, {
+              type: "system_message",
+              subtype: "compact_start",
+              content: "Compacting context..."
+            });
+          }
+        }
       }
 
       if (message.type === "assistant") {

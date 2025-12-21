@@ -369,7 +369,7 @@
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<div
-						class="msg {msg.role} {msg.role === 'notification' ? msg.notificationType || '' : ''}"
+						class="msg {msg.role} {msg.role === 'notification' ? msg.notificationType || '' : ''} {msg.role === 'system' ? msg.systemSubtype || '' : ''}"
 						class:collapsed={isCollapsed}
 						class:clickable={msg.role === 'tool'}
 						onclick={msg.role === 'tool' ? () => toggleToolCollapse(toolKey) : undefined}
@@ -380,6 +380,29 @@
 									<svg viewBox="0 0 8 8" width="8" height="8"><path d="M2 1l4 3-4 3z" fill="currentColor"/></svg>
 								{:else}
 									<svg viewBox="0 0 8 8" width="8" height="8"><path d="M1 2l3 4 3-4z" fill="currentColor"/></svg>
+								{/if}
+							</span>
+						{:else if msg.role === 'system'}
+							<span class="system-icon {msg.systemSubtype || ''}">
+								{#if msg.systemSubtype === 'compact_start' || msg.systemSubtype === 'compact_done'}
+									<svg viewBox="0 0 16 16" width="10" height="10">
+										<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+										<path d="M8 3a5 5 0 010 10" fill="currentColor"/>
+									</svg>
+								{:else if msg.systemSubtype === 'subagent_start'}
+									<svg viewBox="0 0 16 16" width="10" height="10">
+										<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+										<path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+									</svg>
+								{:else if msg.systemSubtype === 'subagent_end'}
+									<svg viewBox="0 0 16 16" width="10" height="10">
+										<circle cx="8" cy="8" r="5" fill="currentColor" opacity="0.8"/>
+									</svg>
+								{:else}
+									<svg viewBox="0 0 16 16" width="10" height="10">
+										<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+										<circle cx="8" cy="8" r="2" fill="currentColor"/>
+									</svg>
 								{/if}
 							</span>
 						{:else if msg.role === 'notification'}
@@ -427,6 +450,10 @@
 							{/if}
 						{:else if msg.role === 'notification'}
 							<div class="notification-content {msg.notificationType || ''}">
+								{msg.content}
+							</div>
+						{:else if msg.role === 'system'}
+							<div class="system-content {msg.systemSubtype || ''}">
 								{msg.content}
 							</div>
 						{:else}
@@ -1178,6 +1205,66 @@
 	.notification-content.priority { color: #fca5a5; }
 	.notification-content.assignee { color: #a5b4fc; }
 	.notification-content.label { color: #38bdf8; }
+
+	/* System message styles */
+	.msg.system {
+		background: rgba(16, 185, 129, 0.06);
+		border-left: 2px solid rgba(16, 185, 129, 0.3);
+		padding-left: 0.5rem;
+	}
+
+	.msg.system.compact_start {
+		background: rgba(251, 191, 36, 0.08);
+		border-left-color: rgba(251, 191, 36, 0.4);
+	}
+
+	.msg.system.compact_done {
+		background: rgba(16, 185, 129, 0.08);
+		border-left-color: rgba(16, 185, 129, 0.4);
+	}
+
+	.msg.system.subagent_start {
+		background: rgba(99, 102, 241, 0.08);
+		border-left-color: rgba(99, 102, 241, 0.4);
+	}
+
+	.msg.system.subagent_end {
+		background: rgba(99, 102, 241, 0.06);
+		border-left-color: rgba(99, 102, 241, 0.3);
+	}
+
+	:global(.app.light) .msg.system { background: rgba(16, 185, 129, 0.04); }
+	:global(.app.light) .msg.system.compact_start { background: rgba(251, 191, 36, 0.06); }
+	:global(.app.light) .msg.system.compact_done { background: rgba(16, 185, 129, 0.06); }
+	:global(.app.light) .msg.system.subagent_start { background: rgba(99, 102, 241, 0.06); }
+	:global(.app.light) .msg.system.subagent_end { background: rgba(99, 102, 241, 0.04); }
+
+	.system-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 14px;
+		height: 14px;
+		flex-shrink: 0;
+		color: #10b981;
+	}
+
+	.system-icon.compact_start { color: #fbbf24; }
+	.system-icon.compact_done { color: #10b981; }
+	.system-icon.subagent_start { color: #6366f1; }
+	.system-icon.subagent_end { color: #818cf8; }
+
+	.system-content {
+		flex: 1;
+		font: 10px/1.35 'IBM Plex Mono', ui-monospace, monospace;
+		color: var(--text-secondary, #aaa);
+		font-style: italic;
+	}
+
+	.system-content.compact_start { color: #fbbf24; }
+	.system-content.compact_done { color: #10b981; }
+	.system-content.subagent_start { color: #818cf8; }
+	.system-content.subagent_end { color: #a5b4fc; }
 
 	.role-tag {
 		color: var(--text-tertiary);

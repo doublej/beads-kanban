@@ -57,6 +57,7 @@ export interface AgentSession {
 	pane_type: string;
 	backend: string;
 	lastReadCount?: number; // Number of messages when pane was last viewed
+	ticketId?: string; // Associated ticket ID for notification routing
 }
 
 export interface FileDiff {
@@ -194,7 +195,7 @@ function handleActionRequest(request: ActionRequest) {
 
 	switch (action) {
 		case 'startSession':
-			startSessionInternal(sessionName, ...(args as [string, string, string?, string?]));
+			startSessionInternal(sessionName, ...(args as [string, string, string?, string?, string?]));
 			break;
 		case 'sendMessage':
 			sendMessageInternal(sessionName, args[0] as string);
@@ -612,8 +613,8 @@ export function getUnreadCount(name: string): number {
 }
 
 // Internal functions that do the actual work (called by leader tab)
-function startSessionInternal(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string) {
-	console.log('[agent] startSession:', name, 'cwd:', cwd, resumeSessionId ? `resuming: ${resumeSessionId}` : '');
+function startSessionInternal(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string) {
+	console.log('[agent] startSession:', name, 'cwd:', cwd, resumeSessionId ? `resuming: ${resumeSessionId}` : '', ticketId ? `ticket: ${ticketId}` : '');
 
 	const existing = sessions.get(name);
 	const session: AgentSession = {
@@ -625,7 +626,8 @@ function startSessionInternal(name: string, cwd: string, briefing: string, syste
 		currentDelta: '',
 		pane_type: 'agent',
 		backend: 'claude',
-		sdkSessionId: resumeSessionId
+		sdkSessionId: resumeSessionId,
+		ticketId: ticketId ?? existing?.ticketId
 	};
 	sessions.set(name, session);
 	sessions = new Map(sessions);
@@ -694,11 +696,11 @@ function compactSessionInternal(name: string) {
 }
 
 // Public functions that forward to leader if not the leader tab
-export function startSession(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string) {
+export function startSession(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string) {
 	if (isTabLeader) {
-		startSessionInternal(name, cwd, briefing, systemPromptAppend, resumeSessionId);
+		startSessionInternal(name, cwd, briefing, systemPromptAppend, resumeSessionId, ticketId);
 	} else {
-		tabCoordinator.requestAction({ action: 'startSession', sessionName: name, args: [cwd, briefing, systemPromptAppend, resumeSessionId] });
+		tabCoordinator.requestAction({ action: 'startSession', sessionName: name, args: [cwd, briefing, systemPromptAppend, resumeSessionId, ticketId] });
 	}
 }
 
@@ -718,10 +720,10 @@ export function interrupt(name: string) {
 	}
 }
 
-export function addPane(name: string, cwd: string, firstMessage?: string, systemPrompt?: string, resumeSessionId?: string) {
+export function addPane(name: string, cwd: string, firstMessage?: string, systemPrompt?: string, resumeSessionId?: string, ticketId?: string) {
 	const briefing = firstMessage ? firstMessage.replace('{name}', name) : `You are an agent named "${name}". Await further instructions.`;
 	const prompt = systemPrompt ? systemPrompt.replace('{name}', name) : undefined;
-	startSession(name, cwd, briefing, prompt, resumeSessionId);
+	startSession(name, cwd, briefing, prompt, resumeSessionId, ticketId);
 }
 
 export function killSession(name: string) {
@@ -828,12 +830,24 @@ export function injectNotification(name: string, content: string, notificationTy
 	}
 }
 
-// Notify agent about ticket update (finds agent by ticket ID)
-export function notifyAgentOfTicketUpdate(ticketId: string, content: string, notificationType: NotificationType) {
+// Find session by ticketId field or fallback to name pattern
+function findSessionByTicketId(ticketId: string): [string, AgentSession] | null {
+	// First try to find by explicit ticketId field
+	for (const [name, session] of sessions) {
+		if (session.ticketId === ticketId) return [name, session];
+	}
+	// Fallback to name pattern for backwards compatibility
 	const agentName = `${ticketId}-agent`;
 	const session = sessions.get(agentName);
-	if (!session) return false;
+	if (session) return [agentName, session];
+	return null;
+}
 
+// Notify agent about ticket update (finds agent by ticket ID)
+export function notifyAgentOfTicketUpdate(ticketId: string, content: string, notificationType: NotificationType) {
+	const found = findSessionByTicketId(ticketId);
+	if (!found) return false;
+	const [agentName] = found;
 	injectNotification(agentName, content, notificationType);
 	return true;
 }
