@@ -485,7 +485,6 @@
 		// Notify both agents if active
 		notifyAgentOfTicketUpdate(fromId, `Dependency added: ${depType} → ${toId}`, 'dependency');
 		notifyAgentOfTicketUpdate(toId, `Dependency added: ${fromId} ${depType} this`, 'dependency');
-		pendingDep = null;
 		closeContextMenu();
 	}
 
