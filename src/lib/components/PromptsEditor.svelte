@@ -44,7 +44,7 @@
 		activeTab === 'first' ? 'You are an agent named "{name}". Await further instructions.' :
 		activeTab === 'system' ? '# Agent Instructions\n\nAdd custom instructions, context, or guidelines for all agents...' :
 		activeTab === 'workflow' ? '# Ticket Workflow\n\nDefine the mandatory workflow steps for agents...' :
-		activeTab === 'ticket' ? 'You are agent "{name}" assigned to ticket {id}.\n\n## Your Task\nWork on this ticket:\n- **ID**: {id}\n- **Title**: {title}\n- **Description**: {description}\n\nStart by claiming the ticket...' :
+		activeTab === 'ticket' ? '<assignment id="{id}" name="{name}">\n<task>\n<title>{title}</title>\n<description>{description}</description>\n<comments>{comments}</comments>\n</task>\n</assignment>' :
 		'[Ticket: {id}] "{title}" (from: {sender}) {content}'
 	);
 
@@ -52,7 +52,7 @@
 		activeTab === 'first' ? 'Initial briefing sent to new agents. Use {name} for agent name.' :
 		activeTab === 'system' ? 'Additional context appended to agent system prompt. Use {name} for agent name.' :
 		activeTab === 'workflow' ? 'Mandatory workflow injected into every agent session.' :
-		activeTab === 'ticket' ? 'Message sent when assigning a ticket. Use {name}, {id}, {title}, {description}.' :
+		activeTab === 'ticket' ? 'Placeholders: {name}, {id}, {title}, {description}, {comments}, {attachments}, {dependencies}, {dependents}' :
 		'Format for ticket notifications. Use {id}, {title}, {sender}, {content}.'
 	);
 

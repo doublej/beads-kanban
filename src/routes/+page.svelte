@@ -49,6 +49,9 @@
 	import ProjectSwitcher from '$lib/components/ProjectSwitcher.svelte';
 
 	let issues = $state<Issue[]>([]);
+	// Track pending optimistic updates to prevent SSE from overwriting them
+	let pendingUpdates = $state<Map<string, { updates: Partial<Issue>; timestamp: number }>>(new Map());
+	let pendingDeletes = $state<Set<string>>(new Set());
 	let draggedId = $state<string | null>(null);
 	let draggedOverColumn = $state<string | null>(null);
 	let editingIssue = $state<Issue | null>(null);
@@ -174,15 +177,24 @@
 - Move to next ticket before committing current work
 - Close ticket without running lint and ensuring it passes
 - Close ticket without recording commit info`);
-	let agentTicketDelivery = $state(`You are agent "{name}" assigned to ticket {id}.
+	let agentTicketDelivery = $state(`<assignment id="{id}" name="{name}">
+<context>
+You are assigned to ticket {id}.
+</context>
 
-## Your Task
-Work on this ticket:
-- **ID**: {id}
-- **Title**: {title}
-{description}
+<task>
+<title>{title}</title>
+<description>{description}</description>
+<comments>{comments}</comments>
+<attachments>{attachments}</attachments>
+<dependencies>{dependencies}</dependencies>
+<dependents>{dependents}</dependents>
+</task>
 
-Start by claiming the ticket (set status to in_progress), then implement the required changes.`);
+<instructions>
+Start by claiming the ticket (set status to in_progress), then implement the required changes.
+</instructions>
+</assignment>`);
 	let agentTicketNotification = $state(`[Ticket: {id}] "{title}" (from: {sender}) {content}`);
 	let agentToolsExpanded = $state(false);
 	const combinedSystemPrompt = $derived([agentSystemPrompt, agentWorkflow].filter(Boolean).join('\n\n'));
@@ -661,6 +673,55 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		issues.filter((issue) => issueMatchesFilters(issue))
 	);
 
+	// Merge SSE data with pending optimistic updates to prevent stale data overwrite
+	function mergeWithPendingUpdates(sseIssues: Issue[]): Issue[] {
+		const now = Date.now();
+		const PENDING_TIMEOUT = 10000; // 10 seconds max pending time
+
+		// Filter out deleted issues
+		const filtered = sseIssues.filter(issue => !pendingDeletes.has(issue.id));
+
+		// Check if any deleted issues are now confirmed (no longer in SSE)
+		const sseIds = new Set(sseIssues.map(i => i.id));
+		const originalDeleteSize = pendingDeletes.size;
+		for (const id of pendingDeletes) {
+			if (!sseIds.has(id)) {
+				pendingDeletes.delete(id);
+			}
+		}
+		if (pendingDeletes.size !== originalDeleteSize) {
+			pendingDeletes = new Set(pendingDeletes);
+		}
+
+		return filtered.map(issue => {
+			const pending = pendingUpdates.get(issue.id);
+			if (!pending) return issue;
+
+			// Check if SSE now reflects our update (confirmation)
+			const issueRecord = issue as unknown as Record<string, unknown>;
+			const isConfirmed = Object.entries(pending.updates).every(
+				([key, value]) => issueRecord[key] === value
+			);
+
+			if (isConfirmed) {
+				// SSE caught up - clear pending
+				pendingUpdates.delete(issue.id);
+				pendingUpdates = new Map(pendingUpdates);
+				return issue;
+			}
+
+			// Check for timeout (safety valve)
+			if (now - pending.timestamp > PENDING_TIMEOUT) {
+				pendingUpdates.delete(issue.id);
+				pendingUpdates = new Map(pendingUpdates);
+				return issue; // Accept SSE data after timeout
+			}
+
+			// SSE has stale data - preserve our optimistic update
+			return { ...issue, ...pending.updates };
+		});
+	}
+
 	function connectSSE() {
 		const eventSource = new EventSource('/api/issues/stream');
 		sseSource = eventSource;
@@ -748,7 +809,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 						flyingCards = new Map(flyingCards);
 					});
 
-					issues = data.issues;
+					issues = mergeWithPendingUpdates(data.issues);
 
 					// Trigger teleports with pre-captured positions
 					teleportTargets.forEach(({ id, fromPos, toPos }) => {
@@ -762,7 +823,7 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 					});
 				}, 350);
 			} else {
-				issues = data.issues;
+				issues = mergeWithPendingUpdates(data.issues);
 			}
 		};
 
@@ -779,6 +840,10 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		// Get original issue for comparison
 		const original = issues.find(i => i.id === id);
 		const title = original?.title ?? id;
+
+		// Track pending update to prevent SSE from overwriting optimistic state
+		pendingUpdates.set(id, { updates, timestamp: Date.now() });
+		pendingUpdates = new Map(pendingUpdates);
 
 		// Optimistic update - apply immediately for instant feedback
 		const idx = issues.findIndex(i => i.id === id);
@@ -817,6 +882,9 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		if (editingIssue?.id === id) {
 			editingIssue = null;
 		}
+		// Track pending delete to prevent SSE from re-adding
+		pendingDeletes.add(id);
+		pendingDeletes = new Set(pendingDeletes);
 		// Remove from UI immediately
 		issues = issues.filter(i => i.id !== id);
 		setTimeout(() => {
@@ -923,20 +991,60 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		// Start agent with ticket-specific briefing
 		if (data.id) {
 			const agentName = `${data.id}-agent`;
-			const briefing = formatTicketDelivery(agentName, data.id, savedForm.title, savedForm.description);
+			// For newly created issue, create a minimal issue object
+			const newIssue: Issue = {
+				id: data.id,
+				title: savedForm.title,
+				description: savedForm.description || '',
+				status: 'open',
+				priority: savedForm.priority || 2,
+				issue_type: savedForm.issue_type || 'task'
+			};
+			const briefing = formatTicketDelivery(agentName, { issue: newIssue });
 			addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt, undefined, data.id);
 			expandedPanes.add(agentName);
 			expandedPanes = new Set(expandedPanes);
 		}
 	}
 
-	function formatTicketDelivery(agentName: string, id: string, title: string, description?: string): string {
-		const descLine = description ? `- **Description**: ${description}` : '';
+	interface TicketDeliveryData {
+		issue: Issue;
+		comments?: Comment[];
+		attachments?: Attachment[];
+	}
+
+	function formatTicketDelivery(agentName: string, data: TicketDeliveryData): string {
+		const { issue, comments = [], attachments = [] } = data;
+
+		// Format comments
+		const commentsStr = comments.length > 0
+			? comments.map(c => `[${c.author} @ ${new Date(c.created_at).toLocaleString()}]: ${c.text}`).join('\n')
+			: 'No comments';
+
+		// Format attachments
+		const attachmentsStr = attachments.length > 0
+			? attachments.map(a => `- ${a.filename} (${(a.size / 1024).toFixed(1)}KB)`).join('\n')
+			: 'No attachments';
+
+		// Format dependencies (blocking this ticket)
+		const depsStr = issue.dependencies && issue.dependencies.length > 0
+			? issue.dependencies.map(d => `- ${d.id}: ${d.title} [${d.status}] (${d.dependency_type})`).join('\n')
+			: 'None';
+
+		// Format dependents (blocked by this ticket)
+		const dependentsStr = issue.dependents && issue.dependents.length > 0
+			? issue.dependents.map(d => `- ${d.id}: ${d.title} [${d.status}] (${d.dependency_type})`).join('\n')
+			: 'None';
+
 		return agentTicketDelivery
 			.replace(/{name}/g, agentName)
-			.replace(/{id}/g, id)
-			.replace(/{title}/g, title)
-			.replace(/{description}/g, descLine);
+			.replace(/{id}/g, issue.id)
+			.replace(/{title}/g, issue.title)
+			.replace(/{description}/g, issue.description || 'No description')
+			.replace(/{comments}/g, commentsStr)
+			.replace(/{attachments}/g, attachmentsStr)
+			.replace(/{dependencies}/g, depsStr)
+			.replace(/{dependents}/g, dependentsStr);
 	}
 
 	function notifyTicket(
@@ -948,9 +1056,20 @@ Start by claiming the ticket (set status to in_progress), then implement the req
 		notifyAgentOfTicketUpdate(ticketId, content, notificationType, context, agentTicketNotification);
 	}
 
-	function startAgentForIssue(issue: Issue) {
+	async function startAgentForIssue(issue: Issue) {
 		const agentName = `${issue.id}-agent`;
-		const briefing = formatTicketDelivery(agentName, issue.id, issue.title, issue.description);
+
+		// Fetch comments and attachments for the issue
+		const [issueComments, issueAttachments] = await Promise.all([
+			loadCommentsApi(issue.id),
+			loadAttachmentsApi(issue.id)
+		]);
+
+		const briefing = formatTicketDelivery(agentName, {
+			issue,
+			comments: issueComments,
+			attachments: issueAttachments
+		});
 		addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt, undefined, issue.id);
 		expandedPanes.add(agentName);
 		expandedPanes = new Set(expandedPanes);
