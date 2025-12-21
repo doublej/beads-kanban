@@ -91,14 +91,6 @@ NEVER:
 		setTimeout(() => copiedPrompt = null, 2000);
 	}
 
-	function handleOverlayClick() {
-		show = false;
-	}
-
-	function handlePanelClick(e: MouseEvent) {
-		e.stopPropagation();
-	}
-
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
 			show = false;
@@ -117,10 +109,8 @@ NEVER:
 <svelte:window onkeydown={show ? handleKeydown : undefined} />
 
 {#if show}
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="prompts-overlay" onclick={handleOverlayClick} role="presentation">
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-	<div class="prompts-window" onclick={handlePanelClick} role="dialog" aria-label="Prompts" tabindex="-1">
+<div class="prompts-overlay">
+	<div class="prompts-window" role="dialog" aria-label="Prompts" tabindex="-1">
 		<header class="prompts-header">
 			<div class="prompts-title-row">
 				<span class="prompts-icon"><Icon name="message" size={18} /></span>
@@ -188,36 +178,30 @@ NEVER:
 	.prompts-overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.6);
-		backdrop-filter: blur(4px);
-		z-index: 10000;
+		z-index: 9999;
 		display: flex;
-		align-items: center;
-		justify-content: center;
-		animation: overlayFadeIn 200ms ease-out;
-	}
-
-	@keyframes overlayFadeIn {
-		from { opacity: 0; }
-		to { opacity: 1; }
+		justify-content: flex-end;
+		/* No background or blur - settings overlay handles that */
 	}
 
 	.prompts-window {
-		width: 680px;
-		max-width: calc(100vw - 2rem);
-		max-height: calc(100vh - 4rem);
+		position: absolute;
+		top: 0;
+		right: 340px; /* Position to left of settings pane */
+		bottom: 0;
+		width: 480px;
+		max-width: calc(100vw - 340px);
 		background: var(--bg-primary);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-lg);
+		border-left: 1px solid var(--border-subtle);
 		display: flex;
 		flex-direction: column;
-		animation: windowSlideIn 280ms cubic-bezier(0.32, 0.72, 0, 1);
-		box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4);
+		animation: slideIn 280ms cubic-bezier(0.32, 0.72, 0, 1);
+		box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
 	}
 
-	@keyframes windowSlideIn {
-		from { opacity: 0; transform: scale(0.96) translateY(8px); }
-		to { opacity: 1; transform: scale(1) translateY(0); }
+	@keyframes slideIn {
+		from { transform: translateX(100%); opacity: 0; }
+		to { transform: translateX(0); opacity: 1; }
 	}
 
 	.prompts-header {
@@ -227,7 +211,6 @@ NEVER:
 		padding: 1rem 1.25rem;
 		border-bottom: 1px solid var(--border-subtle);
 		background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, transparent 100%);
-		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 	}
 
 	:global(.app.light) .prompts-header {
@@ -461,7 +444,6 @@ NEVER:
 		padding: 0.75rem 1.25rem;
 		border-top: 1px solid var(--border-subtle);
 		background: rgba(0, 0, 0, 0.1);
-		border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 	}
 
 	:global(.app.light) .prompts-footer {
@@ -497,19 +479,16 @@ NEVER:
 		border-color: rgba(0, 0, 0, 0.08);
 	}
 
-	@media (max-width: 640px) {
+	@media (max-width: 820px) {
 		.prompts-window {
+			right: 0;
 			width: 100%;
 			max-width: none;
-			max-height: 100vh;
-			border-radius: 0;
+			border-left: none;
 		}
+	}
 
-		.prompts-header,
-		.prompts-footer {
-			border-radius: 0;
-		}
-
+	@media (max-width: 640px) {
 		.prompts-body {
 			flex-direction: column;
 		}
