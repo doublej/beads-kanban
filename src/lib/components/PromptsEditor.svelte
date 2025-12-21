@@ -43,6 +43,8 @@
 		'Mandatory workflow injected into every agent session.'
 	);
 
+	const estimatedTokens = $derived(Math.ceil(activeContent.length / 4));
+
 	function updateContent(value: string) {
 		if (activeTab === 'first') agentFirstMessage = value;
 		else if (activeTab === 'system') agentSystemPrompt = value;
@@ -135,7 +137,7 @@
 			<kbd>Esc</kbd> close
 		</div>
 		<div class="footer-stats">
-			{activeContent.length} characters
+			{activeContent.length} chars · ~{estimatedTokens} tokens
 		</div>
 	</footer>
 </aside>
