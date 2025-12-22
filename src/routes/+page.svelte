@@ -627,9 +627,9 @@ Review the notification content and apply any required action to ticket {id}.
 		if (issue.status === 'blocked') return false;
 		// Claimed (in_progress with assignee) = not actionable
 		if (issue.status === 'in_progress' && issue.assignee) return false;
-		// Has open blocking dependencies = not actionable
+		// Has open blocking dependencies (blocks or parent-child) = not actionable
 		const blockingDeps = (issue.dependencies || []).filter(
-			d => d.dependency_type === 'blocks' && d.status !== 'closed'
+			d => (d.dependency_type === 'blocks' || d.dependency_type === 'parent-child') && d.status !== 'closed'
 		);
 		if (blockingDeps.length > 0) return false;
 		return true;
