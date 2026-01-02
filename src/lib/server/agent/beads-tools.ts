@@ -53,7 +53,7 @@ export function createBeadsToolsServer(agentName: string, cwd: string) {
         "Update a beads issue. Automatically sets assignee to this agent when claiming work (status=in_progress), unless explicitly overridden.",
         {
           issue_id: z.string().describe("Issue ID (e.g., bd-1)"),
-          status: z.enum(["open", "in_progress", "blocked", "closed"]).optional(),
+          status: z.enum(["open", "in_progress", "hooked", "blocked", "closed"]).optional(),
           priority: z.number().min(0).max(4).optional(),
           title: z.string().optional(),
           description: z.string().optional(),

@@ -106,7 +106,7 @@
 			// Draw nodes
 			const row = lines.length;
 			const nodeLine = levelNodes.map((n, i) => {
-				const statusChar = { open: '○', in_progress: '◐', blocked: '◉', closed: '●' }[n.status] || '○';
+				const statusChar = { open: '○', in_progress: '◐', hooked: '◑', blocked: '◉', closed: '●' }[n.status] || '○';
 				const box = `[${statusChar} #${n.id.slice(0, 4)}]`;
 				nodePositions.set(n.id, { row, col: i });
 				return box.padEnd(11);
@@ -126,6 +126,7 @@
 	const statusColors: Record<string, string> = {
 		open: '#6366f1',
 		in_progress: '#f59e0b',
+		hooked: '#8b5cf6',
 		blocked: '#ef4444',
 		closed: '#10b981'
 	};
@@ -143,6 +144,7 @@
 			<span class="legend-title">Legend:</span>
 			<span class="legend-item"><span class="legend-icon">○</span> Open</span>
 			<span class="legend-item"><span class="legend-icon">◐</span> In Progress</span>
+			<span class="legend-item"><span class="legend-icon">◑</span> Hooked</span>
 			<span class="legend-item"><span class="legend-icon">◉</span> Blocked</span>
 			<span class="legend-item"><span class="legend-icon">●</span> Closed</span>
 			<span class="legend-item"><span class="legend-arrow">│▼</span> Blocks</span>

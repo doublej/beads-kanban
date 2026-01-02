@@ -12,7 +12,7 @@ export interface Issue {
 	design?: string;
 	acceptance_criteria?: string;
 	notes?: string;
-	status: 'open' | 'in_progress' | 'blocked' | 'closed';
+	status: 'open' | 'in_progress' | 'hooked' | 'blocked' | 'closed';
 	priority: 0 | 1 | 2 | 3 | 4;
 	issue_type: string;
 	created_at?: string;

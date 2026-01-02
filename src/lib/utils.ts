@@ -5,6 +5,7 @@ export type { ColumnIconName };
 export const columns: Column[] = [
 	{ key: 'open', status: 'open', label: 'Backlog', icon: 'circle', accent: '#6366f1' },
 	{ key: 'in_progress', status: 'in_progress', label: 'In Progress', icon: 'circle-dot', accent: '#f59e0b' },
+	{ key: 'hooked', status: 'hooked', label: 'Hooked', icon: 'circle-dot', accent: '#8b5cf6' },
 	{ key: 'blocked', status: 'blocked', label: 'Blocked', icon: 'circle-slash', accent: '#ef4444' },
 	{ key: 'closed', status: 'closed', label: 'Complete', icon: 'check-circle', accent: '#10b981' }
 ];
@@ -37,7 +38,12 @@ export function getDepTypeConfig(depType: string): { icon: DepTypeIconName; colo
 		'blocks': { icon: 'dep-blocks', color: '#ef4444', label: 'Blocks' },
 		'related': { icon: 'dep-related', color: '#3b82f6', label: 'Related' },
 		'parent-child': { icon: 'dep-parent', color: '#8b5cf6', label: 'Parent' },
-		'discovered-from': { icon: 'dep-discovered', color: '#f59e0b', label: 'Found' }
+		'discovered-from': { icon: 'dep-discovered', color: '#f59e0b', label: 'Found' },
+		'replies-to': { icon: 'dep-related', color: '#06b6d4', label: 'Replies' },
+		'relates-to': { icon: 'dep-related', color: '#3b82f6', label: 'Relates' },
+		'duplicates': { icon: 'dep-related', color: '#9ca3af', label: 'Duplicates' },
+		'supersedes': { icon: 'dep-blocks', color: '#f97316', label: 'Supersedes' },
+		'tracks': { icon: 'dep-parent', color: '#14b8a6', label: 'Tracks' }
 	};
 	return configs[depType] || configs['blocks'];
 }

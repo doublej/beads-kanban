@@ -76,6 +76,7 @@ export function getAllIssues(): Issue[] {
 		SELECT id, title, description, design, acceptance_criteria, notes,
 		       status, priority, issue_type, assignee, created_at, updated_at, closed_at
 		FROM issues
+		WHERE status != 'tombstone'
 		ORDER BY priority DESC, created_at DESC
 	`).all() as DbIssue[];
 

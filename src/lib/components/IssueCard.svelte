@@ -155,7 +155,7 @@
 						<span class="link-arrow">←</span>
 						{#each issue.dependencies.slice(0, 3) as dep}
 							{@const depConfig = getDepTypeConfig(dep.dependency_type)}
-							<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
+							<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:hooked={dep.status === 'hooked'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
 								<span class="dep-type-indicator" style="color: {depConfig.color}"><Icon name={depConfig.icon} size={10} /></span>{dep.id}
 							</span>
 						{/each}
@@ -169,7 +169,7 @@
 						<span class="link-arrow">→</span>
 						{#each issue.dependents.slice(0, 3) as dep}
 							{@const depConfig = getDepTypeConfig(dep.dependency_type)}
-							<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
+							<span class="link-id" class:open={dep.status === 'open'} class:in-progress={dep.status === 'in_progress'} class:hooked={dep.status === 'hooked'} class:blocked={dep.status === 'blocked'} class:closed={dep.status === 'closed'} title="{depConfig.label}: {dep.title}">
 								<span class="dep-type-indicator" style="color: {depConfig.color}"><Icon name={depConfig.icon} size={10} /></span>{dep.id}
 							</span>
 						{/each}
@@ -615,6 +615,7 @@
 
 	.link-id.open { border-left-color: #6366f1; }
 	.link-id.in-progress { border-left-color: #f59e0b; }
+	.link-id.hooked { border-left-color: #8b5cf6; }
 	.link-id.blocked { border-left-color: #ef4444; }
 	.link-id.closed { border-left-color: #10b981; opacity: 0.6; }
 

@@ -64,7 +64,7 @@
 	}
 
 	const statusIcons: Record<string, string> = {
-		open: '○', in_progress: '◐', blocked: '◉', closed: '●'
+		open: '○', in_progress: '◐', hooked: '◑', blocked: '◉', closed: '●'
 	};
 </script>
 

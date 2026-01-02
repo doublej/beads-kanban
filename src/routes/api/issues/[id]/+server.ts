@@ -5,7 +5,7 @@ import type { RequestHandler } from './$types';
 import { getBdDbFlag } from '$lib/db';
 
 const execAsync = promisify(exec);
-const VALID_STATUSES = ['open', 'in_progress', 'blocked', 'closed'];
+const VALID_STATUSES = ['open', 'in_progress', 'hooked', 'blocked', 'closed'];
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
 	const { status, title, description, priority, issue_type, design, acceptance_criteria, notes, assignee, addLabels, removeLabels } = await request.json();
