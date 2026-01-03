@@ -52,13 +52,13 @@
 </script>
 
 <svelte:head>
-	<title>Prompts - StrandKanban</title>
+	<title>Prompts - Blabla</title>
 </svelte:head>
 
 <div class="page" class:light={!isDarkMode}>
 	<header class="header">
 		<a href="/" class="logo">
-			<h1>strandkanban</h1>
+			<h1>blabla</h1>
 		</a>
 		<nav>
 			<a href="/">Board</a>

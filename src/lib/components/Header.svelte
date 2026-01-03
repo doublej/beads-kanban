@@ -131,7 +131,7 @@
 		<!-- Left: Logo -->
 		<div class="toolbar-left">
 			<button class="logo-lockup" onclick={oneditProject} title="Change project">
-				<span class="logo-app">strandkanban</span>
+				<span class="logo-app">blabla</span>
 				<span class="logo-divider">/</span>
 				<span class="logo-project">{projectName}</span>
 				<span class="logo-divider">/</span>
