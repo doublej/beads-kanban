@@ -1,12 +1,6 @@
 # AGENTS.md
 
-## Commands
-```bash
-bun run dev      # Start dev server (HMR disabled)
-bun run build    # Production build
-bun run check    # Type-check with svelte-check
-```
-No test framework configured.
+Agent-specific guidance. See CLAUDE.md for commands and architecture overview.
 
 ## Code Style
 - **Svelte 5**: Use runes (`$state`, `$derived`, `$effect`), not legacy stores
@@ -18,8 +12,8 @@ No test framework configured.
 
 ## Architecture
 - API routes (`src/routes/api/`) shell out to `bd` CLI commands
-- Main UI in `src/routes/+page.svelte` (large file, ~2000 lines)
-- Issue status flow: `open` → `in_progress` → `blocked` → `closed`
+- Main UI in `src/routes/+page.svelte` (large file, ~3600+ lines)
+- Issue status flow: `open` → `in_progress` → `hooked` → `blocked` → `closed`
 
 ## Error Handling
 - API calls don't throw; check response for `{ error?: string }` pattern

@@ -18,7 +18,7 @@ bun run check    # Type-check with svelte-check
 
 ### Data Flow
 - **Backend**: API routes in `src/routes/api/` use `$lib/db.ts` for reads, shell out to `bd` CLI for writes
-- **Frontend**: Single-page Kanban in `src/routes/+page.svelte` (large file, ~3200+ lines)
+- **Frontend**: Single-page Kanban in `src/routes/+page.svelte` (large file, ~3600+ lines)
 - Issues flow: SQLite DB → `$lib/db.ts` → API → Svelte state → Kanban columns
 
 ### Key Files
@@ -26,15 +26,15 @@ bun run check    # Type-check with svelte-check
 - `src/routes/api/issues/+server.ts` - GET (via db)/POST (via bd CLI) issues
 - `src/routes/api/issues/[id]/+server.ts` - PATCH/DELETE single issue via `bd` CLI
 - `src/lib/db.ts` - SQLite database access for reading issues (bypasses CLI for perf)
-- `src/lib/wsStore.svelte.ts` - WebSocket store for pane bridge (ws://localhost:8765)
+- `src/lib/wsStore.svelte.ts` - WebSocket store for embedded agent server (ws://localhost:9347)
 - `src/lib/types.ts` - TypeScript interfaces (Issue, Dependency, Column, etc.)
 - `src/lib/api.ts` - Client-side API calls
 - `src/lib/utils.ts` - Kanban helpers (columns config, sorting, filtering)
 
 ### Issue Status Flow
-`open` → `in_progress` → `blocked` → `closed`
+`open` → `in_progress` → `hooked` → `blocked` → `closed`
 
-Each status maps to a Kanban column (Backlog, In Progress, Blocked, Complete).
+Each status maps to a Kanban column (Backlog, In Progress, Hooked, Blocked, Complete).
 
 ### Beads CLI Integration
 Write operations shell out to `bd` commands:
