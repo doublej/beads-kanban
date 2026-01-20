@@ -10,13 +10,13 @@
 </script>
 
 <svelte:head>
-	<title>About - Blabla</title>
+	<title>About - StrandKanban</title>
 </svelte:head>
 
 <div class="page" class:light={!isDarkMode}>
 	<header class="header">
 		<a href="/" class="logo">
-			<h1>blabla</h1>
+			<h1>strandkanban</h1>
 		</a>
 		<nav>
 			<a href="/">Board</a>
@@ -26,12 +26,12 @@
 	</header>
 
 	<main class="content">
-		<h2>About Blabla</h2>
+		<h2>About StrandKanban</h2>
 
 		<section>
-			<h3>What is Blabla?</h3>
+			<h3>What is StrandKanban?</h3>
 			<p>
-				Blabla is a local-first kanban board designed for AI-assisted development workflows.
+				StrandKanban is a local-first kanban board designed for AI-assisted development workflows.
 				It integrates directly with the <strong>beads</strong> issue tracking system, providing a visual
 				interface to manage tasks tracked in your local repository.
 			</p>
@@ -40,7 +40,7 @@
 		<section>
 			<h3>How is this different from Vibekanban?</h3>
 			<p>
-				While both are kanban-style interfaces, Blabla has key differences:
+				While both are kanban-style interfaces, StrandKanban has key differences:
 			</p>
 			<ul>
 				<li><strong>Local-first:</strong> All data lives in your repository via beads, not in a cloud database</li>

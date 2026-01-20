@@ -359,7 +359,7 @@
 
 		<footer class="settings-footer">
 			<div class="footer-brand">
-				<span class="brand-name">blabla</span>
+				<span class="brand-name">strandkanban</span>
 				<span class="brand-version">v0.1.0</span>
 			</div>
 		</footer>
