@@ -29,6 +29,7 @@
 	import GraphView from '$lib/components/GraphView.svelte';
 	import MutationLog from '$lib/components/MutationLog.svelte';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
+	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
 	import { fetchMutations } from '$lib/mutationStore.svelte';
 	import StatsView from '$lib/components/StatsView.svelte';
@@ -655,6 +656,7 @@
 {/snippet}
 
 <ToastContainer />
+<PwaInstallPrompt />
 
 <style>
 	.version-warning {
