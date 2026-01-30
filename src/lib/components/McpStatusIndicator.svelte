@@ -1,70 +1,67 @@
 <script lang="ts">
 	/**
-	 * Displays MCP availability status.
-	 * Since MCP tools are invoked by the AI agent, this shows
-	 * informational status about the Consult User MCP server.
+	 * Informational panel about MCP notification mode.
+	 * The web app cannot detect MCP availability (it's a CLI tool),
+	 * so we show an explanation instead of a misleading status dot.
 	 */
-	let { available = false }: { available?: boolean } = $props();
 </script>
 
-<div class="mcp-status" class:available>
-	<span class="mcp-dot"></span>
-	<span class="mcp-label">
-		{available ? 'MCP Connected' : 'MCP Unavailable'}
+<div class="mcp-info">
+	<span class="mcp-icon">i</span>
+	<span class="mcp-text">
+		Notifications are delivered via the Consult User MCP server when an AI agent is connected.
 	</span>
-	{#if !available}
-		<a
-			class="mcp-link"
-			href="https://doublej.github.io/consult-user-mcp/"
-			target="_blank"
-			rel="noopener noreferrer"
-		>
-			Install
-		</a>
-	{/if}
+	<a
+		class="mcp-link"
+		href="https://doublej.github.io/consult-user-mcp/"
+		target="_blank"
+		rel="noopener noreferrer"
+	>
+		Learn more
+	</a>
 </div>
 
 <style>
-	.mcp-status {
+	.mcp-info {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		gap: 0.5rem;
 		padding: 0.5rem 0.75rem;
-		background: rgba(239, 68, 68, 0.08);
-		border: 1px solid rgba(239, 68, 68, 0.15);
+		background: rgba(99, 102, 241, 0.08);
+		border: 1px solid rgba(99, 102, 241, 0.15);
 		border-radius: var(--radius-sm);
 		font-size: 0.75rem;
 		color: var(--text-secondary);
 		margin-top: 0.5rem;
 	}
 
-	.mcp-status.available {
-		background: rgba(34, 197, 94, 0.08);
-		border-color: rgba(34, 197, 94, 0.15);
-	}
-
-	.mcp-dot {
-		width: 8px;
-		height: 8px;
+	.mcp-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 16px;
 		border-radius: 50%;
-		background: #ef4444;
+		background: rgba(99, 102, 241, 0.2);
+		color: var(--accent, #6366f1);
+		font-size: 0.625rem;
+		font-weight: 700;
 		flex-shrink: 0;
+		margin-top: 1px;
 	}
 
-	.mcp-status.available .mcp-dot {
-		background: #22c55e;
-	}
-
-	.mcp-label {
+	.mcp-text {
 		flex: 1;
-		font-weight: 500;
+		line-height: 1.4;
 	}
 
 	.mcp-link {
-		color: var(--accent);
+		color: var(--accent, #6366f1);
 		text-decoration: none;
 		font-weight: 500;
 		font-size: 0.6875rem;
+		white-space: nowrap;
+		align-self: center;
 	}
 
 	.mcp-link:hover {

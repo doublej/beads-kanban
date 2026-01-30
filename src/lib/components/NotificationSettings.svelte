@@ -1,7 +1,36 @@
 <script lang="ts">
 	import { settings } from '$lib/stores/settings.svelte';
 	import type { NotificationEventType } from '$lib/notifications/types';
+	import { toastQueue } from '$lib/notifications/toast-queue.svelte';
 	import McpStatusIndicator from './McpStatusIndicator.svelte';
+
+	let testState: 'idle' | 'sending' | 'success' | 'error' = $state('idle');
+
+	async function sendTestNotification() {
+		testState = 'sending';
+		toastQueue.show({ type: 'info', title: 'Test', message: 'Sending test notification…', duration: 2000 });
+
+		if (settings.notificationMode === 'browser') {
+			try {
+				const res = await fetch('/api/notifications/test', { method: 'POST' });
+				if (!res.ok) {
+					const data = await res.json();
+					throw new Error(data.error || 'Failed to send');
+				}
+				testState = 'success';
+				toastQueue.show({ type: 'success', title: 'Test', message: 'Test notification sent', duration: 3000 });
+			} catch (e) {
+				testState = 'error';
+				const msg = e instanceof Error ? e.message : 'Unknown error';
+				toastQueue.show({ type: 'error', title: 'Test failed', message: msg, duration: 4000 });
+			}
+		} else {
+			toastQueue.show({ type: 'success', title: 'Test', message: 'Toast notification working!', duration: 3000 });
+			testState = 'success';
+		}
+
+		setTimeout(() => { testState = 'idle'; }, 3000);
+	}
 
 	const eventLabels: Record<NotificationEventType, { label: string; desc: string }> = {
 		blocked: { label: 'Issue Blocked', desc: 'When issue status changes to blocked' },
@@ -67,6 +96,21 @@
 	{/if}
 
 	{#if settings.notificationMode !== 'none'}
+		<div class="test-row">
+			<button
+				class="test-btn"
+				class:sending={testState === 'sending'}
+				disabled={testState === 'sending'}
+				onclick={sendTestNotification}
+			>
+				{#if testState === 'sending'}
+					Sending…
+				{:else}
+					Send Test Notification
+				{/if}
+			</button>
+		</div>
+
 		<div class="setting-row" style="margin-top: 1rem">
 			<div class="setting-info">
 				<span class="setting-name">Event Subscriptions</span>
@@ -192,6 +236,33 @@
 
 	.mode-option.active .mode-desc {
 		color: var(--text-secondary);
+	}
+
+	/* Test Button */
+	.test-row {
+		margin-top: 0.75rem;
+	}
+
+	.test-btn {
+		padding: 0.5rem 0.875rem;
+		font-size: 0.75rem;
+		font-weight: 500;
+		font-family: inherit;
+		color: var(--text-primary);
+		background: rgba(99, 102, 241, 0.15);
+		border: 1px solid rgba(99, 102, 241, 0.3);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		transition: all 150ms ease;
+	}
+
+	.test-btn:hover:not(:disabled) {
+		background: rgba(99, 102, 241, 0.25);
+	}
+
+	.test-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	/* Event List */

@@ -21,9 +21,31 @@ function openAppDb(): Database.Database {
 			p256dh TEXT NOT NULL,
 			auth TEXT NOT NULL,
 			created_at TEXT DEFAULT (datetime('now'))
+		);
+		CREATE TABLE IF NOT EXISTS app_config (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL
 		)
 	`);
 	return db;
+}
+
+export function getVapidKeys(): { publicKey: string; privateKey: string } | null {
+	const db = openAppDb();
+	const row = db.prepare('SELECT value FROM app_config WHERE key = ?').get('vapid_keys') as
+		| { value: string }
+		| undefined;
+	db.close();
+	return row ? JSON.parse(row.value) : null;
+}
+
+export function saveVapidKeys(publicKey: string, privateKey: string): void {
+	const db = openAppDb();
+	db.prepare('INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)').run(
+		'vapid_keys',
+		JSON.stringify({ publicKey, privateKey })
+	);
+	db.close();
 }
 
 export function saveSubscription(endpoint: string, p256dh: string, auth: string): void {
