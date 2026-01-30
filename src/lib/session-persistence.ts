@@ -1,5 +1,5 @@
 // Session persistence to localStorage for beads-kanban agent sessions
-import type { AgentSession } from './wsStore.svelte';
+import type { AgentSession } from './stores/ws-types';
 
 const STORAGE_KEY = 'beads-kanban-sessions';
 const SDK_SESSION_KEY = 'beads-kanban-sdk-sessions';
