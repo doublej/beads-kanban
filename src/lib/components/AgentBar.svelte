@@ -10,10 +10,7 @@
 		showActivityBar: boolean;
 		wsPanes: Map<string, Pane>;
 		expandedPanes: Set<string>;
-		agentMenuOpen: boolean;
-		agentNameInputOpen: boolean;
 		newPaneName: string;
-		agentNameInputRef: HTMLInputElement | null;
 		resumePrompt: { name: string; sessionId: string } | null;
 		showSessionPicker: boolean;
 		sdkSessions: SdkSessionInfo[];
@@ -64,10 +61,7 @@
 		showActivityBar,
 		wsPanes,
 		expandedPanes = $bindable(),
-		agentMenuOpen = $bindable(),
-		agentNameInputOpen = $bindable(),
 		newPaneName = $bindable(),
-		agentNameInputRef = $bindable(),
 		resumePrompt = $bindable(),
 		showSessionPicker = $bindable(),
 		sdkSessions = $bindable(),
@@ -111,6 +105,10 @@
 		onhandleMouseMove,
 		onhandleMouseUp,
 	}: Props = $props();
+
+	let agentMenuOpen = $state(false);
+	let agentNameInputOpen = $state(false);
+	let agentNameInputRef = $state<HTMLInputElement | null>(null);
 
 	function handleNewAgent() {
 		agentMenuOpen = false;
