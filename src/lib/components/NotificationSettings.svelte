@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { settings } from '$lib/stores/settings.svelte';
 	import type { NotificationEventType } from '$lib/notifications/types';
+	import McpStatusIndicator from './McpStatusIndicator.svelte';
 
 	const eventLabels: Record<NotificationEventType, { label: string; desc: string }> = {
 		blocked: { label: 'Issue Blocked', desc: 'When issue status changes to blocked' },
@@ -60,6 +61,10 @@
 			<span class="mode-desc">Prompt-based dialogs</span>
 		</button>
 	</div>
+
+	{#if settings.notificationMode === 'mcp'}
+		<McpStatusIndicator />
+	{/if}
 
 	{#if settings.notificationMode !== 'none'}
 		<div class="setting-row" style="margin-top: 1rem">
