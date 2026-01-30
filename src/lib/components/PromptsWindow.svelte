@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Icon from './Icon.svelte';
+	import PromptsList from './PromptsList.svelte';
 
 	interface Props {
 		show: boolean;
@@ -7,7 +8,6 @@
 
 	let { show = $bindable() }: Props = $props();
 
-	let copiedPrompt = $state<string | null>(null);
 	let activeTab = $state(0);
 
 	const prompts = [
@@ -85,12 +85,6 @@ NEVER:
 		}
 	];
 
-	async function copyPrompt(prompt: string) {
-		await navigator.clipboard.writeText(prompt);
-		copiedPrompt = prompt;
-		setTimeout(() => copiedPrompt = null, 2000);
-	}
-
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
 			show = false;
@@ -100,8 +94,6 @@ NEVER:
 		} else if (e.key === 'ArrowUp') {
 			e.preventDefault();
 			activeTab = (activeTab - 1 + prompts.length) % prompts.length;
-		} else if (e.key === 'Enter') {
-			copyPrompt(prompts[activeTab].prompt);
 		}
 	}
 </script>
@@ -122,51 +114,16 @@ NEVER:
 		</header>
 
 		<div class="prompts-body">
-			<nav class="prompts-tabs">
-				{#each prompts as prompt, i}
-					<button
-						class="prompt-tab"
-						class:active={activeTab === i}
-						onclick={() => activeTab = i}
-					>
-						<span class="tab-number">{i + 1}</span>
-						<span class="tab-title">{prompt.title}</span>
-					</button>
-				{/each}
-			</nav>
-
-			<div class="prompts-content">
-				{#each prompts as prompt, i}
-					{#if activeTab === i}
-						<div class="prompt-detail">
-							<h3 class="prompt-title">{prompt.title}</h3>
-							<p class="prompt-description">{prompt.description}</p>
-							<div class="prompt-box">
-								<pre class="prompt-text">{prompt.prompt}</pre>
-							</div>
-							<button
-								class="copy-btn"
-								class:copied={copiedPrompt === prompt.prompt}
-								onclick={() => copyPrompt(prompt.prompt)}
-							>
-								{#if copiedPrompt === prompt.prompt}
-									<Icon name="check" size={14} />
-									<span>Copied!</span>
-								{:else}
-									<Icon name="copy" size={14} />
-									<span>Copy to clipboard</span>
-								{/if}
-							</button>
-						</div>
-					{/if}
-				{/each}
-			</div>
+			<PromptsList
+				{prompts}
+				{activeTab}
+				onselect={(i) => activeTab = i}
+			/>
 		</div>
 
 	<footer class="prompts-footer">
 		<div class="footer-hint">
-			<kbd>↑</kbd><kbd>↓</kbd> navigate
-			<kbd>Enter</kbd> copy
+			<kbd>&uarr;</kbd><kbd>&darr;</kbd> navigate
 			<kbd>Esc</kbd> close
 		</div>
 	</footer>
@@ -177,7 +134,7 @@ NEVER:
 	.prompts-window {
 		position: absolute;
 		top: 0;
-		right: 340px; /* Position to left of settings pane */
+		right: 340px;
 		bottom: 0;
 		width: 480px;
 		max-width: calc(100vw - 340px);
@@ -256,180 +213,6 @@ NEVER:
 		overflow: hidden;
 	}
 
-	.prompts-tabs {
-		width: 200px;
-		flex-shrink: 0;
-		padding: 0.5rem;
-		border-right: 1px solid var(--border-subtle);
-		overflow-y: auto;
-		background: rgba(0, 0, 0, 0.15);
-	}
-
-	:global(.app.light) .prompts-tabs {
-		background: rgba(0, 0, 0, 0.02);
-	}
-
-	.prompt-tab {
-		display: flex;
-		align-items: center;
-		gap: 0.625rem;
-		width: 100%;
-		padding: 0.625rem 0.75rem;
-		background: transparent;
-		border: none;
-		border-radius: var(--radius-sm);
-		color: var(--text-secondary);
-		font-family: inherit;
-		font-size: 0.75rem;
-		font-weight: 500;
-		text-align: left;
-		cursor: pointer;
-		transition: all 150ms ease;
-	}
-
-	.prompt-tab:hover {
-		background: rgba(255, 255, 255, 0.04);
-		color: var(--text-primary);
-	}
-
-	.prompt-tab.active {
-		background: rgba(59, 130, 246, 0.12);
-		color: #60a5fa;
-	}
-
-	:global(.app.light) .prompt-tab:hover {
-		background: rgba(0, 0, 0, 0.04);
-	}
-
-	:global(.app.light) .prompt-tab.active {
-		background: rgba(59, 130, 246, 0.1);
-		color: #2563eb;
-	}
-
-	.tab-number {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 1.25rem;
-		height: 1.25rem;
-		font-size: 0.625rem;
-		font-weight: 600;
-		background: rgba(255, 255, 255, 0.06);
-		border-radius: var(--radius-sm);
-		flex-shrink: 0;
-	}
-
-	.prompt-tab.active .tab-number {
-		background: rgba(59, 130, 246, 0.2);
-	}
-
-	:global(.app.light) .tab-number {
-		background: rgba(0, 0, 0, 0.04);
-	}
-
-	:global(.app.light) .prompt-tab.active .tab-number {
-		background: rgba(59, 130, 246, 0.15);
-	}
-
-	.tab-title {
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.prompts-content {
-		flex: 1;
-		padding: 1.25rem;
-		overflow-y: auto;
-	}
-
-	.prompt-detail {
-		animation: fadeIn 150ms ease-out;
-	}
-
-	@keyframes fadeIn {
-		from { opacity: 0; }
-		to { opacity: 1; }
-	}
-
-	.prompt-title {
-		font-size: 1.125rem;
-		font-weight: 600;
-		color: var(--text-primary);
-		margin: 0 0 0.375rem 0;
-		letter-spacing: -0.01em;
-	}
-
-	.prompt-description {
-		font-size: 0.8125rem;
-		color: var(--text-tertiary);
-		margin: 0 0 1rem 0;
-		line-height: 1.5;
-	}
-
-	.prompt-box {
-		background: rgba(0, 0, 0, 0.2);
-		border: 1px solid var(--border-subtle);
-		border-radius: var(--radius-md);
-		padding: 1rem;
-		margin-bottom: 1rem;
-	}
-
-	:global(.app.light) .prompt-box {
-		background: rgba(0, 0, 0, 0.03);
-	}
-
-	.prompt-text {
-		margin: 0;
-		font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
-		font-size: 0.8125rem;
-		line-height: 1.6;
-		color: var(--text-secondary);
-		white-space: pre-wrap;
-		word-break: break-word;
-	}
-
-	.copy-btn {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.5rem 1rem;
-		background: rgba(59, 130, 246, 0.12);
-		border: 1px solid rgba(59, 130, 246, 0.2);
-		border-radius: var(--radius-md);
-		color: #60a5fa;
-		font-family: inherit;
-		font-size: 0.8125rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 150ms ease;
-	}
-
-	.copy-btn:hover {
-		background: rgba(59, 130, 246, 0.18);
-		border-color: rgba(59, 130, 246, 0.3);
-	}
-
-	.copy-btn.copied {
-		background: rgba(16, 185, 129, 0.12);
-		border-color: rgba(16, 185, 129, 0.2);
-		color: #34d399;
-	}
-
-	:global(.app.light) .copy-btn {
-		background: rgba(59, 130, 246, 0.08);
-		color: #2563eb;
-	}
-
-	:global(.app.light) .copy-btn:hover {
-		background: rgba(59, 130, 246, 0.12);
-	}
-
-	:global(.app.light) .copy-btn.copied {
-		background: rgba(16, 185, 129, 0.08);
-		color: #059669;
-	}
-
 	.prompts-footer {
 		padding: 0.75rem 1.25rem;
 		border-top: 1px solid var(--border-subtle);
@@ -481,32 +264,6 @@ NEVER:
 	@media (max-width: 640px) {
 		.prompts-body {
 			flex-direction: column;
-		}
-
-		.prompts-tabs {
-			width: 100%;
-			flex-shrink: 0;
-			border-right: none;
-			border-bottom: 1px solid var(--border-subtle);
-			display: flex;
-			overflow-x: auto;
-			padding: 0.5rem;
-			gap: 0.25rem;
-		}
-
-		.prompt-tab {
-			flex-shrink: 0;
-			padding: 0.5rem 0.75rem;
-		}
-
-		.tab-title {
-			display: none;
-		}
-
-		.tab-number {
-			width: 1.5rem;
-			height: 1.5rem;
-			font-size: 0.75rem;
 		}
 	}
 </style>
