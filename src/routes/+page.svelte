@@ -28,6 +28,7 @@
 	import TreeView from '$lib/components/TreeView.svelte';
 	import GraphView from '$lib/components/GraphView.svelte';
 	import MutationLog from '$lib/components/MutationLog.svelte';
+	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
 	import { fetchMutations } from '$lib/mutationStore.svelte';
 	import StatsView from '$lib/components/StatsView.svelte';
@@ -405,6 +406,8 @@
 
 <svelte:window onkeydown={handleKeydown} onkeyup={handleKeyup} onpopstate={ops.handlePopState} onclick={ops.closeContextMenu} onmousemove={ops.handleMouseMove} onmouseup={ops.handleMouseUp} onblur={handleWindowBlur} />
 
+<div class="app scheme-{colorScheme}" class:light={!isDarkMode} class:panel-open={ops.panelOpen} class:show-hotkeys={showHotkeys} class:has-chat-bar={wsConnected && showActivityBar} style="--project-color: {projectColor}">
+
 {#if ops.contextMenu}
 	<ContextMenu
 		x={ops.contextMenu.x}
@@ -434,8 +437,6 @@
 	onselect={switchProject}
 	onclose={() => showProjectSwitcher = false}
 />
-
-<div class="app scheme-{colorScheme}" class:light={!isDarkMode} class:panel-open={ops.panelOpen} class:show-hotkeys={showHotkeys} class:has-chat-bar={wsConnected && showActivityBar} style="--project-color: {projectColor}">
 
 <MutationLog
 	show={showMutationLog}
@@ -635,9 +636,9 @@
 />
 
 <FlyingCardComponent {teleports} />
-</div>
 
 <InitialLoader status={loadingStatus} visible={!initialLoaded} />
+</div>
 
 
 {#snippet detailPanel()}
@@ -683,6 +684,8 @@
 		updatenewcomment={(value) => ops.newComment = value}
 	/>
 {/snippet}
+
+<ToastContainer />
 
 <style>
 	.version-warning {
