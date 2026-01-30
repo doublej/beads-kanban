@@ -31,6 +31,7 @@
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
+	import SetupWizard from '$lib/components/SetupWizard.svelte';
 	import { fetchMutations } from '$lib/mutationStore.svelte';
 	import StatsView from '$lib/components/StatsView.svelte';
 	import ThemeTransition from '$lib/components/ThemeTransition.svelte';
@@ -84,6 +85,7 @@
 	let showKeyboardHelp = $state(false);
 	let showHotkeys = $state(false);
 	let showSettings = $state(false);
+	let showWizard = $state(browser && !localStorage.getItem('beads-wizard-complete'));
 	let showPrompts = $state(false);
 	let showPromptsEditor = $state(false);
 	let projectName = $state('');
@@ -420,6 +422,7 @@
 />
 
 <KeyboardHelp bind:show={showKeyboardHelp} />
+<SetupWizard bind:show={showWizard} {isDarkMode} {projectName} ontoggleTheme={toggleTheme} oncomplete={() => {}} />
 <SettingsPane
 	bind:show={showSettings}
 	bind:showPrompts
