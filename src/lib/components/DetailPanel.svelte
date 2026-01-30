@@ -8,6 +8,7 @@
 	import IssueComments from './IssueComments.svelte';
 	import IssueAttachments from './IssueAttachments.svelte';
 	import DetailPanelFooter from './DetailPanelFooter.svelte';
+	import MarkdownContent from './MarkdownContent.svelte';
 
 	let isEditMode = $state(false);
 
@@ -227,7 +228,7 @@
 							<Icon name="check-circle" size={12} />
 							<span>Summary</span>
 						</div>
-						<p class="summary-text">{editingIssue.notes}</p>
+						<div class="summary-text"><MarkdownContent content={editingIssue.notes} /></div>
 					</div>
 				{/if}
 
@@ -241,18 +242,18 @@
 				<article class="content-block">
 					<h1 class="issue-title">{editingIssue.title}</h1>
 					{#if editingIssue.description}
-						<p class="issue-description">{editingIssue.description}</p>
+						<div class="issue-description"><MarkdownContent content={editingIssue.description} /></div>
 					{/if}
 				</article>
 
 				{#if editingIssue.design}
-					<section class="section"><span class="section-label">Design</span><p class="prose">{editingIssue.design}</p></section>
+					<section class="section"><span class="section-label">Design</span><div class="prose"><MarkdownContent content={editingIssue.design} /></div></section>
 				{/if}
 				{#if editingIssue.acceptance_criteria}
-					<section class="section"><span class="section-label">Acceptance</span><p class="prose">{editingIssue.acceptance_criteria}</p></section>
+					<section class="section"><span class="section-label">Acceptance</span><div class="prose"><MarkdownContent content={editingIssue.acceptance_criteria} /></div></section>
 				{/if}
 				{#if editingIssue.notes && editingIssue.status !== 'closed'}
-					<section class="section"><span class="section-label">Notes</span><p class="prose">{editingIssue.notes}</p></section>
+					<section class="section"><span class="section-label">Notes</span><div class="prose"><MarkdownContent content={editingIssue.notes} /></div></section>
 				{/if}
 
 				{#if editingIssue.labels && editingIssue.labels.length > 0}
@@ -481,7 +482,6 @@
 		font-size: 0.8125rem;
 		line-height: 1.5;
 		color: var(--text-secondary);
-		white-space: pre-wrap;
 		word-break: break-word;
 	}
 
@@ -517,7 +517,6 @@
 		font-weight: 400;
 		color: var(--text-secondary);
 		line-height: 1.7;
-		white-space: pre-wrap;
 		word-break: break-word;
 		letter-spacing: -0.005em;
 	}
@@ -538,7 +537,6 @@
 		font-size: 0.875rem;
 		line-height: 1.6;
 		color: var(--text-primary);
-		white-space: pre-wrap;
 		word-break: break-word;
 	}
 
