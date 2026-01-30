@@ -440,3 +440,133 @@ body {
 		--mobile-padding: 0.5rem;
 	}
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   App Theme & Color Schemes
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Aurora background effect */
+.app::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background:
+		/* Core glow - center top concentration */
+		radial-gradient(ellipse 90% 60% at 50% 30%, rgba(99, 102, 241, 0.09) 0%, transparent 60%),
+		radial-gradient(ellipse 70% 50% at 35% 25%, rgba(56, 189, 248, 0.07) 0%, transparent 55%),
+		radial-gradient(ellipse 65% 45% at 65% 35%, rgba(167, 139, 250, 0.06) 0%, transparent 50%),
+		/* Subtle accent in middle */
+		radial-gradient(ellipse 50% 40% at 50% 50%, rgba(52, 211, 153, 0.04) 0%, transparent 50%),
+		/* Edge fade - makes outside lighter */
+		radial-gradient(ellipse 120% 100% at 50% 40%, transparent 40%, rgba(0, 0, 0, 0.02) 100%);
+	animation: auroraShift 30s ease-in-out infinite alternate;
+	pointer-events: none;
+	z-index: 0;
+}
+
+/* Noise overlay to eliminate gradient banding */
+.app::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+	background-size: 256px 256px;
+	opacity: 0.035;
+	pointer-events: none;
+	z-index: 0;
+}
+
+.app > * {
+	position: relative;
+	z-index: 1;
+}
+
+.app.light::before {
+	background:
+		/* Core glow - center top concentration */
+		radial-gradient(ellipse 90% 60% at 50% 30%, rgba(99, 102, 241, 0.12) 0%, transparent 60%),
+		radial-gradient(ellipse 70% 50% at 35% 25%, rgba(56, 189, 248, 0.1) 0%, transparent 55%),
+		radial-gradient(ellipse 65% 45% at 65% 35%, rgba(167, 139, 250, 0.08) 0%, transparent 50%),
+		/* Subtle accent in middle */
+		radial-gradient(ellipse 50% 40% at 50% 50%, rgba(52, 211, 153, 0.06) 0%, transparent 50%),
+		/* Edge fade - makes outside lighter */
+		radial-gradient(ellipse 120% 100% at 50% 40%, transparent 40%, rgba(255, 255, 255, 0.3) 100%);
+}
+
+/* Light theme - inherits from components.css, add app-specific overrides */
+.app.light {
+	/* Surface levels - cool stone/slate tones */
+	--surface-app: #e4e6e9;
+	--surface-panel: #eceef1;
+	--surface-card: #f4f5f7;
+	--surface-elevated: #f9fafb;
+	/* Legacy aliases */
+	--bg-primary: var(--surface-app);
+	--bg-secondary: var(--surface-card);
+	--bg-tertiary: var(--surface-panel);
+	--bg-elevated: var(--surface-elevated);
+	/* Borders - cool slate tints */
+	--border-subtle: rgba(60, 70, 80, 0.12);
+	--border-default: rgba(60, 70, 80, 0.18);
+	--border-strong: rgba(60, 70, 80, 0.28);
+	/* Text - cool charcoal */
+	--text-primary: #1f2937;
+	--text-secondary: #4b5563;
+	--text-tertiary: #6b7280;
+	--text-muted: #9ca3af;
+	/* Accent - slate blue */
+	--accent-primary: #4f6b8f;
+	--accent-glow: rgba(79, 107, 143, 0.12);
+	/* Shadows - cool slate */
+	--shadow-sm: 0 1px 2px rgba(30, 40, 50, 0.08);
+	--shadow-md: 0 4px 12px rgba(30, 40, 50, 0.10);
+	--shadow-lg: 0 8px 24px rgba(30, 40, 50, 0.14);
+	--shadow-elevated: 0 12px 40px rgba(30, 40, 50, 0.18);
+	/* CTA buttons - cool backgrounds */
+	--cta-muted: rgba(60, 70, 80, 0.06);
+	--cta-muted-hover: rgba(60, 70, 80, 0.10);
+	background: var(--bg-primary);
+}
+
+/* Color Schemes */
+.app.scheme-ocean {
+	--bg-primary: #0f172a;
+	--bg-secondary: #1e293b;
+	--bg-tertiary: #0c4a6e;
+	--bg-elevated: #334155;
+	--accent-primary: #0ea5e9;
+	--accent-glow: rgba(14, 165, 233, 0.15);
+}
+
+.app.scheme-forest {
+	--bg-primary: #0f1a0f;
+	--bg-secondary: #14532d;
+	--bg-tertiary: #166534;
+	--bg-elevated: #1a3a1a;
+	--accent-primary: #22c55e;
+	--accent-glow: rgba(34, 197, 94, 0.15);
+}
+
+.app.scheme-sunset {
+	--bg-primary: #1c0a00;
+	--bg-secondary: #431407;
+	--bg-tertiary: #7c2d12;
+	--bg-elevated: #581c0a;
+	--accent-primary: #f97316;
+	--accent-glow: rgba(249, 115, 22, 0.15);
+}
+
+.app.scheme-rose {
+	--bg-primary: #1a0a10;
+	--bg-secondary: #4c0519;
+	--bg-tertiary: #881337;
+	--bg-elevated: #5c0a1f;
+	--accent-primary: #f43f5e;
+	--accent-glow: rgba(244, 63, 94, 0.15);
+}
+
+/* Light mode + color schemes */
+.app.light.scheme-ocean { --accent-primary: #0284c7; }
+.app.light.scheme-forest { --accent-primary: #16a34a; }
+.app.light.scheme-sunset { --accent-primary: #ea580c; }
+.app.light.scheme-rose { --accent-primary: #e11d48; }
