@@ -70,6 +70,7 @@ body {
 	align-items: center;
 	justify-content: center;
 	gap: 6px;
+	height: 26px;
 	font: 600 11px/1 system-ui, -apple-system, sans-serif;
 	border: none;
 	border-radius: 5px;
@@ -86,7 +87,7 @@ body {
 
 /* 1. Primary - solid indigo, main actions */
 .cta-primary {
-	padding: 7px 12px;
+	padding: 0 12px;
 	background: linear-gradient(135deg, var(--cta-primary) 0%, var(--cta-primary-hover) 100%);
 	color: white;
 	box-shadow: 0 1px 3px rgba(99, 102, 241, 0.3);
@@ -104,7 +105,7 @@ body {
 
 /* 2. Secondary - outlined, less prominent */
 .cta-secondary {
-	padding: 6px 11px;
+	padding: 0 11px;
 	background: rgba(99, 102, 241, 0.1);
 	border: 1px solid rgba(99, 102, 241, 0.25);
 	color: #a5b4fc;
@@ -118,7 +119,7 @@ body {
 
 /* 3. Ghost - minimal, text-only feel */
 .cta-ghost {
-	padding: 6px 10px;
+	padding: 0 10px;
 	background: var(--cta-muted);
 	border: 1px solid rgba(255, 255, 255, 0.06);
 	color: var(--text-secondary);
@@ -132,7 +133,7 @@ body {
 
 /* 4. Danger - destructive actions */
 .cta-danger {
-	padding: 6px 11px;
+	padding: 0 11px;
 	background: rgba(239, 68, 68, 0.12);
 	border: 1px solid rgba(239, 68, 68, 0.2);
 	color: #fca5a5;
@@ -147,7 +148,6 @@ body {
 /* 5. Icon-only - square buttons for icons */
 .cta-icon {
 	width: 26px;
-	height: 26px;
 	padding: 0;
 	background: rgba(99, 102, 241, 0.12);
 	border: 1px solid rgba(99, 102, 241, 0.2);

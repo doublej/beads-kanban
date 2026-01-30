@@ -93,8 +93,10 @@
 	.btn-secondary, .btn-primary, .btn-danger {
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
 		gap: 0.25rem;
-		padding: 0.4375rem 0.75rem;
+		height: 2rem;
+		padding: 0 0.75rem;
 		border: 1px solid transparent;
 		border-radius: var(--radius-sm);
 		font-family: var(--font-sans);
@@ -128,13 +130,15 @@
 	.btn-agent {
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
 		gap: 0.25rem;
-		padding: 0.4375rem 0.625rem;
+		height: 2rem;
+		padding: 0 0.75rem;
 		background: rgba(16, 185, 129, 0.1);
 		border: 1px solid rgba(16, 185, 129, 0.25);
 		border-radius: var(--radius-sm);
 		font-family: var(--font-sans);
-		font-size: 0.6875rem;
+		font-size: 0.75rem;
 		font-weight: 500;
 		color: var(--state-done);
 		cursor: pointer;
