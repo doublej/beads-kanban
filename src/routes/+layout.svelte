@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import '$lib/styles/components.css';
+	import '$lib/styles/global.css';
 
 	let { data, children } = $props();
 

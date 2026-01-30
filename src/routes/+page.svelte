@@ -2,7 +2,7 @@
 	import { browser } from '$app/environment';
 	import { untrack } from 'svelte';
 	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, killSession, clearAllSessions, endSession, clearSession, continueSession, compactSession, getPersistedSdkSessionId, getAllPersistedSessions, deletePersistedSession, fetchSdkSessions, markPaneAsRead, getTotalUnreadCount, getUnreadCount, notifyAgentOfTicketUpdate, type Pane, type SdkSessionInfo } from '$lib/wsStore.svelte';
-	import type { Issue, Comment, Attachment, CardPosition, FlyingCard, ContextMenuState, RopeDragState, SortBy, PaneSize, ViewMode, LoadingStatus as LoadingStatusType, Project } from '$lib/types';
+	import type { Issue, Comment, Attachment, CardPosition, FlyingCard, ContextMenuState, RopeDragState, SortBy, PaneSize, ViewMode, Project } from '$lib/types';
 	import {
 		columns,
 		getPriorityConfig,
@@ -15,9 +15,6 @@
 		getColumnMoveUpdates
 	} from '$lib/utils';
 	import {
-		updateIssue as updateIssueApi,
-		deleteIssueApi,
-		createIssueApi,
 		loadComments as loadCommentsApi,
 		addCommentApi,
 		createDependencyApi,
@@ -36,9 +33,8 @@
 	import IssueCard from '$lib/components/IssueCard.svelte';
 	import DetailPanel from '$lib/components/DetailPanel.svelte';
 	import FlyingCardComponent from '$lib/components/FlyingCard.svelte';
-	import PaneActivity from '$lib/components/PaneActivity.svelte';
+	import AgentBar from '$lib/components/AgentBar.svelte';
 	import InitialLoader from '$lib/components/InitialLoader.svelte';
-	import StatusBar from '$lib/components/StatusBar.svelte';
 	import TreeView from '$lib/components/TreeView.svelte';
 	import GraphView from '$lib/components/GraphView.svelte';
 		import MutationLog from '$lib/components/MutationLog.svelte';
@@ -47,11 +43,14 @@
 	import StatsView from '$lib/components/StatsView.svelte';
 	import ThemeTransition from '$lib/components/ThemeTransition.svelte';
 	import ProjectSwitcher from '$lib/components/ProjectSwitcher.svelte';
+	import { settings } from '$lib/stores/settings.svelte';
+	import { createPaneDrag } from '$lib/stores/pane-drag.svelte';
+	import { formatTicketDelivery as formatTicketDeliveryFn, isValidSession as isValidSessionFn } from '$lib/agent/ticket-delivery';
+	import type { TicketDeliveryData } from '$lib/agent/ticket-delivery';
+	import { createKeyboardNav } from '$lib/keyboard/kanban-nav';
+	import { createIssueStore } from '$lib/stores/issue-store.svelte';
 
-	let issues = $state<Issue[]>([]);
-	// Track pending optimistic updates to prevent SSE from overwriting them
-	let pendingUpdates = $state<Map<string, { updates: Partial<Issue>; timestamp: number }>>(new Map());
-	let pendingDeletes = $state<Set<string>>(new Set());
+	let bdVersion = $state<{ version: string; compatible: boolean } | null>(null);
 	let draggedId = $state<string | null>(null);
 	let draggedOverColumn = $state<string | null>(null);
 	let editingIssue = $state<Issue | null>(null);
@@ -67,7 +66,6 @@
 	let filterLabel = $state<string>('all');
 	let filterActionable = $state(false);
 	let isFilterPreviewing = $state(false);
-	let animatingIds = $state<Set<string>>(new Set());
 	let selectedId = $state<string | null>(null);
 	let activeColumnIndex = $state(0);
 	let touchStartX = $state(0);
@@ -79,9 +77,9 @@
 	let isPanelDragging = $state(false);
 	let dropIndicatorIndex = $state<number | null>(null);
 	let dropTargetColumn = $state<string | null>(null);
-	let isDarkMode = $state(true);
-	let colorScheme = $state('default');
-	let notificationsEnabled = $state(false);
+	let isDarkMode = $state(true); // synced with settings store
+	let colorScheme = $state('default'); // synced with settings store
+	let notificationsEnabled = $state(false); // synced with settings store
 	let themeTransitionActive = $state(false);
 	let themeTransitionToLight = $state(false);
 	let comments = $state<{ id: number; author: string; text: string; created_at: string }[]>([]);
@@ -94,18 +92,7 @@
 	let resumePrompt = $state<{ name: string; sessionId: string } | null>(null);
 	let showSessionPicker = $state(false);
 	let sdkSessions = $state<SdkSessionInfo[]>([]);
-	// Filter out empty/failed sessions (warmup-only, no conversation, or failed starts)
-	function isValidSession(s: SdkSessionInfo): boolean {
-		if (s.preview.length === 0) return false;
-		// Filter out warmup-only or failed session patterns
-		const warmupPatterns = [/^warmup$/i, /^no conversation$/i, /^i'll explore/i, /^let me/i];
-		const meaningfulLines = s.preview.filter(line => {
-			const clean = line.replace(/^>\s*/, '').trim();
-			return clean.length > 20 && !warmupPatterns.some(p => p.test(clean));
-		});
-		return meaningfulLines.length >= 2 || !!s.summary;
-	}
-	let filteredSessions = $derived(sdkSessions.filter(isValidSession));
+	let filteredSessions = $derived(sdkSessions.filter(isValidSessionFn));
 	let loadingSdkSessions = $state(false);
 	let sessionSearchQuery = $state('');
 	let searchedSessions = $derived(() => {
@@ -119,16 +106,9 @@
 	});
 	let paneMessageInputs = $state<Record<string, string>>({});
 	let expandedPanes = $state<Set<string>>(new Set());
-	let paneSizes = $state<Record<string, 'compact' | 'medium' | 'large'>>({});
-	let panePositions = $state<Record<string, { x: number; y: number }>>({});
-	let paneCustomSizes = $state<Record<string, { w: number; h: number }>>({});
-	let draggingPane = $state<string | null>(null);
-	let resizingPane = $state<string | null>(null);
-	let resizeEdge = $state<'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null>(null);
-	let dragOffset = $state({ x: 0, y: 0 });
-	let resizeStart = $state({ x: 0, y: 0, w: 0, h: 0, px: 0, py: 0 });
+	const paneDrag = createPaneDrag();
 	let contextMenu = $state<{ x: number; y: number; issue: Issue } | null>(null);
-	let collapsedColumns = $state<Set<string>>(new Set());
+	let collapsedColumns = $derived(settings.collapsedColumns);
 	let columnSortBy = $state<Record<string, 'priority' | 'created' | 'title'>>({});
 	let sortMenuOpen = $state<string | null>(null);
 	let ropeDrag = $state<{ fromId: string; startX: number; startY: number; currentX: number; currentY: number; targetId: string | null } | null>(null);
@@ -140,77 +120,17 @@
 	let showPrompts = $state(false);
 	let showPromptsEditor = $state(false);
 	let projectName = $state('');
-		let agentEnabled = $state(true);
+	// Agent settings - local $state vars synced with settings store for template bind: compatibility
+	let agentEnabled = $state(true);
 	let agentHost = $state('localhost');
 	let agentPort = $state(8765);
-	let agentFirstMessage = $state('You are an agent named "{name}". Await further instructions.');
+	let agentFirstMessage = $state('');
 	let agentSystemPrompt = $state('');
-	let agentWorkflow = $state(`## MANDATORY Ticket Workflow
-
-**FOR EACH TICKET**, follow this EXACT sequence:
-
-1. **CLAIM** - Update ticket to \`in_progress\` BEFORE starting work:
-   \`mcp__beads-agent__update_issue({ id: "<ticket-id>", status: "in_progress" })\`
-
-2. **WORK** - Implement the changes
-
-3. **COMMIT** - Create atomic commit with ticket reference:
-   \`git add <files> && git commit -m "<type>(<ticket-id>): <description>"\`
-
-4. **LINT** - Run linting and fix any issues BEFORE closing:
-   \`bun run check\`
-   - If errors: fix them, commit fixes, re-run lint
-   - Only proceed to CLOSE when lint passes
-
-5. **CLOSE** - Update ticket with summary, commit ID, and hash:
-   \`\`\`
-   git log -1 --format="%H %s"  # Get commit hash and message
-   mcp__beads-agent__update_issue({
-     id: "<ticket-id>",
-     status: "closed",
-     notes: "Summary: <what was done>\\nCommit: <hash> <message>"
-   })
-   \`\`\`
-
-**NEVER**:
-- Start work without claiming (updating to in_progress)
-- Move to next ticket before committing current work
-- Close ticket without running lint and ensuring it passes
-- Close ticket without recording commit info`);
-	let agentTicketDelivery = $state(`<assignment id="{id}" name="{name}">
-<context>
-You are assigned to ticket {id}.
-</context>
-
-<task>
-<title>{title}</title>
-<description>{description}</description>
-<comments>{comments}</comments>
-<attachments>{attachments}</attachments>
-<dependencies>{dependencies}</dependencies>
-<dependents>{dependents}</dependents>
-</task>
-
-<instructions>
-Start by claiming the ticket (set status to in_progress), then implement the required changes.
-</instructions>
-</assignment>`);
-	let agentTicketNotification = $state(`<ticket_notification id="{id}" title="{title}">
-<context>
-Ticket update notification for {id}.
-</context>
-
-<message>
-<sender>{sender}</sender>
-<content>{content}</content>
-</message>
-
-<instructions>
-Review the notification content and apply any required action to ticket {id}.
-</instructions>
-</ticket_notification>`);
+	let agentWorkflow = $state('');
+	let agentTicketDelivery = $state('');
+	let agentTicketNotification = $state('');
 	let agentToolsExpanded = $state(false);
-	const combinedSystemPrompt = $derived([agentSystemPrompt, agentWorkflow].filter(Boolean).join('\n\n'));
+	const combinedSystemPrompt = $derived(settings.combinedSystemPrompt);
 	let agentMenuOpen = $state(false);
 	let agentNameInputOpen = $state(false);
 	let agentNameInputRef = $state<HTMLInputElement | null>(null);
@@ -221,22 +141,64 @@ Review the notification content and apply any required action to ticket {id}.
 	let flyingCards = $state<Map<string, {from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; issue: Issue}>>(new Map());
 	let issueClosedExternally = $state(false);
 	let viewMode = $state<ViewMode>('kanban');
-	let loadingStatus = $state<LoadingStatusType>({
-		phase: 'disconnected',
-		pollCount: 0,
-		lastUpdate: null,
-		issueCount: 0,
-		hasChanges: false,
-		errorMessage: null
-	});
-	let initialLoaded = $state(false);
 	let showMutationLog = $state(false);
 	let projects = $state<Project[]>([]);
 	let showProjectSwitcher = $state(false);
 	let currentProjectPath = $state('');
 	let projectColor = $state('#6366f1');
 	let projectTransition = $state<'idle' | 'wipe-out' | 'wipe-in'>('idle');
-	let sseSource = $state<EventSource | null>(null);
+
+	// --- Issue Store ---
+	const issueStore = createIssueStore({
+		onNewIssue: (issue) => sendNotification('New Issue Created', issue.title),
+		onStatusChange: (issue, oldStatus) => {
+			if (issue.status === 'blocked' && oldStatus !== 'blocked') {
+				sendNotification('Issue Blocked', `${issue.title} is now blocked`);
+			} else if (issue.status !== 'blocked' && oldStatus === 'blocked') {
+				sendNotification('Issue Unblocked', `${issue.title} is no longer blocked`);
+			}
+		},
+		getCardPosition: (id) => {
+			const el = cardRefs.get(id);
+			if (!el) return null;
+			const rect = el.getBoundingClientRect();
+			return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+		},
+		getPlaceholderPosition: (id) => {
+			const el = placeholderRefs.get(id);
+			if (!el) return null;
+			const rect = el.getBoundingClientRect();
+			return { x: rect.left, y: rect.top, w: rect.width, h: rect.height };
+		},
+		addPlaceholder: (id, targetColumn, height) => {
+			if (!placeholders.some(p => p.id === id)) {
+				placeholders = [...placeholders, { id, targetColumn, height }];
+			}
+		},
+		addFlyingCard: (id, from, to, issue) => {
+			flyingCards.set(id, { from, to, issue });
+			flyingCards = new Map(flyingCards);
+		},
+		addTeleport: (id, from, to) => {
+			teleports = [...teleports, { id, from, to, startTime: Date.now() }];
+		},
+		cleanupAnimation: (id) => {
+			teleports = teleports.filter(t => t.id !== id);
+			placeholders = placeholders.filter(p => p.id !== id);
+			flyingCards.delete(id);
+			flyingCards = new Map(flyingCards);
+		},
+		notifyTicket: (id, message, type, context) => notifyTicket(id, message, type, context),
+		onEditingIssueClosedExternally: () => { issueClosedExternally = true; },
+		getEditingIssue: () => editingIssue,
+		getIsCreating: () => isCreating
+	});
+
+	// Convenience aliases for store properties
+	let issues = $derived(issueStore.issues);
+	let animatingIds = $derived(issueStore.animatingIds);
+	let loadingStatus = $derived(issueStore.loadingStatus);
+	let initialLoaded = $derived(issueStore.initialLoaded);
 
 	function getCardPosition(id: string): {x: number; y: number; w: number; h: number} | null {
 		const el = cardRefs.get(id);
@@ -337,157 +299,20 @@ Review the notification content and apply any required action to ticket {id}.
 	}
 
 	function toggleColumnCollapse(key: string) {
-		const next = new Set(collapsedColumns);
-		if (next.has(key)) {
-			next.delete(key);
-		} else {
-			next.add(key);
-		}
-		collapsedColumns = next;
-		if (browser) {
-			localStorage.setItem('collapsedColumns', JSON.stringify([...next]));
-		}
+		settings.toggleColumnCollapse(key);
 	}
 
-	function cyclePaneSize(name: string) {
-		const current = paneSizes[name] || 'compact';
-		const next = current === 'compact' ? 'medium' : current === 'medium' ? 'large' : 'compact';
-		paneSizes = { ...paneSizes, [name]: next };
-		// Reset custom position/size when cycling presets
-		if (next !== 'large') {
-			const { [name]: _p, ...restPos } = panePositions;
-			const { [name]: _s, ...restSize } = paneCustomSizes;
-			panePositions = restPos;
-			paneCustomSizes = restSize;
-		}
-	}
-
-	function getPaneSize(name: string): 'compact' | 'medium' | 'large' {
-		return paneSizes[name] || 'compact';
-	}
-
-	function startDrag(e: MouseEvent, name: string) {
-		if ((e.target as HTMLElement).closest('.ctrl-btn, .msg-input, button')) return;
-		e.preventDefault();
-		const el = (e.currentTarget as HTMLElement).closest('.agent-window') as HTMLElement;
-		const rect = el.getBoundingClientRect();
-		draggingPane = name;
-		dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-		// Initialize position if not set
-		if (!panePositions[name]) {
-			panePositions = { ...panePositions, [name]: { x: rect.left, y: rect.top } };
-		}
-	}
-
-	function startResize(e: MouseEvent, name: string, edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw') {
-		e.preventDefault();
-		e.stopPropagation();
-		resizingPane = name;
-		resizeEdge = edge;
-		const el = document.querySelector(`[data-pane="${name}"]`) as HTMLElement;
-		const rect = el.getBoundingClientRect();
-		resizeStart = { x: e.clientX, y: e.clientY, w: rect.width, h: rect.height, px: rect.left, py: rect.top };
-		// Initialize position/size if not customized
-		if (!panePositions[name]) {
-			panePositions = { ...panePositions, [name]: { x: rect.left, y: rect.top } };
-		}
-		if (!paneCustomSizes[name]) {
-			paneCustomSizes = { ...paneCustomSizes, [name]: { w: rect.width, h: rect.height } };
-		}
-	}
-
-	// Document-level handlers for smooth drag/resize (prevents losing grip)
-	function handleDocumentMouseMove(e: MouseEvent) {
-		if (draggingPane) {
-			e.preventDefault();
-			const el = document.querySelector(`[data-pane="${draggingPane}"]`) as HTMLElement;
-			if (el) {
-				const x = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffset.x));
-				const y = Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragOffset.y));
-				// Direct DOM update for smooth dragging
-				el.style.left = `${x}px`;
-				el.style.top = `${y}px`;
-				el.style.position = 'fixed';
-				// Store for state sync on mouseup
-				panePositions[draggingPane] = { x, y };
-			}
-		}
-		if (resizingPane && resizeEdge) {
-			e.preventDefault();
-			const el = document.querySelector(`[data-pane="${resizingPane}"]`) as HTMLElement;
-			if (el) {
-				const dx = e.clientX - resizeStart.x;
-				const dy = e.clientY - resizeStart.y;
-				let w = resizeStart.w, h = resizeStart.h, x = resizeStart.px, y = resizeStart.py;
-
-				// Handle horizontal resize
-				if (resizeEdge.includes('e')) {
-					w = Math.max(280, Math.min(window.innerWidth - x - 10, resizeStart.w + dx));
-				}
-				if (resizeEdge.includes('w')) {
-					const newW = Math.max(280, resizeStart.w - dx);
-					const maxW = resizeStart.px + resizeStart.w - 10;
-					w = Math.min(newW, maxW);
-					x = resizeStart.px + resizeStart.w - w;
-				}
-
-				// Handle vertical resize
-				if (resizeEdge.includes('s')) {
-					h = Math.max(200, Math.min(window.innerHeight - y - 50, resizeStart.h + dy));
-				}
-				if (resizeEdge === 'n' || resizeEdge === 'ne' || resizeEdge === 'nw') {
-					const newH = Math.max(200, resizeStart.h - dy);
-					const maxH = resizeStart.py + resizeStart.h - 10;
-					h = Math.min(newH, maxH);
-					y = resizeStart.py + resizeStart.h - h;
-				}
-
-				// Direct DOM update for smooth resizing
-				el.style.width = `${w}px`;
-				el.style.height = `${h}px`;
-				el.style.left = `${x}px`;
-				el.style.top = `${y}px`;
-				el.style.position = 'fixed';
-				// Store for state sync on mouseup
-				paneCustomSizes[resizingPane] = { w, h };
-				panePositions[resizingPane] = { x, y };
-			}
-		}
-	}
-
-	function handleDocumentMouseUp() {
-		if (draggingPane) {
-			// Force reactivity update
-			panePositions = { ...panePositions };
-		}
-		if (resizingPane) {
-			// Force reactivity update
-			paneCustomSizes = { ...paneCustomSizes };
-			panePositions = { ...panePositions };
-		}
-		draggingPane = null;
-		resizingPane = null;
-		resizeEdge = null;
-	}
+	// Pane drag/resize delegated to paneDrag module
+	const { cyclePaneSize, startDrag, startResize } = paneDrag;
+	// Aliases for template shorthand props ({paneSizes}, {draggingPane}, etc.)
+	let paneSizes = $derived(paneDrag.paneSizes);
+	let panePositions = $derived(paneDrag.panePositions);
+	let paneCustomSizes = $derived(paneDrag.paneCustomSizes);
+	let draggingPane = $derived(paneDrag.draggingPane);
+	let resizingPane = $derived(paneDrag.resizingPane);
 
 	// Attach document-level listeners when dragging/resizing
-	$effect(() => {
-		if (!browser) return;
-		const isDraggingOrResizing = draggingPane !== null || resizingPane !== null;
-		if (isDraggingOrResizing) {
-			document.addEventListener('mousemove', handleDocumentMouseMove, { passive: false });
-			document.addEventListener('mouseup', handleDocumentMouseUp);
-			const cursorMap: Record<string, string> = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' };
-			document.body.style.cursor = draggingPane ? 'grabbing' : (resizeEdge ? cursorMap[resizeEdge] : '');
-			document.body.style.userSelect = 'none';
-			return () => {
-				document.removeEventListener('mousemove', handleDocumentMouseMove);
-				document.removeEventListener('mouseup', handleDocumentMouseUp);
-				document.body.style.cursor = '';
-				document.body.style.userSelect = '';
-			};
-		}
-	});
+	$effect(() => paneDrag.setupListeners());
 
 	function handleMouseMove(e: MouseEvent) {
 		// Only handle ropeDrag here - pane drag/resize use document listeners
@@ -585,18 +410,7 @@ Review the notification content and apply any required action to ticket {id}.
 		closeContextMenu();
 	}
 
-	function getPaneStyle(name: string): string {
-		const pos = panePositions[name];
-		const size = paneCustomSizes[name];
-		const parts: string[] = [];
-		if (pos) parts.push(`left: ${pos.x}px`, `top: ${pos.y}px`, `position: fixed`);
-		if (size) parts.push(`width: ${size.w}px`, `max-height: ${size.h}px`);
-		return parts.join('; ');
-	}
-
-	function isCustomized(name: string): boolean {
-		return !!(panePositions[name] || paneCustomSizes[name]);
-	}
+	const { getPaneStyle, isCustomized } = paneDrag;
 
 	// Reactive polling for cross-module state (Svelte 5 doesn't track $state across modules in $derived)
 	let wsConnected = $state(false);
@@ -686,225 +500,14 @@ Review the notification content and apply any required action to ticket {id}.
 		issues.filter((issue) => issueMatchesFilters(issue))
 	);
 
-	// Merge SSE data with pending optimistic updates to prevent stale data overwrite
-	function mergeWithPendingUpdates(sseIssues: Issue[]): Issue[] {
-		const now = Date.now();
-		const PENDING_TIMEOUT = 10000; // 10 seconds max pending time
-
-		// Filter out deleted issues
-		const filtered = sseIssues.filter(issue => !pendingDeletes.has(issue.id));
-
-		// Check if any deleted issues are now confirmed (no longer in SSE)
-		const sseIds = new Set(sseIssues.map(i => i.id));
-		const originalDeleteSize = pendingDeletes.size;
-		for (const id of pendingDeletes) {
-			if (!sseIds.has(id)) {
-				pendingDeletes.delete(id);
-			}
-		}
-		if (pendingDeletes.size !== originalDeleteSize) {
-			pendingDeletes = new Set(pendingDeletes);
-		}
-
-		return filtered.map(issue => {
-			const pending = pendingUpdates.get(issue.id);
-			if (!pending) return issue;
-
-			// Check if SSE now reflects our update (confirmation)
-			const issueRecord = issue as unknown as Record<string, unknown>;
-			const isConfirmed = Object.entries(pending.updates).every(
-				([key, value]) => issueRecord[key] === value
-			);
-
-			if (isConfirmed) {
-				// SSE caught up - clear pending
-				pendingUpdates.delete(issue.id);
-				pendingUpdates = new Map(pendingUpdates);
-				return issue;
-			}
-
-			// Check for timeout (safety valve)
-			if (now - pending.timestamp > PENDING_TIMEOUT) {
-				pendingUpdates.delete(issue.id);
-				pendingUpdates = new Map(pendingUpdates);
-				return issue; // Accept SSE data after timeout
-			}
-
-			// SSE has stale data - preserve our optimistic update
-			return { ...issue, ...pending.updates };
-		});
-	}
-
-	function connectSSE() {
-		const eventSource = new EventSource('/api/issues/stream');
-		sseSource = eventSource;
-
-		eventSource.onmessage = (event) => {
-			const msg = JSON.parse(event.data);
-
-			if (msg.type === 'error') {
-				loadingStatus = { ...loadingStatus, phase: 'error', errorMessage: msg.message };
-				return;
-			}
-
-			if (msg.type !== 'data') return;
-
-			loadingStatus = {
-				...loadingStatus,
-				phase: 'ready',
-				pollCount: msg.pollCount,
-				lastUpdate: msg.timestamp,
-				issueCount: msg.issues.length,
-				hasChanges: msg.hasChanges,
-				errorMessage: null
-			};
-			if (!initialLoaded) {
-				initialLoaded = true;
-				fetchMutations();
-			}
-
-			const data = msg;
-			const oldIssuesMap = new Map(issues.map(i => [i.id, i]));
-
-			// Check if the currently editing issue was closed externally
-			const currentEditing = editingIssue;
-			if (currentEditing && !isCreating) {
-				const updatedIssue = data.issues.find((i: Issue) => i.id === currentEditing.id);
-				if (updatedIssue && updatedIssue.status === 'closed' && currentEditing.status !== 'closed') {
-					issueClosedExternally = true;
-				}
-			}
-
-			// Find status changes and capture positions
-			const statusChanges: {id: string; fromPos: {x: number; y: number; w: number; h: number}; newStatus: string; height: number}[] = [];
-			data.issues.forEach((issue: Issue) => {
-				const oldIssue = oldIssuesMap.get(issue.id);
-				if (!oldIssue) {
-					// New issue created
-					sendNotification('New Issue Created', issue.title);
-				} else if (oldIssue.status !== issue.status) {
-					const fromPos = getCardPosition(issue.id);
-					if (fromPos) {
-						statusChanges.push({ id: issue.id, fromPos, newStatus: issue.status, height: fromPos.h });
-					}
-					// Notify on blocking events
-					if (issue.status === 'blocked' && oldIssue.status !== 'blocked') {
-						sendNotification('Issue Blocked', `${issue.title} is now blocked`);
-					} else if (issue.status !== 'blocked' && oldIssue.status === 'blocked') {
-						sendNotification('Issue Unblocked', `${issue.title} is no longer blocked`);
-					}
-				}
-			});
-
-			if (statusChanges.length > 0) {
-				// Create placeholders in target columns first (to make room)
-				// Skip if placeholder already exists for this id
-				const existingPlaceholderIds = new Set(placeholders.map(p => p.id));
-				statusChanges.forEach(({ id, newStatus, height }) => {
-					if (!existingPlaceholderIds.has(id)) {
-						placeholders = [...placeholders, { id, targetColumn: newStatus, height }];
-					}
-				});
-
-				// Wait for placeholders to fully expand (350ms > 300ms animation), then capture positions, update issues, and teleport
-				setTimeout(() => {
-					// Capture placeholder positions BEFORE updating issues (which will remove placeholders from DOM)
-					const teleportTargets = statusChanges.map(({ id, fromPos }) => ({
-						id,
-						fromPos,
-						toPos: getPlaceholderPosition(id),
-						issue: oldIssuesMap.get(id)
-					})).filter(t => t.toPos !== null && t.issue);
-
-					// Start flying cards BEFORE updating issues
-					teleportTargets.forEach(({ id, fromPos, toPos, issue }) => {
-						flyingCards.set(id, { from: fromPos, to: toPos!, issue: issue! });
-						flyingCards = new Map(flyingCards);
-					});
-
-					issues = mergeWithPendingUpdates(data.issues);
-
-					// Trigger teleports with pre-captured positions
-					teleportTargets.forEach(({ id, fromPos, toPos }) => {
-						teleports = [...teleports, { id, from: fromPos, to: toPos!, startTime: Date.now() }];
-						setTimeout(() => {
-							teleports = teleports.filter(t => t.id !== id);
-							placeholders = placeholders.filter(p => p.id !== id);
-							flyingCards.delete(id);
-							flyingCards = new Map(flyingCards);
-						}, 600);
-					});
-				}, 350);
-			} else {
-				issues = mergeWithPendingUpdates(data.issues);
-			}
-		};
-
-		eventSource.onerror = () => {
-			eventSource.close();
-			loadingStatus = { ...loadingStatus, phase: 'disconnected' };
-			setTimeout(connectSSE, 3000);
-		};
-
-		return eventSource;
-	}
-
+	// --- Issue CRUD delegating to issueStore ---
 	async function updateIssue(id: string, updates: Partial<Issue>) {
-		// Get original issue for comparison
-		const original = issues.find(i => i.id === id);
-		const title = original?.title ?? id;
-
-		// Track pending update to prevent SSE from overwriting optimistic state
-		pendingUpdates.set(id, { updates, timestamp: Date.now() });
-		pendingUpdates = new Map(pendingUpdates);
-
-		// Optimistic update - apply immediately for instant feedback
-		const idx = issues.findIndex(i => i.id === id);
-		if (idx !== -1) {
-			const updated = { ...issues[idx], ...updates, updated_at: new Date().toISOString() };
-			issues = [...issues.slice(0, idx), updated, ...issues.slice(idx + 1)];
-		}
-		// Flash animation for feedback
-		animatingIds = new Set([...animatingIds, id]);
-		setTimeout(() => {
-			animatingIds = new Set([...animatingIds].filter(x => x !== id));
-		}, 600);
-		await fetch(`/api/issues/${id}`, {
-			method: 'PATCH',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(updates)
-		});
-		fetchMutations();
-
-		// Notify agent about significant field changes
-		const ctx = { ticketTitle: title, sender: 'user' };
-		if (updates.status && original?.status !== updates.status) {
-			notifyTicket(id, `Status changed: ${original?.status} → ${updates.status}`, 'status', ctx);
-		}
-		if (updates.priority !== undefined && original?.priority !== updates.priority) {
-			notifyTicket(id, `Priority changed: ${original?.priority} → ${updates.priority}`, 'priority', ctx);
-		}
-		if (updates.assignee !== undefined && original?.assignee !== updates.assignee) {
-			notifyTicket(id, `Assignee changed: ${original?.assignee || 'unassigned'} → ${updates.assignee || 'unassigned'}`, 'assignee', ctx);
-		}
+		await issueStore.updateIssue(id, updates);
 	}
 
 	async function deleteIssue(id: string) {
-		if (!confirm('Delete this issue permanently?')) return;
-		animatingIds = new Set([...animatingIds, id]);
-		if (editingIssue?.id === id) {
-			editingIssue = null;
-		}
-		// Track pending delete to prevent SSE from re-adding
-		pendingDeletes.add(id);
-		pendingDeletes = new Set(pendingDeletes);
-		// Remove from UI immediately
-		issues = issues.filter(i => i.id !== id);
-		setTimeout(() => {
-			animatingIds = new Set([...animatingIds].filter(x => x !== id));
-		}, 600);
-		await fetch(`/api/issues/${id}`, { method: 'DELETE' });
-		fetchMutations();
+		const deleted = await issueStore.deleteIssue(id);
+		if (deleted && editingIssue?.id === id) editingIssue = null;
 	}
 
 	function openContextMenu(e: MouseEvent, issue: Issue) {
@@ -932,81 +535,23 @@ Review the notification content and apply any required action to ticket {id}.
 
 	async function createIssue() {
 		if (!createForm.title.trim()) return;
-		// Optimistic update - add temp issue immediately
-		const tempId = `temp-${Date.now()}`;
-		const tempIssue: Issue = {
-			id: tempId,
-			title: createForm.title,
-			description: createForm.description,
-			status: 'open',
-			priority: createForm.priority as Issue['priority'],
-			issue_type: createForm.issue_type,
-			labels: [],
-			dependencies: [],
-			dependents: [],
-			created_at: new Date().toISOString(),
-			updated_at: new Date().toISOString()
-		};
-		issues = [tempIssue, ...issues];
-		// Flash animation for feedback
-		animatingIds = new Set([...animatingIds, tempId]);
-		setTimeout(() => {
-			animatingIds = new Set([...animatingIds].filter(x => x !== tempId));
-		}, 600);
+		const form = { title: createForm.title, description: createForm.description, priority: createForm.priority, issue_type: createForm.issue_type };
 		createForm = { title: '', description: '', priority: 2, issue_type: 'task', deps: [] };
 		isCreating = false;
-
-		const res = await fetch('/api/issues', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ title: tempIssue.title, description: tempIssue.description, priority: tempIssue.priority, issue_type: tempIssue.issue_type })
-		});
-		await res.json();
-		// SSE will replace temp issue with real one on next poll
-		fetchMutations();
+		await issueStore.createIssue(form);
 	}
 
 	async function createIssueAndStartAgent() {
 		if (!createForm.title.trim()) return;
-		// Optimistic update
-		const tempId = `temp-${Date.now()}`;
-		const tempIssue: Issue = {
-			id: tempId,
-			title: createForm.title,
-			description: createForm.description,
-			status: 'open',
-			priority: createForm.priority as Issue['priority'],
-			issue_type: createForm.issue_type,
-			labels: [],
-			dependencies: [],
-			dependents: [],
-			created_at: new Date().toISOString(),
-			updated_at: new Date().toISOString()
-		};
-		issues = [tempIssue, ...issues];
-		animatingIds = new Set([...animatingIds, tempId]);
-		setTimeout(() => {
-			animatingIds = new Set([...animatingIds].filter(x => x !== tempId));
-		}, 600);
-		const savedForm = { ...createForm };
+		const savedForm = { title: createForm.title, description: createForm.description, priority: createForm.priority, issue_type: createForm.issue_type };
 		createForm = { title: '', description: '', priority: 2, issue_type: 'task', deps: [] };
 		isCreating = false;
 
-		// Create the issue and get the real ID
-		const res = await fetch('/api/issues', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ title: savedForm.title, description: savedForm.description, priority: savedForm.priority, issue_type: savedForm.issue_type })
-		});
-		const data = await res.json();
-		fetchMutations();
-
-		// Start agent with ticket-specific briefing
-		if (data.id) {
-			const agentName = `${data.id}-agent`;
-			// For newly created issue, create a minimal issue object
+		const newId = await issueStore.createIssueAndGetId(savedForm);
+		if (newId) {
+			const agentName = `${newId}-agent`;
 			const newIssue: Issue = {
-				id: data.id,
+				id: newId,
 				title: savedForm.title,
 				description: savedForm.description || '',
 				status: 'open',
@@ -1014,50 +559,14 @@ Review the notification content and apply any required action to ticket {id}.
 				issue_type: savedForm.issue_type || 'task'
 			};
 			const briefing = formatTicketDelivery(agentName, { issue: newIssue });
-			addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt, undefined, data.id);
+			addPane(agentName, currentProjectPath, briefing, combinedSystemPrompt, undefined, newId);
 			expandedPanes.add(agentName);
 			expandedPanes = new Set(expandedPanes);
 		}
 	}
 
-	interface TicketDeliveryData {
-		issue: Issue;
-		comments?: Comment[];
-		attachments?: Attachment[];
-	}
-
 	function formatTicketDelivery(agentName: string, data: TicketDeliveryData): string {
-		const { issue, comments = [], attachments = [] } = data;
-
-		// Format comments
-		const commentsStr = comments.length > 0
-			? comments.map(c => `[${c.author} @ ${new Date(c.created_at).toLocaleString()}]: ${c.text}`).join('\n')
-			: 'No comments';
-
-		// Format attachments
-		const attachmentsStr = attachments.length > 0
-			? attachments.map(a => `- ${a.filename} (${(a.size / 1024).toFixed(1)}KB)`).join('\n')
-			: 'No attachments';
-
-		// Format dependencies (blocking this ticket)
-		const depsStr = issue.dependencies && issue.dependencies.length > 0
-			? issue.dependencies.map(d => `- ${d.id}: ${d.title} [${d.status}] (${d.dependency_type})`).join('\n')
-			: 'None';
-
-		// Format dependents (blocked by this ticket)
-		const dependentsStr = issue.dependents && issue.dependents.length > 0
-			? issue.dependents.map(d => `- ${d.id}: ${d.title} [${d.status}] (${d.dependency_type})`).join('\n')
-			: 'None';
-
-		return agentTicketDelivery
-			.replace(/{name}/g, agentName)
-			.replace(/{id}/g, issue.id)
-			.replace(/{title}/g, issue.title)
-			.replace(/{description}/g, issue.description || 'No description')
-			.replace(/{comments}/g, commentsStr)
-			.replace(/{attachments}/g, attachmentsStr)
-			.replace(/{dependencies}/g, depsStr)
-			.replace(/{dependents}/g, dependentsStr);
+		return formatTicketDeliveryFn(agentName, data, agentTicketDelivery);
 	}
 
 	function notifyTicket(
@@ -1394,192 +903,28 @@ Review the notification content and apply any required action to ticket {id}.
 		panelDragOffset = 0;
 	}
 
-	function getCardGrid() {
-		return columns.map(col => filteredIssues.filter(i => getIssueColumn(i).key === col.key));
-	}
-
-	function findCardPosition(id: string) {
-		const grid = getCardGrid();
-		for (let col = 0; col < grid.length; col++) {
-			const row = grid[col].findIndex(i => i.id === id);
-			if (row !== -1) return { col, row };
-		}
-		return null;
-	}
-
-	function getCardAt(col: number, row: number) {
-		const grid = getCardGrid();
-		if (col < 0 || col >= grid.length) return null;
-		const column = grid[col];
-		if (row < 0 || row >= column.length) return null;
-		return column[row]?.id ?? null;
-	}
-
-	function handleKeydown(e: KeyboardEvent) {
-		const isInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
-
-		// Cmd/Ctrl+Enter to submit create form
-		if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && isCreating) {
-			e.preventDefault();
-			createIssue();
-			return;
-		}
-
-		// Cmd/Ctrl+K to focus search (global, works even in inputs)
-		if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-			e.preventDefault();
-			const searchInput = document.querySelector('.search-input') as HTMLInputElement;
-			searchInput?.focus();
-			searchInput?.select();
-			return;
-		}
-
-		// Cmd/Ctrl+` or Ctrl+Tab to open project switcher
-		if ((e.metaKey || e.ctrlKey) && (e.key === '`' || e.key === 'Tab') && projects.length > 1) {
-			e.preventDefault();
-			showProjectSwitcher = true;
-			return;
-		}
-
-		// Global shortcuts (work even in inputs)
-		if (e.key === 'Escape') {
-			if (showProjectSwitcher) {
-				showProjectSwitcher = false;
-				e.preventDefault();
-				return;
-			}
-			if (showKeyboardHelp) {
-				showKeyboardHelp = false;
-				e.preventDefault();
-				return;
-			}
-			if (isInput) {
-				(e.target as HTMLElement).blur();
-				e.preventDefault();
-				return;
-			}
-			if (panelOpen) {
-				closePanel();
-			} else {
-				selectedId = null;
-			}
-			e.preventDefault();
-			return;
-		}
-
-		if (isInput) return;
-
-		// Show/hide hotkey hints with Alt/Option
-		if (e.key === 'Alt') {
-			showHotkeys = true;
-			return;
-		}
-
-		// Keyboard help overlay
-		if (e.key === '?') {
-			showKeyboardHelp = !showKeyboardHelp;
-			e.preventDefault();
-			return;
-		}
-
-		// Focus search
-		if (e.key === '/') {
-			e.preventDefault();
-			const searchInput = document.querySelector('.search-input') as HTMLInputElement;
-			searchInput?.focus();
-			return;
-		}
-
-		// New issue
-		if (e.key === 'n' || e.key === 'N') {
-			e.preventDefault();
-			openCreatePanel();
-			return;
-		}
-
-		// Jump to column by number (1-7)
-		const colIndex = parseInt(e.key) - 1;
-		if (colIndex >= 0 && colIndex < columns.length) {
-			const targetColumn = columns[colIndex];
-			const columnIssues = filteredIssues.filter(i => getIssueColumn(i).key === targetColumn.key);
-			if (columnIssues.length > 0) {
-				selectedId = columnIssues[0].id;
-			}
-			e.preventDefault();
-			return;
-		}
-
-		// Toggle theme
-		if (e.key === 't' || e.key === 'T') {
-			toggleTheme();
-			e.preventDefault();
-			return;
-		}
-
-		if (panelOpen) return;
-
-		if (!selectedId && filteredIssues.length > 0) {
-			if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'j', 'k', 'h', 'l'].includes(e.key)) {
-				selectedId = filteredIssues[0].id;
-				e.preventDefault();
-				return;
-			}
-		}
-
-		if (!selectedId) return;
-
-		const pos = findCardPosition(selectedId);
-		if (!pos) return;
-
-		let newId: string | null = null;
-
-		// Arrow keys and vim-style navigation
-		if (e.key === 'ArrowUp' || e.key === 'k') {
-			newId = getCardAt(pos.col, pos.row - 1);
-		} else if (e.key === 'ArrowDown' || e.key === 'j') {
-			newId = getCardAt(pos.col, pos.row + 1);
-		} else if (e.key === 'ArrowLeft' || e.key === 'h') {
-			const grid = getCardGrid();
-			for (let c = pos.col - 1; c >= 0; c--) {
-				if (grid[c].length > 0) {
-					newId = grid[c][Math.min(pos.row, grid[c].length - 1)].id;
-					break;
-				}
-			}
-		} else if (e.key === 'ArrowRight' || e.key === 'l') {
-			const grid = getCardGrid();
-			for (let c = pos.col + 1; c < grid.length; c++) {
-				if (grid[c].length > 0) {
-					newId = grid[c][Math.min(pos.row, grid[c].length - 1)].id;
-					break;
-				}
-			}
-		} else if (e.key === 'Enter' || e.key === 'o') {
-			const issue = filteredIssues.find(i => i.id === selectedId);
-			if (issue) openEditPanel(issue);
-			e.preventDefault();
-			return;
-		} else if (e.key === 'Delete' || e.key === 'Backspace' || e.key === 'x') {
-			deleteIssue(selectedId);
-			e.preventDefault();
-			return;
-		}
-
-		if (newId) {
-			selectedId = newId;
-			e.preventDefault();
-		}
-	}
-
-	function handleKeyup(e: KeyboardEvent) {
-		if (e.key === 'Alt') {
-			showHotkeys = false;
-		}
-	}
-
-	function handleWindowBlur() {
-		showHotkeys = false;
-	}
+	// --- Keyboard Navigation ---
+	const keyboardNav = createKeyboardNav({
+		getFilteredIssues: () => filteredIssues,
+		getSelectedId: () => selectedId,
+		setSelectedId: (id) => { selectedId = id; },
+		getPanelOpen: () => panelOpen,
+		getIsCreating: () => isCreating,
+		getShowKeyboardHelp: () => showKeyboardHelp,
+		setShowKeyboardHelp: (v) => { showKeyboardHelp = v; },
+		getShowHotkeys: () => showHotkeys,
+		setShowHotkeys: (v) => { showHotkeys = v; },
+		getShowProjectSwitcher: () => showProjectSwitcher,
+		setShowProjectSwitcher: (v) => { showProjectSwitcher = v; },
+		getProjectCount: () => projects.length,
+		createIssue,
+		openCreatePanel,
+		openEditPanel,
+		deleteIssue,
+		toggleTheme,
+		closePanel
+	});
+	const { handleKeydown, handleKeyup, handleWindowBlur } = keyboardNav;
 
 	function toggleTheme() {
 		if (themeTransitionActive) return;
@@ -1589,9 +934,7 @@ Review the notification content and apply any required action to ticket {id}.
 
 	function switchTheme() {
 		isDarkMode = !isDarkMode;
-		if (browser) {
-			localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-		}
+		settings.isDarkMode = isDarkMode;
 	}
 
 	function completeThemeTransition() {
@@ -1623,81 +966,46 @@ Review the notification content and apply any required action to ticket {id}.
 		new Notification(title, { body, icon: '/favicon.png' });
 	}
 
+	// Load settings from localStorage on mount, sync local vars from store
 	$effect(() => {
-		if (browser) {
-			const saved = localStorage.getItem('theme');
-			if (saved) {
-				isDarkMode = saved === 'dark';
-			} else {
-				isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-			}
-			const savedCollapsed = localStorage.getItem('collapsedColumns');
-			if (savedCollapsed) {
-				collapsedColumns = new Set(JSON.parse(savedCollapsed));
-			}
-			const savedAgentEnabled = localStorage.getItem('agentEnabled');
-			if (savedAgentEnabled) agentEnabled = savedAgentEnabled === 'true';
-			const savedAgentHost = localStorage.getItem('agentHost');
-			if (savedAgentHost) agentHost = savedAgentHost;
-			const savedAgentPort = localStorage.getItem('agentPort');
-			if (savedAgentPort) agentPort = Number(savedAgentPort);
-			const savedAgentFirstMessage = localStorage.getItem('agentFirstMessage');
-			if (savedAgentFirstMessage) agentFirstMessage = savedAgentFirstMessage;
-			const savedAgentSystemPrompt = localStorage.getItem('agentSystemPrompt');
-			if (savedAgentSystemPrompt) agentSystemPrompt = savedAgentSystemPrompt;
-			const savedAgentWorkflow = localStorage.getItem('agentWorkflow');
-			if (savedAgentWorkflow) agentWorkflow = savedAgentWorkflow;
-			const savedAgentTicketDelivery = localStorage.getItem('agentTicketDelivery');
-			if (savedAgentTicketDelivery) agentTicketDelivery = savedAgentTicketDelivery;
-			const savedAgentTicketNotification = localStorage.getItem('agentTicketNotification');
-			if (savedAgentTicketNotification) agentTicketNotification = savedAgentTicketNotification;
-			const savedAgentToolsExpanded = localStorage.getItem('agentToolsExpanded');
-			if (savedAgentToolsExpanded) agentToolsExpanded = savedAgentToolsExpanded === 'true';
-			const savedColorScheme = localStorage.getItem('colorScheme');
-			if (savedColorScheme) colorScheme = savedColorScheme;
-			const savedNotifications = localStorage.getItem('notificationsEnabled');
-			if (savedNotifications) notificationsEnabled = savedNotifications === 'true';
-		}
+		settings.load();
+		isDarkMode = settings.isDarkMode;
+		colorScheme = settings.colorScheme;
+		notificationsEnabled = settings.notificationsEnabled;
+		agentEnabled = settings.agentEnabled;
+		agentHost = settings.agentHost;
+		agentPort = settings.agentPort;
+		agentFirstMessage = settings.agentFirstMessage;
+		agentSystemPrompt = settings.agentSystemPrompt;
+		agentWorkflow = settings.agentWorkflow;
+		agentTicketDelivery = settings.agentTicketDelivery;
+		agentTicketNotification = settings.agentTicketNotification;
+		agentToolsExpanded = settings.agentToolsExpanded;
 	});
 
-	// Persist settings to localStorage
-	$effect(() => {
-		if (browser) localStorage.setItem('agentEnabled', String(agentEnabled));
-	});
-	$effect(() => {
-		if (browser) localStorage.setItem('agentHost', agentHost);
-	});
-	$effect(() => {
-		if (browser) localStorage.setItem('agentPort', String(agentPort));
-	});
-	$effect(() => {
-		if (browser) localStorage.setItem('agentFirstMessage', agentFirstMessage);
-	});
-	$effect(() => {
-		if (browser) localStorage.setItem('agentSystemPrompt', agentSystemPrompt);
-	});
-	$effect(() => {
-		if (browser) localStorage.setItem('agentWorkflow', agentWorkflow);
-	});
-	$effect(() => {
-		if (browser) localStorage.setItem('agentTicketDelivery', agentTicketDelivery);
-	});
-	$effect(() => {
-		if (browser) localStorage.setItem('agentTicketNotification', agentTicketNotification);
-	});
-	$effect(() => {
-		if (browser) localStorage.setItem('agentToolsExpanded', String(agentToolsExpanded));
-	});
-	$effect(() => {
-		if (browser) localStorage.setItem('colorScheme', colorScheme);
-	});
-	$effect(() => {
-		if (browser) localStorage.setItem('notificationsEnabled', String(notificationsEnabled));
-	});
+	// Persist local setting changes to the store (which handles localStorage)
+	$effect(() => { settings.agentEnabled = agentEnabled; });
+	$effect(() => { settings.agentHost = agentHost; });
+	$effect(() => { settings.agentPort = agentPort; });
+	$effect(() => { settings.agentFirstMessage = agentFirstMessage; });
+	$effect(() => { settings.agentSystemPrompt = agentSystemPrompt; });
+	$effect(() => { settings.agentWorkflow = agentWorkflow; });
+	$effect(() => { settings.agentTicketDelivery = agentTicketDelivery; });
+	$effect(() => { settings.agentTicketNotification = agentTicketNotification; });
+	$effect(() => { settings.agentToolsExpanded = agentToolsExpanded; });
+	$effect(() => { settings.colorScheme = colorScheme; });
+	$effect(() => { settings.notificationsEnabled = notificationsEnabled; });
 
 	$effect(() => {
-		const source = untrack(() => connectSSE());
+		const source = untrack(() => issueStore.connectSSE());
 		return () => source.close();
+	});
+
+	$effect(() => {
+		if (!browser) return;
+		fetch('/api/issues').then(r => r.json()).then(data => {
+			if (data.bdVersion) bdVersion = data.bdVersion;
+		}).catch(() => {});
 	});
 
 	$effect(() => {
@@ -1743,10 +1051,7 @@ Review the notification content and apply any required action to ticket {id}.
 		projectTransition = 'wipe-out';
 
 		// Close SSE and change CWD in parallel with animation
-		if (sseSource) {
-			sseSource.close();
-			sseSource = null;
-		}
+		issueStore.closeSse();
 
 		const [cwdRes] = await Promise.all([
 			fetch('/api/cwd', {
@@ -1767,18 +1072,18 @@ Review the notification content and apply any required action to ticket {id}.
 		const issuesData = await issuesRes.json();
 
 		// Update state
-		issues = issuesData.issues || [];
+		issueStore.setIssues(issuesData.issues || []);
 		currentProjectPath = project.path;
 		projectName = project.name;
 		projectColor = project.color;
-		initialLoaded = true;
+		issueStore.initialLoaded = true;
 		selectedId = null;
 		editingIssue = null;
 		isCreating = false;
 
 		// Start wipe in (top to bottom)
 		projectTransition = 'wipe-in';
-		connectSSE();
+		issueStore.connectSSE();
 
 		await new Promise(r => setTimeout(r, WIPE_DURATION));
 		projectTransition = 'idle';
@@ -1874,6 +1179,12 @@ Review the notification content and apply any required action to ticket {id}.
 		ontoggleAgentPanes={() => showActivityBar = !showActivityBar}
 	/>
 
+	{#if bdVersion && !bdVersion.compatible}
+		<div class="version-warning">
+			bd v{bdVersion.version} detected — v0.49.0+ required for full functionality. Run <code>brew upgrade bd</code> to update.
+		</div>
+	{/if}
+
 	{#if viewMode === 'kanban'}
 	<ColumnNav
 		{columns}
@@ -1960,342 +1271,63 @@ Review the notification content and apply any required action to ticket {id}.
 	{/if}
 
 <!-- Agent Bar - Pinned to bottom -->
-{#if wsConnected && showActivityBar}
-<div class="agent-bar" class:has-panes={wsPanes.size > 0}>
-	<div class="agent-bar-inner">
-		<!-- Agent launcher button with dropdown menu -->
-		<div class="agent-launcher">
-			<button
-				class="launcher-btn"
-				class:active={agentMenuOpen}
-				onclick={() => agentMenuOpen = !agentMenuOpen}
-			>
-				<span class="launcher-label">New</span>
-				<svg class="launcher-caret" class:open={agentMenuOpen} viewBox="0 0 10 10" width="9" height="9">
-					<path d="M2.5 4l2.5 2.5 2.5-2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-				</svg>
-			</button>
-
-			{#if agentMenuOpen}
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="launcher-backdrop" onclick={() => agentMenuOpen = false}></div>
-				<div class="launcher-menu">
-					<button class="launcher-option" onclick={() => { agentMenuOpen = false; agentNameInputOpen = true; setTimeout(() => agentNameInputRef?.focus(), 50); }}>
-						<svg viewBox="0 0 16 16" width="13" height="13">
-							<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/>
-							<path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-						</svg>
-						<span class="option-label">New Agent</span>
-					</button>
-					<button class="launcher-option" onclick={async () => {
-						agentMenuOpen = false;
-						sessionSearchQuery = '';
-						loadingSdkSessions = true;
-						showSessionPicker = true;
-						sdkSessions = await fetchSdkSessions(currentProjectPath);
-						loadingSdkSessions = false;
-					}}>
-						<svg viewBox="0 0 16 16" width="13" height="13">
-							<path d="M4 8a4 4 0 017.5-2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-							<path d="M11 3.5v2.5h-2.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-						</svg>
-						<span class="option-label">Resume Session</span>
-						<span class="option-badge">{filteredSessions.length}</span>
-					</button>
-				</div>
-			{/if}
-		</div>
-
-		<!-- Name input (appears after clicking New Agent) -->
-		{#if agentNameInputOpen}
-			<form class="agent-name-form" onsubmit={(e) => {
-				e.preventDefault();
-				const name = newPaneName.trim();
-				if (!name) return;
-				const persistedId = getPersistedSdkSessionId(name);
-				if (persistedId) {
-					resumePrompt = { name, sessionId: persistedId };
-				} else {
-					addPane(name, currentProjectPath, agentFirstMessage, combinedSystemPrompt);
-					expandedPanes.add(name);
-					expandedPanes = new Set(expandedPanes);
-				}
-				newPaneName = '';
-				agentNameInputOpen = false;
-			}}>
-				<input
-					type="text"
-					bind:this={agentNameInputRef}
-					bind:value={newPaneName}
-					placeholder="agent name"
-					class="agent-name-input"
-					onblur={() => { if (!newPaneName.trim()) setTimeout(() => agentNameInputOpen = false, 150); }}
-					onkeydown={(e) => { if (e.key === 'Escape') { newPaneName = ''; agentNameInputOpen = false; } }}
-				/>
-				<button type="submit" class="cta cta-icon" disabled={!newPaneName.trim()}>
-					<svg viewBox="0 0 16 16" width="12" height="12">
-						<path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-					</svg>
-				</button>
-				<button type="button" class="cta cta-icon danger" onclick={() => { newPaneName = ''; agentNameInputOpen = false; }}>
-					<svg viewBox="0 0 16 16" width="10" height="10">
-						<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-					</svg>
-				</button>
-			</form>
-		{/if}
-
-		<!-- Resume prompt -->
-		{#if resumePrompt}
-			<div class="resume-prompt">
-				<svg viewBox="0 0 16 16" width="12" height="12" class="resume-icon">
-					<path d="M3 8a5 5 0 019-2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-					<path d="M12 3v3h-3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-				</svg>
-				<span class="resume-text">Resume <strong>{resumePrompt.name}</strong>?</span>
-				<button class="cta cta-primary" onclick={() => {
-					if (resumePrompt) {
-						addPane(resumePrompt.name, currentProjectPath, agentFirstMessage, agentSystemPrompt, resumePrompt.sessionId);
-						expandedPanes.add(resumePrompt.name);
-						expandedPanes = new Set(expandedPanes);
-						resumePrompt = null;
-					}
-				}}>
-					<svg viewBox="0 0 12 12" width="10" height="10">
-						<path d="M2 6l3 3 5-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-					</svg>
-					Resume
-				</button>
-				<button class="cta cta-ghost" onclick={() => {
-					if (resumePrompt) {
-						addPane(resumePrompt.name, currentProjectPath, agentFirstMessage, agentSystemPrompt);
-						expandedPanes.add(resumePrompt.name);
-						expandedPanes = new Set(expandedPanes);
-						resumePrompt = null;
-					}
-				}}>
-					<svg viewBox="0 0 12 12" width="10" height="10">
-						<circle cx="6" cy="6" r="4" fill="none" stroke="currentColor" stroke-width="1.2"/>
-						<path d="M6 4v4M4 6h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-					</svg>
-					Fresh
-				</button>
-				<button class="cta cta-icon danger" onclick={() => { resumePrompt = null; }}>
-					<svg viewBox="0 0 12 12" width="10" height="10">
-						<path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-					</svg>
-				</button>
-			</div>
-		{/if}
-
-		<div class="agent-tabs">
-			{#each [...wsPanes.values()] as pane}
-				{@const unread = getUnreadCount(pane.name)}
-				<button
-					class="agent-tab"
-					class:active={expandedPanes.has(pane.name)}
-					class:streaming={pane.streaming}
-					class:unread={unread > 0}
-					onclick={() => { if (expandedPanes.has(pane.name)) { expandedPanes.delete(pane.name); } else { expandedPanes.add(pane.name); } expandedPanes = new Set(expandedPanes); }}
-				>
-					<span class="tab-dot" class:live={pane.streaming}></span>
-					<span class="tab-name">{pane.name}</span>
-					{#if unread > 0}
-						<span class="tab-unread">{unread > 99 ? '99+' : unread}</span>
-					{:else if pane.messages.length > 0}
-						<span class="tab-count">{pane.messages.length}</span>
-					{/if}
-				</button>
-			{/each}
-		</div>
-		<div class="agent-bar-spacer"></div>
-		<div class="agent-bar-status">
-			<StatusBar
-				dataStatus={loadingStatus}
-				agentConnected={wsConnected}
-				agentCount={wsPanes.size}
-				unreadCount={getTotalUnreadCount()}
-				{agentEnabled}
-				light={!isDarkMode}
-				onstartAgent={startAgentServer}
-				onrestartAgent={restartAgentServer}
-			/>
-		</div>
-	</div>
-
-	<PaneActivity
-		{wsPanes}
-		{expandedPanes}
-		{paneSizes}
-		{panePositions}
-		{paneCustomSizes}
-		bind:paneMessageInputs
-		{draggingPane}
-		{resizingPane}
-		disabled={!wsConnected}
-		toolsExpandedByDefault={agentToolsExpanded}
-		{getUnreadCount}
-		onStartDrag={startDrag}
-		onStartResize={startResize}
-		onCyclePaneSize={cyclePaneSize}
-		onRemovePane={removePane}
-		onMinimizePane={(name) => { expandedPanes.delete(name); expandedPanes = new Set(expandedPanes); }}
-		onSendMessage={(name, msg) => sendToPane(name, msg, currentProjectPath)}
-		onMouseMove={handleMouseMove}
-		onMouseUp={handleMouseUp}
-		onEndSession={endSession}
-		onClearSession={clearSession}
-		onContinueSession={(name) => {
-			// Resume using the pane's stored SDK session ID
-			const pane = wsPanes.get(name);
-			const sessionId = pane?.sdkSessionId || getPersistedSdkSessionId(name);
-			if (sessionId) {
-				removePane(name);
-				// Preserve ticketId from existing pane or infer from name
-				const ticketId = pane?.ticketId ?? extractTicketIdFromName(name);
-				addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, sessionId, ticketId);
-				expandedPanes.add(name);
-				expandedPanes = new Set(expandedPanes);
-			} else {
-				// No session to resume, just continue
-				continueSession(name);
-			}
-		}}
-		onCompactSession={compactSession}
-		onFetchSessions={() => fetchSdkSessions(currentProjectPath)}
-		onResumeSession={(name, sessionId) => {
-			// Remove existing pane and add new one with session
-			const pane = wsPanes.get(name);
-			removePane(name);
-			// Preserve ticketId from existing pane or infer from name
-			const ticketId = pane?.ticketId ?? extractTicketIdFromName(name);
-			addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, sessionId, ticketId);
-			expandedPanes.add(name);
-			expandedPanes = new Set(expandedPanes);
-		}}
-		onMarkAsRead={markPaneAsRead}
-		onOpenTicket={openTicketFromPane}
-	/>
-</div>
-{/if}
-
-<!-- Session Picker Modal -->
-{#if showSessionPicker}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="session-picker-overlay" onclick={() => showSessionPicker = false}>
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="session-picker-modal" onclick={(e) => e.stopPropagation()}>
-			<header class="picker-header">
-				<div class="picker-title-row">
-					<svg viewBox="0 0 16 16" width="16" height="16" class="picker-icon">
-						<path d="M3 8a5 5 0 019-2M13 8a5 5 0 01-9 2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-						<path d="M12 3v3h-3M4 13v-3h3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-					</svg>
-					<h3>Load Session</h3>
-				</div>
-				<div class="picker-search-row">
-					<svg viewBox="0 0 16 16" width="12" height="12" class="search-icon">
-						<circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.2"/>
-						<path d="M10.5 10.5l3 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-					</svg>
-					<input
-						type="text"
-						class="picker-search"
-						placeholder="Search sessions..."
-						bind:value={sessionSearchQuery}
-					/>
-					<span class="picker-count">{searchedSessions().length}</span>
-				</div>
-				<button class="cta cta-icon danger picker-close-override" onclick={() => showSessionPicker = false}>
-					<svg viewBox="0 0 14 14" width="14" height="14">
-						<path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-					</svg>
-				</button>
-			</header>
-			{#if loadingSdkSessions}
-				<div class="picker-state">
-					<span class="spinner"></span>
-					<span>Loading sessions...</span>
-				</div>
-			{:else if filteredSessions.length === 0}
-				<div class="picker-state empty">
-					<svg viewBox="0 0 24 24" width="24" height="24" class="empty-icon">
-						<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/>
-						<path d="M12 8v4M12 15v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-					</svg>
-					<span>No saved sessions</span>
-				</div>
-			{:else if searchedSessions().length === 0}
-				<div class="picker-state empty">
-					<span>No matches for "{sessionSearchQuery}"</span>
-				</div>
-			{:else}
-				<div class="picker-list">
-					{#each searchedSessions() as session, i}
-						{@const timeAgo = (() => {
-							const diff = Date.now() - new Date(session.timestamp).getTime();
-							const mins = Math.floor(diff / 60000);
-							const hours = Math.floor(diff / 3600000);
-							const days = Math.floor(diff / 86400000);
-							if (mins < 60) return `${mins}m`;
-							if (hours < 24) return `${hours}h`;
-							if (days < 7) return `${days}d`;
-							return new Date(session.timestamp).toLocaleDateString('en', { month: 'short', day: 'numeric' });
-						})()}
-						<button
-							class="picker-item"
-							style="animation-delay: {i * 25}ms"
-							onclick={() => {
-								const name = session.agentName || session.sessionId.slice(0, 8);
-								// Infer ticketId from agent name pattern
-								const ticketId = extractTicketIdFromName(name);
-								addPane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, session.sessionId, ticketId);
-								expandedPanes.add(name);
-								expandedPanes = new Set(expandedPanes);
-								showSessionPicker = false;
-							}}
-						>
-							<div class="picker-item-main">
-								<span class="picker-item-name">{session.agentName || 'unnamed'}</span>
-								{#if session.summary}
-									<span class="picker-item-summary">{session.summary}</span>
-								{:else if session.preview.length > 0}
-									<span class="picker-item-preview">{session.preview[0].slice(0, 50)}</span>
-								{/if}
-							</div>
-							<div class="picker-item-meta">
-								<span class="picker-item-time">{timeAgo}</span>
-								<svg viewBox="0 0 16 16" width="12" height="12" class="picker-arrow">
-									<path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-								</svg>
-							</div>
-						</button>
-					{/each}
-				</div>
-			{/if}
-		</div>
-	</div>
-{/if}
+<AgentBar
+	{wsConnected}
+	{showActivityBar}
+	{wsPanes}
+	bind:expandedPanes
+	bind:agentMenuOpen
+	bind:agentNameInputOpen
+	bind:newPaneName
+	bind:agentNameInputRef
+	bind:resumePrompt
+	bind:showSessionPicker
+	bind:sdkSessions
+	bind:loadingSdkSessions
+	bind:sessionSearchQuery
+	{filteredSessions}
+	{searchedSessions}
+	{paneSizes}
+	{panePositions}
+	{paneCustomSizes}
+	bind:paneMessageInputs
+	{draggingPane}
+	{resizingPane}
+	{loadingStatus}
+	{agentEnabled}
+	{isDarkMode}
+	{agentToolsExpanded}
+	{currentProjectPath}
+	{agentFirstMessage}
+	{combinedSystemPrompt}
+	{agentSystemPrompt}
+	{getPersistedSdkSessionId}
+	{getUnreadCount}
+	{getTotalUnreadCount}
+	{extractTicketIdFromName}
+	onaddpane={addPane}
+	onremovepane={removePane}
+	onsendtopane={sendToPane}
+	onstartagentserver={startAgentServer}
+	onrestartagentserver={restartAgentServer}
+	onfetchsdksessions={fetchSdkSessions}
+	onendSession={endSession}
+	onclearSession={clearSession}
+	oncontinueSession={continueSession}
+	oncompactSession={compactSession}
+	onmarkPaneAsRead={markPaneAsRead}
+	onopenTicketFromPane={openTicketFromPane}
+	onstartDrag={startDrag}
+	onstartResize={startResize}
+	oncyclePaneSize={cyclePaneSize}
+	onhandleMouseMove={handleMouseMove}
+	onhandleMouseUp={handleMouseUp}
+/>
 
 <FlyingCardComponent {teleports} />
 </div>
 
 <InitialLoader status={loadingStatus} visible={!initialLoaded} />
-
-{#if !wsConnected}
-<div class="status-bar-fallback" class:light={!isDarkMode}>
-	<StatusBar
-		dataStatus={loadingStatus}
-		agentConnected={wsConnected}
-		agentCount={wsPanes.size}
-		unreadCount={getTotalUnreadCount()}
-		{agentEnabled}
-		light={!isDarkMode}
-		onstartAgent={startAgentServer}
-		onrestartAgent={restartAgentServer}
-	/>
-</div>
-{/if}
 
 
 {#snippet detailPanel()}
@@ -2343,227 +1375,20 @@ Review the notification content and apply any required action to ticket {id}.
 {/snippet}
 
 <style>
-	@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap');
-
-	:root {
-		--bg-primary: #3f3f46;
-		--bg-secondary: #27272a;
-		--bg-tertiary: #18181b;
-		--bg-elevated: #3a3a3c;
-		--border-subtle: rgba(255, 255, 255, 0.08);
-		--border-default: rgba(255, 255, 255, 0.12);
-		--border-strong: rgba(255, 255, 255, 0.18);
-		--text-primary: #ffffff;
-		--text-secondary: #98989d;
-		--text-tertiary: #636366;
-		--accent-primary: #0a84ff;
-		--accent-glow: rgba(10, 132, 255, 0.15);
-		--radius-sm: 8px;
-		--radius-md: 12px;
-		--radius-lg: 20px;
-		--radius-xl: 28px;
-		--transition-fast: 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
-		--transition-smooth: 350ms cubic-bezier(0.25, 0.1, 0.25, 1);
-		--transition-bounce: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
-		--shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
-		--shadow-md: 0 4px 24px rgba(0, 0, 0, 0.2);
-		--shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.3);
-		/* CTA Button Palette */
-		--cta-primary: #6366f1;
-		--cta-primary-hover: #4f46e5;
-		--cta-secondary: #3b82f6;
-		--cta-secondary-hover: #2563eb;
-		--cta-danger: #ef4444;
-		--cta-danger-hover: #dc2626;
-		--cta-muted: rgba(255, 255, 255, 0.08);
-		--cta-muted-hover: rgba(255, 255, 255, 0.14);
+	.version-warning {
+		background: rgba(245, 158, 11, 0.15);
+		border-bottom: 1px solid rgba(245, 158, 11, 0.3);
+		color: #f59e0b;
+		padding: 6px 16px;
+		font-size: 12px;
+		text-align: center;
+		font-family: var(--font-mono);
 	}
 
-	/* ═══════════════════════════════════════════════════════════════
-	   CTA Button System - 5 variants
-	   ═══════════════════════════════════════════════════════════════ */
-
-	/* Base CTA styles */
-	.cta {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 6px;
-		font: 600 11px/1 system-ui, -apple-system, sans-serif;
-		border: none;
-		border-radius: 5px;
-		cursor: pointer;
-		transition: all 100ms ease;
-		white-space: nowrap;
-	}
-
-	.cta:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
-		pointer-events: none;
-	}
-
-	/* 1. Primary - solid indigo, main actions */
-	.cta-primary {
-		padding: 7px 12px;
-		background: linear-gradient(135deg, var(--cta-primary) 0%, var(--cta-primary-hover) 100%);
-		color: white;
-		box-shadow: 0 1px 3px rgba(99, 102, 241, 0.3);
-	}
-
-	.cta-primary:hover:not(:disabled) {
-		background: linear-gradient(135deg, #7c7ff7 0%, var(--cta-primary) 100%);
-		transform: translateY(-1px);
-		box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
-	}
-
-	.cta-primary:active:not(:disabled) {
-		transform: translateY(0);
-	}
-
-	/* 2. Secondary - outlined, less prominent */
-	.cta-secondary {
-		padding: 6px 11px;
-		background: rgba(99, 102, 241, 0.1);
-		border: 1px solid rgba(99, 102, 241, 0.25);
-		color: #a5b4fc;
-	}
-
-	.cta-secondary:hover:not(:disabled) {
-		background: rgba(99, 102, 241, 0.18);
-		border-color: rgba(99, 102, 241, 0.4);
-		color: #c7d2fe;
-	}
-
-	/* 3. Ghost - minimal, text-only feel */
-	.cta-ghost {
-		padding: 6px 10px;
-		background: var(--cta-muted);
-		border: 1px solid rgba(255, 255, 255, 0.06);
-		color: var(--text-secondary);
-	}
-
-	.cta-ghost:hover:not(:disabled) {
-		background: var(--cta-muted-hover);
-		border-color: rgba(255, 255, 255, 0.12);
-		color: var(--text-primary);
-	}
-
-	/* 4. Danger - destructive actions */
-	.cta-danger {
-		padding: 6px 11px;
-		background: rgba(239, 68, 68, 0.12);
-		border: 1px solid rgba(239, 68, 68, 0.2);
-		color: #fca5a5;
-	}
-
-	.cta-danger:hover:not(:disabled) {
-		background: rgba(239, 68, 68, 0.22);
-		border-color: rgba(239, 68, 68, 0.35);
-		color: #fecaca;
-	}
-
-	/* 5. Icon-only - square buttons for icons */
-	.cta-icon {
-		width: 26px;
-		height: 26px;
-		padding: 0;
-		background: rgba(99, 102, 241, 0.12);
-		border: 1px solid rgba(99, 102, 241, 0.2);
-		color: #a5b4fc;
-	}
-
-	.cta-icon:hover:not(:disabled) {
-		background: rgba(99, 102, 241, 0.22);
-		border-color: rgba(99, 102, 241, 0.35);
-		color: #c7d2fe;
-	}
-
-	.cta-icon.danger {
-		background: rgba(239, 68, 68, 0.1);
-		border-color: rgba(239, 68, 68, 0.15);
-		color: var(--text-tertiary);
-	}
-
-	.cta-icon.danger:hover:not(:disabled) {
-		background: rgba(239, 68, 68, 0.2);
-		border-color: rgba(239, 68, 68, 0.3);
-		color: #ef4444;
-	}
-
-	/* Light mode variants */
-	.app.light .cta-secondary {
-		background: rgba(99, 102, 241, 0.08);
-		border-color: rgba(99, 102, 241, 0.2);
-		color: #6366f1;
-	}
-
-	.app.light .cta-secondary:hover:not(:disabled) {
-		background: rgba(99, 102, 241, 0.14);
-		border-color: rgba(99, 102, 241, 0.3);
-		color: #4f46e5;
-	}
-
-	.app.light .cta-ghost {
-		background: rgba(0, 0, 0, 0.04);
-		border-color: rgba(0, 0, 0, 0.06);
-		color: var(--text-secondary);
-	}
-
-	.app.light .cta-ghost:hover:not(:disabled) {
-		background: rgba(0, 0, 0, 0.08);
-		border-color: rgba(0, 0, 0, 0.1);
-	}
-
-	.app.light .cta-danger {
-		background: rgba(239, 68, 68, 0.08);
-		border-color: rgba(239, 68, 68, 0.15);
-		color: #dc2626;
-	}
-
-	.app.light .cta-danger:hover:not(:disabled) {
-		background: rgba(239, 68, 68, 0.14);
-		border-color: rgba(239, 68, 68, 0.25);
-	}
-
-	.app.light .cta-icon {
-		background: rgba(99, 102, 241, 0.08);
-		border-color: rgba(99, 102, 241, 0.15);
-		color: #6366f1;
-	}
-
-	.app.light .cta-icon:hover:not(:disabled) {
-		background: rgba(99, 102, 241, 0.14);
-		border-color: rgba(99, 102, 241, 0.25);
-	}
-
-	.app.light .cta-icon.danger {
-		background: rgba(239, 68, 68, 0.06);
-		border-color: rgba(239, 68, 68, 0.1);
-		color: var(--text-tertiary);
-	}
-
-	.app.light .cta-icon.danger:hover:not(:disabled) {
-		background: rgba(239, 68, 68, 0.12);
-		border-color: rgba(239, 68, 68, 0.2);
-		color: #dc2626;
-	}
-
-	:global(*) {
-		box-sizing: border-box;
-		margin: 0;
-		padding: 0;
-	}
-
-	:global(body) {
-		font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-		background: var(--bg-primary);
-		color: var(--text-primary);
-		line-height: 1.5;
-		-webkit-font-smoothing: antialiased;
-		-moz-osx-font-smoothing: grayscale;
-		text-rendering: optimizeLegibility;
-		overflow: hidden;
+	.version-warning code {
+		background: rgba(245, 158, 11, 0.2);
+		padding: 1px 5px;
+		border-radius: 3px;
 	}
 
 	.app {
@@ -2613,21 +1438,6 @@ Review the notification content and apply any required action to ticket {id}.
 	.app > * {
 		position: relative;
 		z-index: 1;
-	}
-
-	@keyframes auroraShift {
-		0% {
-			transform: translate(0, 0) scale(1);
-			opacity: 1;
-		}
-		50% {
-			transform: translate(2%, -1%) scale(1.02);
-			opacity: 0.8;
-		}
-		100% {
-			transform: translate(-1%, 2%) scale(0.98);
-			opacity: 1;
-		}
 	}
 
 	.app.light::before {
@@ -2720,7 +1530,7 @@ Review the notification content and apply any required action to ticket {id}.
 	.app.light.scheme-sunset { --accent-primary: #ea580c; }
 	.app.light.scheme-rose { --accent-primary: #e11d48; }
 
-			/* Main Content - Board + Panel */
+	/* Main Content - Board + Panel */
 	.main-content {
 		display: flex;
 		flex: 1;
@@ -2749,32 +1559,6 @@ Review the notification content and apply any required action to ticket {id}.
 		animation: wipeDown 350ms ease-out forwards;
 	}
 
-	@keyframes wipeUp {
-		from {
-			-webkit-mask-image: linear-gradient(to top, black 0%, black 100%);
-			mask-image: linear-gradient(to top, black 0%, black 100%);
-			opacity: 1;
-		}
-		to {
-			-webkit-mask-image: linear-gradient(to top, transparent 0%, transparent 70%, black 100%);
-			mask-image: linear-gradient(to top, transparent 0%, transparent 70%, black 100%);
-			opacity: 0;
-		}
-	}
-
-	@keyframes wipeDown {
-		from {
-			-webkit-mask-image: linear-gradient(to bottom, transparent 0%, transparent 70%, black 100%);
-			mask-image: linear-gradient(to bottom, transparent 0%, transparent 70%, black 100%);
-			opacity: 0;
-		}
-		to {
-			-webkit-mask-image: linear-gradient(to bottom, black 0%, black 100%);
-			mask-image: linear-gradient(to bottom, black 0%, black 100%);
-			opacity: 1;
-		}
-	}
-
 	/* Board */
 	.board {
 		display: flex;
@@ -2801,94 +1585,7 @@ Review the notification content and apply any required action to ticket {id}.
 		display: none; /* Chrome/Safari/Opera */
 	}
 
-	@keyframes dropPulse {
-		0%, 100% { opacity: 0.6; transform: scaleX(0.95); }
-		50% { opacity: 1; transform: scaleX(1); }
-	}
-
-	@keyframes flyCard {
-		0% {
-			transform: translate(var(--from-x), var(--from-y));
-			box-shadow:
-				0 0 0 3px rgba(59, 130, 246, 0.6),
-				0 12px 32px -6px rgba(0, 0, 0, 0.4);
-		}
-		100% {
-			transform: translate(var(--to-x), var(--to-y));
-			box-shadow:
-				0 12px 32px -6px rgba(0, 0, 0, 0.35),
-				0 6px 12px -3px rgba(0, 0, 0, 0.18);
-		}
-	}
-
-	@keyframes teleportStrobe {
-		0% {
-			transform: translate(var(--from-x), var(--from-y));
-			opacity: var(--opacity);
-			filter: blur(0px);
-		}
-		20% {
-			opacity: calc(var(--opacity) * 1.2);
-			filter: blur(1px);
-		}
-		80% {
-			opacity: calc(var(--opacity) * 0.8);
-			filter: blur(2px);
-		}
-		100% {
-			transform: translate(var(--to-x), var(--to-y));
-			opacity: 0;
-			filter: blur(4px);
-		}
-	}
-
-	@keyframes placeholderExpand {
-		from {
-			height: 0;
-		}
-		to {
-			height: var(--placeholder-height);
-		}
-	}
-
-	@keyframes copySuccess {
-		0% { transform: scale(1); }
-		50% { transform: scale(1.2); }
-		100% { transform: scale(1); }
-	}
-
-	@keyframes agent-pulse-sweep {
-		0%, 100% { transform: translateX(-100%); opacity: 0; }
-		50% { transform: translateX(100%); opacity: 1; }
-	}
-
-	@keyframes agent-icon-spin {
-		from { transform: rotate(0deg); }
-		to { transform: rotate(360deg); }
-	}
-
-	@keyframes panelSlideIn {
-		0% {
-			opacity: 0;
-			transform: scale(0.96) translateX(-16px);
-			filter: blur(4px);
-		}
-		100% {
-			opacity: 1;
-			transform: scale(1) translateX(0);
-			filter: blur(0);
-		}
-	}
-
 	@media (max-width: 768px) {
-		:root {
-			--mobile-control-height: 2.25rem;
-			--mobile-radius: 0.625rem;
-			--mobile-bg: rgba(255, 255, 255, 0.06);
-			--mobile-border: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-			--mobile-padding: 0.5rem;
-		}
-
 		/* --- Board & Cards --- */
 		.main-content {
 			flex-direction: column;
@@ -2907,750 +1604,5 @@ Review the notification content and apply any required action to ticket {id}.
 		.app {
 			gap: 0;
 		}
-
-		@keyframes panelSlideUp {
-			from {
-				opacity: 0;
-				transform: translateY(100%);
-			}
-			to {
-				opacity: 1;
-				transform: translateY(0);
-			}
-		}
 	}
-
-	
-
-	@keyframes pulseDot {
-		0%, 100% { opacity: 1; transform: scale(1); }
-		50% { opacity: 0.7; transform: scale(1.2); }
-	}
-
-	@keyframes busyPulse {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0.5; }
-	}
-
-	@keyframes cursorBlink {
-		0%, 50% { opacity: 1; }
-		51%, 100% { opacity: 0; }
-	}
-
-	@keyframes idlePulse {
-		0%, 100% { opacity: 0.3; }
-		50% { opacity: 0.6; }
-	}
-
-	/* ============================================
-	   AGENT BAR - Compact bottom bar
-	   ============================================ */
-	.agent-bar {
-		position: fixed;
-		bottom: 0;
-		left: 0;
-		right: 0;
-		z-index: 1000;
-		display: flex;
-		flex-direction: column-reverse;
-		pointer-events: none;
-	}
-
-	.agent-bar-inner {
-		display: flex;
-		align-items: center;
-		gap: 0.375rem;
-		margin: 0 8px 8px;
-		padding: 0.25rem 0.5rem;
-		background: var(--bg-secondary, rgba(20, 20, 24, 0.98));
-		border: 1px solid rgba(255, 255, 255, 0.04);
-		border-radius: 6px;
-		pointer-events: auto;
-	}
-
-	.app.light .agent-bar-inner {
-		background: rgba(255, 255, 255, 0.98);
-		border-color: rgba(0, 0, 0, 0.06);
-	}
-
-	.agent-bar-spacer {
-		flex: 1;
-		min-width: 0.5rem;
-	}
-
-	.agent-bar-status {
-		flex-shrink: 0;
-		margin-left: auto;
-	}
-
-	.agent-bar-status :global(.status-bar) {
-		background: transparent;
-		border: none;
-		padding: 0;
-	}
-
-	.status-bar-fallback {
-		position: fixed;
-		bottom: 12px;
-		right: 12px;
-		z-index: 9999;
-	}
-
-	/* ===== Agent Launcher ===== */
-	.agent-launcher {
-		position: relative;
-		flex-shrink: 0;
-	}
-
-	.launcher-btn {
-		display: flex;
-		align-items: center;
-		gap: 5px;
-		padding: 6px 8px 6px 7px;
-		background: rgba(255, 255, 255, 0.04);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 5px;
-		color: var(--text-secondary);
-		font: 500 11px/1 system-ui, -apple-system, sans-serif;
-		cursor: pointer;
-		transition: all 100ms ease;
-	}
-
-	.launcher-btn:hover {
-		background: rgba(255, 255, 255, 0.07);
-		border-color: rgba(255, 255, 255, 0.12);
-		color: var(--text-primary);
-	}
-
-	.launcher-btn.active {
-		background: rgba(99, 102, 241, 0.12);
-		border-color: rgba(99, 102, 241, 0.25);
-		color: var(--text-primary);
-	}
-
-	.launcher-label {
-		letter-spacing: -0.01em;
-	}
-
-	.launcher-caret {
-		color: var(--text-tertiary);
-		transition: transform 120ms ease;
-	}
-
-	.launcher-caret.open {
-		transform: rotate(180deg);
-	}
-
-	.launcher-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 999;
-	}
-
-	.launcher-menu {
-		position: absolute;
-		bottom: calc(100% + 4px);
-		left: 0;
-		padding: 3px;
-		background: rgba(28, 28, 32, 0.98);
-		backdrop-filter: blur(20px) saturate(1.5);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
-		box-shadow:
-			0 0 0 0.5px rgba(0, 0, 0, 0.3),
-			0 4px 16px rgba(0, 0, 0, 0.35),
-			0 8px 32px rgba(0, 0, 0, 0.2);
-		z-index: 1000;
-		animation: menuSlide 100ms ease-out;
-	}
-
-	@keyframes menuSlide {
-		from { opacity: 0; transform: translateY(3px); }
-		to { opacity: 1; transform: translateY(0); }
-	}
-
-	.launcher-option {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 7px 10px;
-		background: transparent;
-		border: none;
-		border-radius: 5px;
-		color: var(--text-primary);
-		font: 500 12px/1 system-ui, -apple-system, sans-serif;
-		text-align: left;
-		cursor: pointer;
-		transition: background 60ms ease;
-		white-space: nowrap;
-	}
-
-	.launcher-option:hover {
-		background: rgba(255, 255, 255, 0.08);
-	}
-
-	.launcher-option:active {
-		background: rgba(255, 255, 255, 0.12);
-	}
-
-	.launcher-option svg {
-		color: var(--text-tertiary);
-		flex-shrink: 0;
-		transition: color 60ms ease;
-	}
-
-	.launcher-option:hover svg {
-		color: var(--text-secondary);
-	}
-
-	.option-label {
-		flex-shrink: 0;
-	}
-
-	.option-badge {
-		margin-left: auto;
-		padding: 2px 5px;
-		font: 500 9px/1 'IBM Plex Mono', ui-monospace, monospace;
-		color: var(--text-tertiary);
-		background: rgba(255, 255, 255, 0.06);
-		border-radius: 3px;
-	}
-
-	.app.light .launcher-btn {
-		background: rgba(0, 0, 0, 0.04);
-		border-color: rgba(0, 0, 0, 0.08);
-	}
-
-	.app.light .launcher-btn:hover {
-		background: rgba(0, 0, 0, 0.06);
-		border-color: rgba(0, 0, 0, 0.12);
-	}
-
-	.app.light .launcher-btn.active {
-		background: rgba(99, 102, 241, 0.1);
-		border-color: rgba(99, 102, 241, 0.2);
-	}
-
-	.app.light .launcher-menu {
-		background: rgba(255, 255, 255, 0.98);
-		border-color: rgba(0, 0, 0, 0.08);
-		box-shadow:
-			0 0 0 0.5px rgba(0, 0, 0, 0.06),
-			0 4px 16px rgba(0, 0, 0, 0.1),
-			0 8px 32px rgba(0, 0, 0, 0.08);
-	}
-
-	.app.light .launcher-option:hover {
-		background: rgba(0, 0, 0, 0.04);
-	}
-
-	.app.light .launcher-option:active {
-		background: rgba(0, 0, 0, 0.07);
-	}
-
-	.app.light .option-badge {
-		background: rgba(0, 0, 0, 0.05);
-	}
-
-	/* ===== Agent Name Input ===== */
-	.agent-name-form {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		animation: slideIn 150ms ease-out;
-	}
-
-	@keyframes slideIn {
-		from { opacity: 0; transform: translateX(-8px); }
-		to { opacity: 1; transform: translateX(0); }
-	}
-
-	.agent-name-input {
-		width: 120px;
-		padding: 6px 10px;
-		font: 11px/1 'IBM Plex Mono', ui-monospace, monospace;
-		background: rgba(255, 255, 255, 0.06);
-		border: 1px solid rgba(99, 102, 241, 0.3);
-		border-radius: 5px;
-		color: var(--text-primary);
-		transition: all 100ms ease;
-	}
-
-	.agent-name-input:focus {
-		outline: none;
-		background: rgba(255, 255, 255, 0.1);
-		border-color: rgba(99, 102, 241, 0.6);
-		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
-	}
-
-	.agent-name-input::placeholder {
-		color: var(--text-tertiary);
-		font-style: italic;
-	}
-
-	.app.light .agent-name-input {
-		background: rgba(0, 0, 0, 0.04);
-		border-color: rgba(99, 102, 241, 0.25);
-	}
-
-	.app.light .agent-name-input:focus {
-		background: rgba(0, 0, 0, 0.06);
-	}
-
-	/* ===== Session Picker Modal ===== */
-	.session-picker-overlay {
-		position: fixed;
-		inset: 0;
-		background: rgba(0, 0, 0, 0.6);
-		backdrop-filter: blur(4px);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 10001;
-		animation: overlayIn 150ms ease-out;
-	}
-
-	@keyframes overlayIn {
-		from { opacity: 0; }
-		to { opacity: 1; }
-	}
-
-	.session-picker-modal {
-		width: 400px;
-		max-width: 90vw;
-		max-height: 80vh;
-		background: var(--bg-secondary, #1a1a1f);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 12px;
-		box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
-		overflow: hidden;
-		display: flex;
-		flex-direction: column;
-		animation: modalIn 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
-	}
-
-	@keyframes modalIn {
-		from { opacity: 0; transform: scale(0.92) translateY(20px); }
-		to { opacity: 1; transform: scale(1) translateY(0); }
-	}
-
-	.picker-header {
-		display: grid;
-		grid-template-columns: 1fr auto;
-		grid-template-rows: auto auto;
-		gap: 10px;
-		padding: 16px;
-		background: rgba(255, 255, 255, 0.02);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-
-	.picker-title-row {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		grid-column: 1;
-	}
-
-	.picker-title-row h3 {
-		font: 600 14px/1 system-ui;
-		color: var(--text-primary);
-		margin: 0;
-	}
-
-	.picker-icon {
-		color: rgba(99, 102, 241, 0.8);
-	}
-
-	.picker-close-override {
-		grid-column: 2;
-		grid-row: 1;
-		width: 28px;
-		height: 28px;
-	}
-
-	.picker-search-row {
-		grid-column: 1 / -1;
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 8px 12px;
-		background: rgba(255, 255, 255, 0.04);
-		border-radius: 6px;
-	}
-
-	.search-icon {
-		color: var(--text-tertiary);
-		flex-shrink: 0;
-	}
-
-	.picker-search {
-		flex: 1;
-		padding: 0;
-		font: 12px/1 'IBM Plex Mono', ui-monospace, monospace;
-		background: transparent;
-		border: none;
-		color: var(--text-primary);
-	}
-
-	.picker-search:focus {
-		outline: none;
-	}
-
-	.picker-search::placeholder {
-		color: var(--text-tertiary);
-	}
-
-	.picker-count {
-		font: 600 10px/1 'IBM Plex Mono', monospace;
-		color: rgba(99, 102, 241, 0.8);
-		background: rgba(99, 102, 241, 0.15);
-		padding: 3px 8px;
-		border-radius: 10px;
-	}
-
-	.picker-state {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 12px;
-		padding: 48px 24px;
-		color: var(--text-tertiary);
-		font: 12px/1.4 system-ui;
-	}
-
-	.picker-state .spinner {
-		width: 20px;
-		height: 20px;
-		border: 2px solid rgba(99, 102, 241, 0.2);
-		border-top-color: rgba(99, 102, 241, 0.8);
-		border-radius: 50%;
-		animation: spin 0.8s linear infinite;
-	}
-
-	@keyframes spin {
-		to { transform: rotate(360deg); }
-	}
-
-	.picker-state.empty .empty-icon {
-		color: var(--text-tertiary);
-		opacity: 0.5;
-	}
-
-	.picker-list {
-		flex: 1;
-		overflow-y: auto;
-		padding: 8px;
-	}
-
-	.picker-item {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		width: 100%;
-		padding: 12px 14px;
-		margin-bottom: 4px;
-		background: rgba(255, 255, 255, 0.02);
-		border: 1px solid rgba(255, 255, 255, 0.04);
-		border-radius: 8px;
-		cursor: pointer;
-		transition: all 100ms ease;
-		animation: itemIn 150ms ease-out backwards;
-	}
-
-	@keyframes itemIn {
-		from { opacity: 0; transform: translateY(8px); }
-		to { opacity: 1; transform: translateY(0); }
-	}
-
-	.picker-item:hover {
-		background: rgba(99, 102, 241, 0.1);
-		border-color: rgba(99, 102, 241, 0.25);
-		transform: translateX(2px);
-	}
-
-	.picker-item:last-child {
-		margin-bottom: 0;
-	}
-
-	.picker-item-main {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-		text-align: left;
-		min-width: 0;
-	}
-
-	.picker-item-name {
-		font: 600 12px/1 'IBM Plex Mono', ui-monospace, monospace;
-		color: var(--text-primary);
-	}
-
-	.picker-item-summary {
-		font: 400 10px/1.3 system-ui;
-		color: rgba(99, 102, 241, 0.8);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		max-width: 280px;
-	}
-
-	.picker-item-preview {
-		font: 400 10px/1.3 'IBM Plex Mono', monospace;
-		color: var(--text-tertiary);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		max-width: 280px;
-	}
-
-	.picker-item-meta {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		flex-shrink: 0;
-	}
-
-	.picker-item-time {
-		font: 500 10px/1 'IBM Plex Mono', monospace;
-		color: var(--text-tertiary);
-		background: rgba(255, 255, 255, 0.05);
-		padding: 3px 6px;
-		border-radius: 4px;
-	}
-
-	.picker-arrow {
-		color: var(--text-tertiary);
-		opacity: 0;
-		transition: all 100ms ease;
-	}
-
-	.picker-item:hover .picker-arrow {
-		opacity: 1;
-		transform: translateX(2px);
-		color: rgba(99, 102, 241, 0.8);
-	}
-
-	.app.light .session-picker-overlay {
-		background: rgba(0, 0, 0, 0.4);
-	}
-
-	.app.light .session-picker-modal {
-		background: var(--surface-elevated);
-		border-color: var(--border-default);
-		box-shadow: var(--shadow-elevated);
-	}
-
-	.app.light .picker-header {
-		background: rgba(60, 70, 80, 0.04);
-		border-color: var(--border-subtle);
-	}
-
-	.app.light .picker-search-row {
-		background: rgba(60, 70, 80, 0.03);
-	}
-
-	.app.light .picker-item {
-		background: rgba(60, 70, 80, 0.02);
-		border-color: rgba(60, 70, 80, 0.06);
-	}
-
-	.app.light .picker-item:hover {
-		background: rgba(79, 107, 143, 0.10);
-	}
-
-	/* ===== Resume Prompt ===== */
-	.resume-prompt {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 6px 12px;
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.08) 100%);
-		border: 1px solid rgba(99, 102, 241, 0.2);
-		border-radius: 6px;
-		animation: slideIn 150ms ease-out;
-	}
-
-	.resume-icon {
-		color: rgba(99, 102, 241, 0.8);
-		flex-shrink: 0;
-	}
-
-	.resume-text {
-		font: 11px/1.2 system-ui;
-		color: var(--text-secondary);
-	}
-
-	.resume-text strong {
-		color: var(--text-primary);
-		font-weight: 600;
-	}
-
-	.app.light .resume-prompt {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(99, 102, 241, 0.05) 100%);
-	}
-
-	.agent-tabs {
-		display: flex;
-		gap: 2px;
-		flex: 1;
-		overflow-x: auto;
-		scrollbar-width: none;
-	}
-
-	.agent-tabs::-webkit-scrollbar {
-		display: none;
-	}
-
-	.agent-tab {
-		display: flex;
-		align-items: center;
-		gap: 0.25rem;
-		padding: 0.25rem 0.5rem;
-		background: transparent;
-		border: none;
-		border-radius: 3px;
-		color: var(--text-tertiary);
-		font: 11px/1 'IBM Plex Mono', ui-monospace, monospace;
-		cursor: pointer;
-		transition: all 80ms ease;
-		white-space: nowrap;
-	}
-
-	.agent-tab:hover {
-		background: rgba(255, 255, 255, 0.06);
-		color: var(--text-primary);
-	}
-
-	.agent-tab.active {
-		background: rgba(99, 102, 241, 0.12);
-		color: var(--text-primary);
-	}
-
-	.agent-tab.streaming {
-		color: var(--text-primary);
-	}
-
-	.app.light .agent-tab:hover {
-		background: rgba(0, 0, 0, 0.05);
-	}
-
-	.app.light .agent-tab.active {
-		background: rgba(99, 102, 241, 0.1);
-	}
-
-	.tab-dot {
-		width: 5px;
-		height: 5px;
-		border-radius: 50%;
-		background: currentColor;
-		opacity: 0.4;
-		flex-shrink: 0;
-	}
-
-	.tab-dot.live {
-		background: #f59e0b;
-		opacity: 1;
-		box-shadow: 0 0 4px rgba(245, 158, 11, 0.5);
-		animation: pulse 1.2s ease-in-out infinite;
-	}
-
-	.tab-name {
-		max-width: 80px;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.tab-count {
-		font-size: 9px;
-		color: var(--text-tertiary);
-		opacity: 0.7;
-	}
-
-	.agent-tab.active .tab-count {
-		color: #6366f1;
-		opacity: 1;
-	}
-
-	.agent-tab.unread {
-		border-color: rgba(239, 68, 68, 0.4);
-	}
-
-	.tab-unread {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 14px;
-		height: 14px;
-		padding: 0 4px;
-		background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-		border-radius: 7px;
-		font-size: 8px;
-		font-weight: 700;
-		color: #fff;
-		letter-spacing: -0.02em;
-		box-shadow: 0 1px 2px rgba(239, 68, 68, 0.3);
-	}
-
-	@keyframes msgIn {
-		from {
-			opacity: 0;
-			transform: translateY(8px) scale(0.96);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0) scale(1);
-		}
-	}
-
-	@keyframes blink {
-		50% { opacity: 0; }
-	}
-
-	@keyframes pulse {
-		0%, 100% { opacity: 1; }
-		50% { opacity: 0.5; }
-	}
-
-	@keyframes contextMenuIn {
-		0% {
-			opacity: 0;
-			transform: scale(0.95);
-		}
-		100% {
-			opacity: 1;
-			transform: scale(1);
-		}
-	}
-
-	@keyframes ropeTipPulse {
-		0%, 100% { opacity: 0.6; transform: scale(1); }
-		50% { opacity: 1; transform: scale(1.2); }
-	}
-
-	@keyframes energyFlow {
-		from { stroke-dashoffset: 0; }
-		to { stroke-dashoffset: -16; }
-	}
-
-	@keyframes ringPulse {
-		0%, 100% { stroke-opacity: 0.8; }
-		50% { stroke-opacity: 1; }
-	}
-
-	@keyframes corePulse {
-		0%, 100% { transform: scale(1); }
-		50% { transform: scale(1.1); }
-	}
-
-	@keyframes labelGlow {
-		from { opacity: 0; }
-		to { opacity: 1; }
-	}
-
-	@keyframes slideUp {
-		from { opacity: 0; transform: translateY(20px) scale(0.95); }
-		to { opacity: 1; transform: translateY(0) scale(1); }
-	}
-
 </style>
