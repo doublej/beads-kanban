@@ -2,6 +2,7 @@
 	import { browser } from '$app/environment';
 	import '$lib/styles/components.css';
 	import '$lib/styles/global.css';
+	import { pushService } from '$lib/notifications/push-service';
 
 	let { data, children } = $props();
 
@@ -15,6 +16,9 @@
 			} else {
 				isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
 			}
+
+			// Initialize push service for browser notifications
+			pushService.init();
 
 			const handleStorage = (e: StorageEvent) => {
 				if (e.key === 'theme') {
