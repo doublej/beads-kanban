@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import type { NotificationMode, NotificationEventSettings } from '$lib/notifications/types';
 
 const DEFAULT_AGENT_FIRST_MESSAGE = 'You are an agent named "{name}". Await further instructions.';
 
@@ -88,6 +89,17 @@ function loadNumber(key: string, fallback: number): number {
 	return Number(v);
 }
 
+function loadObject<T>(key: string, fallback: T): T {
+	if (!browser) return fallback;
+	const v = localStorage.getItem(key);
+	if (v === null) return fallback;
+	try {
+		return JSON.parse(v) as T;
+	} catch {
+		return fallback;
+	}
+}
+
 function persist(key: string, value: string) {
 	if (browser) localStorage.setItem(key, value);
 }
@@ -97,6 +109,23 @@ function createSettings() {
 	let isDarkMode = $state(true);
 	let colorScheme = $state('default');
 	let notificationsEnabled = $state(false);
+
+	// Notifications
+	let notificationMode = $state<NotificationMode>('none');
+	let notificationEvents = $state<NotificationEventSettings>({
+		blocked: true,
+		unblocked: true,
+		status_changed: true,
+		priority_changed: false,
+		assignee_changed: true,
+		comment_added: false,
+		dependency_added: false,
+		label_modified: false,
+		attachment_added: false,
+		issue_created: false,
+		issue_closed: true
+	});
+	let mcpBatchDelay = $state(5000);
 
 	// Agent
 	let agentEnabled = $state(true);
@@ -137,6 +166,9 @@ function createSettings() {
 		agentToolsExpanded = loadBool('agentToolsExpanded', agentToolsExpanded);
 		colorScheme = loadString('colorScheme', colorScheme);
 		notificationsEnabled = loadBool('notificationsEnabled', notificationsEnabled);
+		notificationMode = loadString('notificationMode', notificationMode) as NotificationMode;
+		notificationEvents = loadObject('notificationEvents', notificationEvents);
+		mcpBatchDelay = loadNumber('mcpBatchDelay', mcpBatchDelay);
 	}
 
 	function toggleColumnCollapse(key: string) {
@@ -177,6 +209,12 @@ function createSettings() {
 		set agentToolsExpanded(v: boolean) { agentToolsExpanded = v; persist('agentToolsExpanded', String(v)); },
 		get collapsedColumns() { return collapsedColumns; },
 		get combinedSystemPrompt() { return combinedSystemPrompt; },
+		get notificationMode() { return notificationMode; },
+		set notificationMode(v: NotificationMode) { notificationMode = v; persist('notificationMode', v); },
+		get notificationEvents() { return notificationEvents; },
+		set notificationEvents(v: NotificationEventSettings) { notificationEvents = v; persist('notificationEvents', JSON.stringify(v)); },
+		get mcpBatchDelay() { return mcpBatchDelay; },
+		set mcpBatchDelay(v: number) { mcpBatchDelay = v; persist('mcpBatchDelay', String(v)); },
 		load,
 		toggleColumnCollapse,
 	};

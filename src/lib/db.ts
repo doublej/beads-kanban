@@ -146,6 +146,79 @@ export function getAllIssues(): Issue[] {
 	}));
 }
 
+export function getIssueById(id: string): Issue | null {
+	const db = openReadonly();
+
+	const issue = db.prepare(`
+		SELECT id, title, description, design, acceptance_criteria, notes,
+		       status, priority, issue_type, assignee, created_at, updated_at, closed_at
+		FROM issues
+		WHERE id = ? AND status != 'tombstone'
+	`).get(id) as DbIssue | undefined;
+
+	if (!issue) {
+		db.close();
+		return null;
+	}
+
+	const deps = db.prepare(`
+		SELECT d.depends_on_id, d.type, i.title as dep_title, i.status as dep_status
+		FROM dependencies d
+		JOIN issues i ON i.id = d.depends_on_id
+		WHERE d.issue_id = ?
+	`).all(id) as DbDependency[];
+
+	const dependents = db.prepare(`
+		SELECT d.issue_id as dependent_id, d.type, i.title, i.status
+		FROM dependencies d
+		JOIN issues i ON i.id = d.issue_id
+		WHERE d.depends_on_id = ?
+	`).all(id) as { dependent_id: string; type: string; title: string; status: string }[];
+
+	const labels = db.prepare(`
+		SELECT label FROM labels WHERE issue_id = ?
+	`).all(id) as { label: string }[];
+
+	db.close();
+
+	// Get attachments and comments
+	const attachmentsMap = getAllAttachments();
+	const commentsMap = getAllComments();
+
+	return {
+		id: issue.id,
+		title: issue.title,
+		description: issue.description,
+		design: issue.design || undefined,
+		acceptance_criteria: issue.acceptance_criteria || undefined,
+		notes: issue.notes || undefined,
+		status: issue.status as Issue['status'],
+		priority: issue.priority as Issue['priority'],
+		issue_type: issue.issue_type,
+		assignee: issue.assignee || undefined,
+		created_at: issue.created_at,
+		updated_at: issue.updated_at || undefined,
+		closed_at: issue.closed_at || undefined,
+		labels: labels.map(l => l.label),
+		dependencies: deps.map(d => ({
+			id: d.depends_on_id,
+			title: d.dep_title,
+			status: d.dep_status,
+			dependency_type: d.type
+		})),
+		dependents: dependents.map(d => ({
+			id: d.dependent_id,
+			title: d.title,
+			status: d.status,
+			dependency_type: d.type
+		})),
+		dependency_count: deps.length,
+		dependent_count: dependents.length,
+		attachments: attachmentsMap.get(id) ?? [],
+		comments: commentsMap.get(id) ?? []
+	};
+}
+
 interface DbEvent {
 	id: number;
 	issue_id: string;

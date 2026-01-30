@@ -2,7 +2,8 @@ import { json } from '@sveltejs/kit';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import type { RequestHandler } from './$types';
-import { getBdDbFlag } from '$lib/db';
+import { getBdDbFlag, getIssueById } from '$lib/db';
+import { notificationStore } from '$lib/notifications/notification-store.svelte';
 
 const execAsync = promisify(exec);
 const VALID_STATUSES = ['open', 'in_progress', 'hooked', 'blocked', 'closed'];
@@ -13,6 +14,9 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	if (status && !VALID_STATUSES.includes(status)) {
 		return json({ error: 'Invalid status' }, { status: 400 });
 	}
+
+	// Read issue before update to detect changes
+	const beforeIssue = getIssueById(params.id);
 
 	const dbFlag = getBdDbFlag();
 	const commands: string[] = [];
@@ -44,8 +48,43 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 
 	try {
 		// Run all commands in parallel for better performance
-		const results = await Promise.all(commands.map(cmd => execAsync(cmd)));
-		return json({ success: true, message: results.map(r => r.stdout.trim()).join('\n') });
+		await Promise.all(commands.map(cmd => execAsync(cmd)));
+
+		// Read updated issue
+		const afterIssue = getIssueById(params.id);
+
+		// Emit notification events based on changes
+		if (beforeIssue && afterIssue) {
+			// Status changes
+			if (beforeIssue.status !== afterIssue.status) {
+				notificationStore.emit('status_changed', afterIssue);
+
+				// Special handling for blocked/unblocked
+				if (afterIssue.status === 'blocked') {
+					notificationStore.emit('blocked', afterIssue);
+				}
+				if (beforeIssue.status === 'blocked' && afterIssue.status !== 'blocked') {
+					notificationStore.emit('unblocked', afterIssue);
+				}
+			}
+
+			// Priority changes
+			if (beforeIssue.priority !== afterIssue.priority) {
+				notificationStore.emit('priority_changed', afterIssue);
+			}
+
+			// Assignee changes
+			if (beforeIssue.assignee !== afterIssue.assignee) {
+				notificationStore.emit('assignee_changed', afterIssue);
+			}
+
+			// Label changes
+			if (addLabels?.length || removeLabels?.length) {
+				notificationStore.emit('label_modified', afterIssue);
+			}
+		}
+
+		return json({ success: true });
 	} catch (err: unknown) {
 		const error = err as { stderr?: string; message?: string };
 		return json({ error: error.stderr || error.message || 'Update failed' }, { status: 500 });
@@ -54,7 +93,16 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 
 export const DELETE: RequestHandler = async ({ params }) => {
 	try {
+		// Read issue before deletion for notification
+		const issue = getIssueById(params.id);
+
 		await execAsync(`bd ${getBdDbFlag()} delete ${params.id}`);
+
+		// Emit notification event
+		if (issue) {
+			notificationStore.emit('issue_closed', issue);
+		}
+
 		return json({ success: true });
 	} catch (err: unknown) {
 		const error = err as { stderr?: string; message?: string };

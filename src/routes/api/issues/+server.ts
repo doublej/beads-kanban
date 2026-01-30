@@ -3,6 +3,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import type { RequestHandler } from './$types';
 import { getAllIssues, getBdDbFlag } from '$lib/db';
+import { notificationStore } from '$lib/notifications/notification-store.svelte';
 
 const execAsync = promisify(exec);
 
@@ -30,6 +31,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		const { stdout, stderr } = await execAsync(cmd);
 		// Parse JSON output to get the new issue ID
 		const created = JSON.parse(stdout.trim());
+
+		// Emit notification event
+		notificationStore.emit('issue_created', created);
+
 		return json({ success: true, id: created.id, issue: created, warning: stderr || undefined });
 	} catch (err: unknown) {
 		const error = err as { stderr?: string; message?: string };
