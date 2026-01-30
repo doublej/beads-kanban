@@ -5,6 +5,7 @@
 	import ProjectSettings from './ProjectSettings.svelte';
 	import AgentSettings from './AgentSettings.svelte';
 	import AppearanceSettings from './AppearanceSettings.svelte';
+	import NotificationSettings from './NotificationSettings.svelte';
 	import KeyboardShortcuts from './KeyboardShortcuts.svelte';
 
 	interface Props {
@@ -22,10 +23,8 @@
 		agentTicketNotification: string;
 		agentToolsExpanded: boolean;
 		colorScheme: string;
-		notificationsEnabled: boolean;
 		ontoggleTheme: () => void;
 		onsetColorScheme: (scheme: string) => void;
-		ontoggleNotifications: () => void;
 	}
 
 	let {
@@ -43,10 +42,8 @@
 		agentTicketNotification = $bindable(),
 		agentToolsExpanded = $bindable(),
 		colorScheme,
-		notificationsEnabled,
 		ontoggleTheme,
-		onsetColorScheme,
-		ontoggleNotifications
+		onsetColorScheme
 	}: Props = $props();
 
 	function handleOverlayClick() {
@@ -96,11 +93,11 @@
 			<AppearanceSettings
 				{isDarkMode}
 				{colorScheme}
-				{notificationsEnabled}
 				{ontoggleTheme}
 				{onsetColorScheme}
-				{ontoggleNotifications}
 			/>
+
+			<NotificationSettings />
 
 			<KeyboardShortcuts />
 		</div>

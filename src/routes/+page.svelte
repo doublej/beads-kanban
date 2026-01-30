@@ -35,6 +35,7 @@
 	import ThemeTransition from '$lib/components/ThemeTransition.svelte';
 	import ProjectSwitcher from '$lib/components/ProjectSwitcher.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
+	import { notificationStore } from '$lib/notifications/notification-store.svelte';
 	import { createPaneDrag } from '$lib/stores/pane-drag.svelte';
 	import { isValidSession as isValidSessionFn } from '$lib/agent/ticket-delivery';
 	import { createKeyboardNav } from '$lib/keyboard/kanban-nav';
@@ -57,7 +58,6 @@
 	let activeColumnIndex = $state(0);
 	let isDarkMode = $state(true);
 	let colorScheme = $state('default');
-	let notificationsEnabled = $state(false);
 	let themeTransitionActive = $state(false);
 	let themeTransitionToLight = $state(false);
 	let showActivityBar = $state(true);
@@ -102,14 +102,8 @@
 
 	// --- Issue Store ---
 	const issueStore = createIssueStore({
-		onNewIssue: (issue) => sendNotification('New Issue Created', issue.title),
-		onStatusChange: (issue, oldStatus) => {
-			if (issue.status === 'blocked' && oldStatus !== 'blocked') {
-				sendNotification('Issue Blocked', `${issue.title} is now blocked`);
-			} else if (issue.status !== 'blocked' && oldStatus === 'blocked') {
-				sendNotification('Issue Unblocked', `${issue.title} is no longer blocked`);
-			}
-		},
+		onNewIssue: () => {}, // Notifications now handled by event system
+		onStatusChange: () => {}, // Notifications now handled by event system
 		getCardPosition: (id) => {
 			const el = cardRefs.get(id);
 			if (!el) return null;
@@ -262,29 +256,6 @@
 		themeTransitionActive = false;
 	}
 
-	// --- Notifications ---
-	async function toggleNotifications() {
-		if (notificationsEnabled) {
-			notificationsEnabled = false;
-			return;
-		}
-		if (!browser) return;
-		if (!('Notification' in window)) return;
-		if (Notification.permission === 'granted') {
-			notificationsEnabled = true;
-		} else if (Notification.permission !== 'denied') {
-			const permission = await Notification.requestPermission();
-			if (permission === 'granted') notificationsEnabled = true;
-		}
-	}
-
-	function sendNotification(title: string, body: string) {
-		if (!notificationsEnabled || !browser) return;
-		if (!('Notification' in window)) return;
-		if (Notification.permission !== 'granted') return;
-		new Notification(title, { body, icon: '/favicon.png' });
-	}
-
 	// --- Helpers ---
 	function registerCard(node: HTMLElement, id: string) {
 		cardRefs.set(id, node);
@@ -327,9 +298,9 @@
 	// --- Settings sync (load once, bind directly to settings store) ---
 	$effect(() => {
 		settings.load();
+		notificationStore.init();
 		isDarkMode = settings.isDarkMode;
 		colorScheme = settings.colorScheme;
-		notificationsEnabled = settings.notificationsEnabled;
 	});
 
 	// --- Lifecycle effects ---
@@ -463,10 +434,8 @@
 	bind:agentToolsExpanded={settings.agentToolsExpanded}
 	{isDarkMode}
 	{colorScheme}
-	{notificationsEnabled}
 	ontoggleTheme={toggleTheme}
 	onsetColorScheme={(scheme) => { colorScheme = scheme; settings.colorScheme = scheme; }}
-	ontoggleNotifications={toggleNotifications}
 />
 	<Header
 		bind:searchQuery
