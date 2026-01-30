@@ -48,6 +48,11 @@
 			title: 'CLI-Backed',
 			desc: 'All writes go through the bd CLI, keeping your .beads directory as the single source of truth.',
 			icon: '&#x2713;'
+		},
+		{
+			title: 'Notifications',
+			desc: 'Browser push and MCP desktop notifications keep you informed of issue changes without polling.',
+			icon: '&#x1F514;'
 		}
 	];
 

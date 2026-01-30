@@ -30,6 +30,10 @@ bun run check    # Type-check with svelte-check
 - `src/lib/types.ts` - TypeScript interfaces (Issue, Dependency, Column, etc.)
 - `src/lib/api.ts` - Client-side API calls
 - `src/lib/utils.ts` - Kanban helpers (columns config, sorting, filtering)
+- `src/lib/vapid.ts` - VAPID key generation and persistence for web push
+- `src/lib/push-db.ts` - Push subscription storage (SQLite in `.beads/beads-app.db`)
+- `src/lib/notifications/` - Notification system (event emitter, toast queue, push service, MCP notifier)
+- `src/routes/api/notifications/` - Push subscription and send endpoints
 
 ### Issue Status Flow
 `open` → `in_progress` → `hooked` → `blocked` → `closed`
