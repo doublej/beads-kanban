@@ -49,10 +49,10 @@
 	import type { TicketDeliveryData } from '$lib/agent/ticket-delivery';
 	import { createKeyboardNav } from '$lib/keyboard/kanban-nav';
 	import { createIssueStore } from '$lib/stores/issue-store.svelte';
+	import { createCardDrag } from '$lib/drag-drop/card-drag.svelte';
+	import { issueMatchesFilters as matchesFilters, hasActiveFilters as checkActiveFilters, type FilterState } from '$lib/filters';
 
 	let bdVersion = $state<{ version: string; compatible: boolean } | null>(null);
-	let draggedId = $state<string | null>(null);
-	let draggedOverColumn = $state<string | null>(null);
 	let editingIssue = $state<Issue | null>(null);
 	let originalLabels = $state<string[]>([]);
 	let panelColumnIndex = $state<number | null>(null); // Fixed column index when panel is opened
@@ -68,15 +68,6 @@
 	let isFilterPreviewing = $state(false);
 	let selectedId = $state<string | null>(null);
 	let activeColumnIndex = $state(0);
-	let touchStartX = $state(0);
-	let touchEndX = $state(0);
-	let touchStartY = $state(0);
-	let touchEndY = $state(0);
-	let panelTouchStartY = $state(0);
-	let panelDragOffset = $state(0);
-	let isPanelDragging = $state(false);
-	let dropIndicatorIndex = $state<number | null>(null);
-	let dropTargetColumn = $state<string | null>(null);
 	let isDarkMode = $state(true); // synced with settings store
 	let colorScheme = $state('default'); // synced with settings store
 	let notificationsEnabled = $state(false); // synced with settings store
@@ -199,6 +190,22 @@
 	let animatingIds = $derived(issueStore.animatingIds);
 	let loadingStatus = $derived(issueStore.loadingStatus);
 	let initialLoaded = $derived(issueStore.initialLoaded);
+
+	// --- Card Drag/Drop & Touch ---
+	const cardDrag = createCardDrag({
+		getIssues: () => issues,
+		updateIssue: (id, updates) => issueStore.updateIssue(id, updates),
+		getActiveColumnIndex: () => activeColumnIndex,
+		setActiveColumnIndex: (idx) => { activeColumnIndex = idx; },
+		closePanel
+	});
+
+	let draggedId = $derived(cardDrag.draggedId);
+	let draggedOverColumn = $derived(cardDrag.draggedOverColumn);
+	let dropIndicatorIndex = $derived(cardDrag.dropIndicatorIndex);
+	let dropTargetColumn = $derived(cardDrag.dropTargetColumn);
+	let isPanelDragging = $derived(cardDrag.isPanelDragging);
+	let panelDragOffset = $derived(cardDrag.panelDragOffset);
 
 	function getCardPosition(id: string): {x: number; y: number; w: number; h: number} | null {
 		const el = cardRefs.get(id);
@@ -436,64 +443,22 @@
 	const panelOpen = $derived(editingIssue !== null || isCreating);
 	const activeAgentNames = $derived([...wsPanes.keys()]);
 
-	function isIssueActionable(issue: Issue): boolean {
-		// Blocked status = not actionable
-		if (issue.status === 'blocked') return false;
-		// Claimed (in_progress with assignee) = not actionable
-		if (issue.status === 'in_progress' && issue.assignee) return false;
-		// Has open blocking dependencies (blocks or parent-child) = not actionable
-		const blockingDeps = (issue.dependencies || []).filter(
-			d => (d.dependency_type === 'blocks' || d.dependency_type === 'parent-child') && d.status !== 'closed'
-		);
-		if (blockingDeps.length > 0) return false;
-		return true;
-	}
-
-	function issueMatchesTimeFilter(issue: Issue): boolean {
-		if (filterTime === 'all') return true;
-		const now = new Date();
-		const updated = issue.updated_at ? new Date(issue.updated_at) : new Date(issue.created_at);
-		const diffMs = now.getTime() - updated.getTime();
-		const diffHours = diffMs / (1000 * 60 * 60);
-		switch (filterTime) {
-			case '1h': return diffHours <= 1;
-			case '24h': return diffHours <= 24;
-			case 'today': {
-				const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-				return updated >= startOfDay;
-			}
-			case 'week': {
-				const startOfWeek = new Date(now);
-				startOfWeek.setDate(now.getDate() - now.getDay());
-				startOfWeek.setHours(0, 0, 0, 0);
-				return updated >= startOfWeek;
-			}
-			default: return true;
-		}
-	}
+	// Get all unique labels from issues for filter dropdown
+	const filterState = $derived<FilterState>({
+		searchQuery,
+		filterPriority,
+		filterType,
+		filterTime,
+		filterStatus,
+		filterLabel,
+		filterActionable
+	});
 
 	function issueMatchesFilters(issue: Issue): boolean {
-		const query = searchQuery.toLowerCase();
-		const matchesSearch = !query ||
-			issue.id.toLowerCase().includes(query) ||
-			issue.title.toLowerCase().includes(query) ||
-			issue.description.toLowerCase().includes(query);
-		const matchesPriority = filterPriority === 'all' || issue.priority === filterPriority;
-		const matchesType = filterType === 'all' || issue.issue_type === filterType;
-		const matchesTime = issueMatchesTimeFilter(issue);
-		// Status filter: supports negation with '!' prefix (e.g., '!closed')
-		const matchesStatus = filterStatus === 'all' ||
-			(filterStatus.startsWith('!') ? issue.status !== filterStatus.slice(1) : issue.status === filterStatus);
-		// Label filter: issue must have the selected label
-		const matchesLabel = filterLabel === 'all' || (issue.labels || []).includes(filterLabel);
-		// Actionable filter: hide blocked/claimed/dependency-blocked issues
-		const matchesActionable = !filterActionable || isIssueActionable(issue);
-		return matchesSearch && matchesPriority && matchesType && matchesTime && matchesStatus && matchesLabel && matchesActionable;
+		return matchesFilters(issue, filterState);
 	}
+	const hasActiveFilters = $derived(checkActiveFilters(filterState));
 
-	const hasActiveFilters = $derived(searchQuery !== '' || filterPriority !== 'all' || filterType !== 'all' || filterTime !== 'all' || filterStatus !== 'all' || filterLabel !== 'all' || filterActionable);
-
-	// Get all unique labels from issues for filter dropdown
 	const availableLabels = $derived([...new Set(issues.flatMap(i => i.labels || []))].sort());
 
 	const filteredIssues = $derived(
@@ -770,137 +735,6 @@
 		const issueId = e.state?.issue || new URL(window.location.href).searchParams.get('issue');
 		if (issueId) openIssueById(issueId, false);
 		else closePanel(false);
-	}
-
-	function handleDragStart(e: DragEvent, id: string) {
-		draggedId = id;
-		if (e.dataTransfer) {
-			e.dataTransfer.effectAllowed = 'move';
-			e.dataTransfer.setData('text/plain', id);
-		}
-		const target = e.target as HTMLElement;
-		target.classList.add('dragging');
-	}
-
-	function handleDragEnd(e: DragEvent) {
-		draggedId = null;
-		draggedOverColumn = null;
-		dropIndicatorIndex = null;
-		dropTargetColumn = null;
-		const target = e.target as HTMLElement;
-		target.classList.remove('dragging');
-	}
-
-	function handleDragOver(e: DragEvent, columnKey: string) {
-		e.preventDefault();
-		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-		draggedOverColumn = columnKey;
-
-		const column = e.currentTarget as HTMLElement;
-		const cards = column.querySelector('.cards');
-		if (!cards) return;
-
-		const cardElements = Array.from(cards.querySelectorAll('.card:not(.dragging)'));
-		const mouseY = e.clientY;
-
-		let insertIndex = cardElements.length;
-		for (let i = 0; i < cardElements.length; i++) {
-			const rect = cardElements[i].getBoundingClientRect();
-			const midY = rect.top + rect.height / 2;
-			if (mouseY < midY) {
-				insertIndex = i;
-				break;
-			}
-		}
-
-		dropIndicatorIndex = insertIndex;
-		dropTargetColumn = columnKey;
-	}
-
-	function handleDragLeave(e: DragEvent, columnKey: string) {
-		const relatedTarget = e.relatedTarget as HTMLElement;
-		const currentTarget = e.currentTarget as HTMLElement;
-		if (!currentTarget.contains(relatedTarget)) {
-			if (draggedOverColumn === columnKey) {
-				draggedOverColumn = null;
-			}
-			if (dropTargetColumn === columnKey) {
-				dropIndicatorIndex = null;
-				dropTargetColumn = null;
-			}
-		}
-	}
-
-	function handleDrop(e: DragEvent, columnKey: string) {
-		e.preventDefault();
-		if (draggedId) {
-			const issue = issues.find(i => i.id === draggedId);
-			if (issue && columnKey === 'closed' && hasOpenBlockers(issue)) {
-				// Prevent moving blocked issues to closed
-				draggedId = null;
-				draggedOverColumn = null;
-				dropIndicatorIndex = null;
-				dropTargetColumn = null;
-				return;
-			}
-			if (issue) {
-				const updates = getColumnMoveUpdates(issue, columnKey);
-				if (Object.keys(updates).length > 0) {
-					updateIssue(draggedId, updates);
-				}
-			}
-			draggedId = null;
-			draggedOverColumn = null;
-			dropIndicatorIndex = null;
-			dropTargetColumn = null;
-		}
-	}
-
-	function handleTouchStart(e: TouchEvent) {
-		touchStartX = e.changedTouches[0].screenX;
-		touchStartY = e.changedTouches[0].screenY;
-	}
-
-	function handleTouchEnd(e: TouchEvent) {
-		touchEndX = e.changedTouches[0].screenX;
-		touchEndY = e.changedTouches[0].screenY;
-		handleSwipe();
-	}
-
-	function handleSwipe() {
-		const swipeThreshold = 50;
-		const diffX = touchStartX - touchEndX;
-		const diffY = touchStartY - touchEndY;
-		// Only trigger horizontal swipe if horizontal > vertical (prevents scroll conflicts)
-		if (Math.abs(diffX) < swipeThreshold || Math.abs(diffY) > Math.abs(diffX)) return;
-		if (diffX > 0 && activeColumnIndex < columns.length - 1) activeColumnIndex++;
-		else if (diffX < 0 && activeColumnIndex > 0) activeColumnIndex--;
-	}
-
-	function handlePanelTouchStart(e: TouchEvent) {
-		// Only track on panel-header for drag handle
-		const target = e.target as HTMLElement;
-		if (!target.closest('.panel-header')) return;
-		panelTouchStartY = e.touches[0].clientY;
-		isPanelDragging = true;
-		panelDragOffset = 0;
-	}
-
-	function handlePanelTouchMove(e: TouchEvent) {
-		if (!isPanelDragging) return;
-		const diff = e.touches[0].clientY - panelTouchStartY;
-		// Only allow downward drag
-		panelDragOffset = Math.max(0, diff);
-	}
-
-	function handlePanelTouchEnd() {
-		if (!isPanelDragging) return;
-		isPanelDragging = false;
-		// Dismiss if dragged more than 100px down
-		if (panelDragOffset > 100) {
-			closePanel();
-		}
-		panelDragOffset = 0;
 	}
 
 	// --- Keyboard Navigation ---
@@ -1195,7 +1029,7 @@
 	/>
 
 	<div class="main-content" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
-		<main class="board" ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
+		<main class="board" ontouchstart={cardDrag.handleTouchStart} ontouchend={cardDrag.handleTouchEnd}>
 			{#each columns as column, i}
 				{#if i === 0 && isCreating}
 					{@render detailPanel()}
@@ -1229,16 +1063,16 @@
 					{registerCard}
 					{registerPlaceholder}
 					{issueMatchesFilters}
-					ondragover={(e) => handleDragOver(e, column.key)}
-					ondragleave={(e) => handleDragLeave(e, column.key)}
-					ondrop={(e) => handleDrop(e, column.key)}
+					ondragover={(e) => cardDrag.handleDragOver(e, column.key)}
+					ondragleave={(e) => cardDrag.handleDragLeave(e, column.key)}
+					ondrop={(e) => cardDrag.handleDrop(e, column.key)}
 					oncollapseclick={(key) => toggleColumnCollapse(key)}
 					ontogglecollapse={(e, key) => { e.stopPropagation(); toggleColumnCollapse(key); }}
 					ontogglesortmenu={(key, e) => toggleSortMenu(key, e)}
 					onsetcolumnsort={(key, sortBy) => setColumnSort(key, sortBy)}
 					oncardclick={(issue) => openEditPanel(issue)}
-					oncarddragstart={(e, id) => handleDragStart(e, id)}
-					oncarddragend={handleDragEnd}
+					oncarddragstart={(e, id) => cardDrag.handleDragStart(e, id)}
+					oncarddragend={cardDrag.handleDragEnd}
 					oncardcontextmenu={(e, issue) => openContextMenu(e, issue)}
 					oncopyid={(id, text) => copyToClipboard(id, text)}
 					showAddButton={i === 0}
@@ -1364,9 +1198,9 @@
 		onaddlabel={(label) => addLabelToEditing(label)}
 		onremovelabel={(label) => removeLabelFromEditing(label)}
 		onremovedep={(issueId, depId) => removeDependency(issueId, depId)}
-		onpaneltouchstart={handlePanelTouchStart}
-		onpaneltouchmove={handlePanelTouchMove}
-		onpaneltouchend={handlePanelTouchEnd}
+		onpaneltouchstart={cardDrag.handlePanelTouchStart}
+		onpaneltouchmove={cardDrag.handlePanelTouchMove}
+		onpaneltouchend={cardDrag.handlePanelTouchEnd}
 		updatecreateform={(key, value) => createForm[key] = value}
 		updatenewlabel={(value) => newLabelInput = value}
 		ondismissclosedwarning={() => issueClosedExternally = false}
@@ -1404,131 +1238,6 @@
 	.app.has-chat-bar {
 		height: calc(100vh - 48px);
 	}
-
-	.app::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background:
-			/* Core glow - center top concentration */
-			radial-gradient(ellipse 90% 60% at 50% 30%, rgba(99, 102, 241, 0.09) 0%, transparent 60%),
-			radial-gradient(ellipse 70% 50% at 35% 25%, rgba(56, 189, 248, 0.07) 0%, transparent 55%),
-			radial-gradient(ellipse 65% 45% at 65% 35%, rgba(167, 139, 250, 0.06) 0%, transparent 50%),
-			/* Subtle accent in middle */
-			radial-gradient(ellipse 50% 40% at 50% 50%, rgba(52, 211, 153, 0.04) 0%, transparent 50%),
-			/* Edge fade - makes outside lighter */
-			radial-gradient(ellipse 120% 100% at 50% 40%, transparent 40%, rgba(0, 0, 0, 0.02) 100%);
-		animation: auroraShift 30s ease-in-out infinite alternate;
-		pointer-events: none;
-		z-index: 0;
-	}
-
-	/* Noise overlay to eliminate gradient banding */
-	.app::after {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-		background-size: 256px 256px;
-		opacity: 0.035;
-		pointer-events: none;
-		z-index: 0;
-	}
-
-	.app > * {
-		position: relative;
-		z-index: 1;
-	}
-
-	.app.light::before {
-		background:
-			/* Core glow - center top concentration */
-			radial-gradient(ellipse 90% 60% at 50% 30%, rgba(99, 102, 241, 0.12) 0%, transparent 60%),
-			radial-gradient(ellipse 70% 50% at 35% 25%, rgba(56, 189, 248, 0.1) 0%, transparent 55%),
-			radial-gradient(ellipse 65% 45% at 65% 35%, rgba(167, 139, 250, 0.08) 0%, transparent 50%),
-			/* Subtle accent in middle */
-			radial-gradient(ellipse 50% 40% at 50% 50%, rgba(52, 211, 153, 0.06) 0%, transparent 50%),
-			/* Edge fade - makes outside lighter */
-			radial-gradient(ellipse 120% 100% at 50% 40%, transparent 40%, rgba(255, 255, 255, 0.3) 100%);
-	}
-
-	/* Light theme - inherits from components.css, add app-specific overrides */
-	.app.light {
-		/* Surface levels - cool stone/slate tones */
-		--surface-app: #e4e6e9;
-		--surface-panel: #eceef1;
-		--surface-card: #f4f5f7;
-		--surface-elevated: #f9fafb;
-		/* Legacy aliases */
-		--bg-primary: var(--surface-app);
-		--bg-secondary: var(--surface-card);
-		--bg-tertiary: var(--surface-panel);
-		--bg-elevated: var(--surface-elevated);
-		/* Borders - cool slate tints */
-		--border-subtle: rgba(60, 70, 80, 0.12);
-		--border-default: rgba(60, 70, 80, 0.18);
-		--border-strong: rgba(60, 70, 80, 0.28);
-		/* Text - cool charcoal */
-		--text-primary: #1f2937;
-		--text-secondary: #4b5563;
-		--text-tertiary: #6b7280;
-		--text-muted: #9ca3af;
-		/* Accent - slate blue */
-		--accent-primary: #4f6b8f;
-		--accent-glow: rgba(79, 107, 143, 0.12);
-		/* Shadows - cool slate */
-		--shadow-sm: 0 1px 2px rgba(30, 40, 50, 0.08);
-		--shadow-md: 0 4px 12px rgba(30, 40, 50, 0.10);
-		--shadow-lg: 0 8px 24px rgba(30, 40, 50, 0.14);
-		--shadow-elevated: 0 12px 40px rgba(30, 40, 50, 0.18);
-		/* CTA buttons - cool backgrounds */
-		--cta-muted: rgba(60, 70, 80, 0.06);
-		--cta-muted-hover: rgba(60, 70, 80, 0.10);
-		background: var(--bg-primary);
-	}
-
-	/* Color Schemes */
-	.app.scheme-ocean {
-		--bg-primary: #0f172a;
-		--bg-secondary: #1e293b;
-		--bg-tertiary: #0c4a6e;
-		--bg-elevated: #334155;
-		--accent-primary: #0ea5e9;
-		--accent-glow: rgba(14, 165, 233, 0.15);
-	}
-
-	.app.scheme-forest {
-		--bg-primary: #0f1a0f;
-		--bg-secondary: #14532d;
-		--bg-tertiary: #166534;
-		--bg-elevated: #1a3a1a;
-		--accent-primary: #22c55e;
-		--accent-glow: rgba(34, 197, 94, 0.15);
-	}
-
-	.app.scheme-sunset {
-		--bg-primary: #1c0a00;
-		--bg-secondary: #431407;
-		--bg-tertiary: #7c2d12;
-		--bg-elevated: #581c0a;
-		--accent-primary: #f97316;
-		--accent-glow: rgba(249, 115, 22, 0.15);
-	}
-
-	.app.scheme-rose {
-		--bg-primary: #1a0a10;
-		--bg-secondary: #4c0519;
-		--bg-tertiary: #881337;
-		--bg-elevated: #5c0a1f;
-		--accent-primary: #f43f5e;
-		--accent-glow: rgba(244, 63, 94, 0.15);
-	}
-
-	/* Light mode + color schemes */
-	.app.light.scheme-ocean { --accent-primary: #0284c7; }
-	.app.light.scheme-forest { --accent-primary: #16a34a; }
-	.app.light.scheme-sunset { --accent-primary: #ea580c; }
-	.app.light.scheme-rose { --accent-primary: #e11d48; }
 
 	/* Main Content - Board + Panel */
 	.main-content {
