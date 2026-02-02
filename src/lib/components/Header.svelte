@@ -1,8 +1,9 @@
 <script lang="ts">
-	import type { ViewMode } from '$lib/types';
+	import type { ViewMode, ViewRecipe } from '$lib/types';
 	import SearchBar from './SearchBar.svelte';
 	import FilterControls from './FilterControls.svelte';
 	import ViewSwitcher from './ViewSwitcher.svelte';
+	import RecipePicker from './RecipePicker.svelte';
 	import HeaderActions from './HeaderActions.svelte';
 
 	interface Props {
@@ -20,6 +21,9 @@
 		projectName: string;
 		agentPaneCount: number;
 		showAgentPanes: boolean;
+		recipes: ViewRecipe[];
+		currentRecipeId: string | null;
+		hasUnsavedChanges: boolean;
 		ontoggleTheme: () => void;
 		onopenKeyboardHelp: () => void;
 		onopenCreatePanel: () => void;
@@ -28,6 +32,10 @@
 		onpreviewchange?: (previewing: boolean) => void;
 		oneditProject?: () => void;
 		ontoggleAgentPanes?: () => void;
+		onsaverecipe?: (name: string) => void;
+		onapplyrecipe?: (recipe: ViewRecipe) => void;
+		ondeleterecipe?: (id: string) => void;
+		onrenamerecipe?: (id: string, newName: string) => void;
 	}
 
 	let {
@@ -45,6 +53,9 @@
 		projectName,
 		agentPaneCount = 0,
 		showAgentPanes = true,
+		recipes,
+		currentRecipeId = $bindable(),
+		hasUnsavedChanges,
 		ontoggleTheme,
 		onopenKeyboardHelp,
 		onopenCreatePanel,
@@ -52,7 +63,11 @@
 		onopenPrompts,
 		onpreviewchange,
 		oneditProject,
-		ontoggleAgentPanes
+		ontoggleAgentPanes,
+		onsaverecipe,
+		onapplyrecipe,
+		ondeleterecipe,
+		onrenamerecipe
 	}: Props = $props();
 
 	let isSearchFocused = $state(false);
@@ -94,9 +109,21 @@
 			/>
 		</div>
 
-		<!-- Right: Views, Filters, Chat, Theme, Settings, Help -->
+		<!-- Right: Views, Filters, Recipes, Chat, Theme, Settings, Help -->
 		<div class="toolbar-right">
 			<ViewSwitcher bind:viewMode />
+
+			<span class="toolbar-sep"></span>
+
+			<RecipePicker
+				{recipes}
+				bind:currentRecipeId
+				{hasUnsavedChanges}
+				onsave={onsaverecipe || (() => {})}
+				onapply={onapplyrecipe || (() => {})}
+				ondelete={ondeleterecipe || (() => {})}
+				onrename={onrenamerecipe || (() => {})}
+			/>
 
 			<span class="toolbar-sep"></span>
 

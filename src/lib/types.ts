@@ -118,3 +118,21 @@ export interface Project {
 	lastAccess: string;
 	color: string;
 }
+
+export interface ViewRecipe {
+	id: string;
+	name: string;
+	filters: {
+		searchQuery: string;
+		filterPriority: number | 'all';
+		filterType: string;
+		filterTime: string;
+		filterStatus: string;
+		filterLabel: string;
+		filterActionable: boolean;
+	};
+	columnSort: Record<string, 'priority' | 'created' | 'title'>;
+	collapsedColumns: string[];
+	viewMode: ViewMode;
+	createdAt: string;
+}

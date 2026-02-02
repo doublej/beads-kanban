@@ -1,5 +1,6 @@
 import { browser } from '$app/environment';
 import type { NotificationMode, NotificationEventSettings } from '$lib/notifications/types';
+import type { ViewRecipe } from '$lib/types';
 
 const DEFAULT_AGENT_FIRST_MESSAGE = 'You are an agent named "{name}". Await further instructions.';
 
@@ -141,6 +142,9 @@ function createSettings() {
 	// Layout
 	let collapsedColumns = $state<Set<string>>(new Set());
 
+	// View Recipes
+	let viewRecipes = $state<ViewRecipe[]>([]);
+
 	const combinedSystemPrompt = $derived(
 		[agentSystemPrompt, agentWorkflow].filter(Boolean).join('\n\n')
 	);
@@ -169,6 +173,7 @@ function createSettings() {
 		notificationMode = loadString('notificationMode', notificationMode) as NotificationMode;
 		notificationEvents = loadObject('notificationEvents', notificationEvents);
 		mcpBatchDelay = loadNumber('mcpBatchDelay', mcpBatchDelay);
+		viewRecipes = loadObject('viewRecipes', viewRecipes);
 	}
 
 	function toggleColumnCollapse(key: string) {
@@ -180,6 +185,30 @@ function createSettings() {
 		}
 		collapsedColumns = next;
 		persist('collapsedColumns', JSON.stringify([...next]));
+	}
+
+	function saveRecipe(recipe: ViewRecipe) {
+		const existing = viewRecipes.findIndex(r => r.id === recipe.id);
+		if (existing !== -1) {
+			viewRecipes[existing] = recipe;
+		} else {
+			viewRecipes = [...viewRecipes, recipe];
+		}
+		persist('viewRecipes', JSON.stringify(viewRecipes));
+	}
+
+	function deleteRecipe(id: string) {
+		viewRecipes = viewRecipes.filter(r => r.id !== id);
+		persist('viewRecipes', JSON.stringify(viewRecipes));
+	}
+
+	function renameRecipe(id: string, newName: string) {
+		const recipe = viewRecipes.find(r => r.id === id);
+		if (recipe) {
+			recipe.name = newName;
+			viewRecipes = [...viewRecipes];
+			persist('viewRecipes', JSON.stringify(viewRecipes));
+		}
 	}
 
 	return {
@@ -215,8 +244,12 @@ function createSettings() {
 		set notificationEvents(v: NotificationEventSettings) { notificationEvents = v; persist('notificationEvents', JSON.stringify(v)); },
 		get mcpBatchDelay() { return mcpBatchDelay; },
 		set mcpBatchDelay(v: number) { mcpBatchDelay = v; persist('mcpBatchDelay', String(v)); },
+		get viewRecipes() { return viewRecipes; },
 		load,
 		toggleColumnCollapse,
+		saveRecipe,
+		deleteRecipe,
+		renameRecipe,
 	};
 }
 

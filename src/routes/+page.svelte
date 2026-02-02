@@ -2,7 +2,7 @@
 	import { browser } from '$app/environment';
 	import { untrack } from 'svelte';
 	import { connect, disconnect, getPanes, isConnected, addPane, removePane, sendToPane, killSession, clearAllSessions, endSession, clearSession, continueSession, compactSession, getPersistedSdkSessionId, getAllPersistedSessions, deletePersistedSession, fetchSdkSessions, markPaneAsRead, getTotalUnreadCount, getUnreadCount, notifyAgentOfTicketUpdate, type Pane, type SdkSessionInfo } from '$lib/wsStore.svelte';
-	import type { Issue, Attachment, CardPosition, FlyingCard, SortBy, PaneSize, ViewMode, Project } from '$lib/types';
+	import type { Issue, Attachment, CardPosition, FlyingCard, SortBy, PaneSize, ViewMode, Project, ViewRecipe } from '$lib/types';
 	import {
 		columns,
 		getPriorityConfig,
@@ -19,6 +19,7 @@
 	import ContextMenu from '$lib/components/ContextMenu.svelte';
 	import RopeDrag from '$lib/components/RopeDrag.svelte';
 	import DepTypePicker from '$lib/components/DepTypePicker.svelte';
+	import CwdConflictDialog from '$lib/components/CwdConflictDialog.svelte';
 	import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
 	import KanbanColumn from '$lib/components/KanbanColumn.svelte';
 	import DetailPanel from '$lib/components/DetailPanel.svelte';
@@ -102,6 +103,8 @@
 	let projectColor = $state('#6366f1');
 	let projectTransition = $state<'idle' | 'wipe-out' | 'wipe-in'>('idle');
 	let collapsedColumns = $derived(settings.collapsedColumns);
+	let currentRecipeId = $state<string | null>(null);
+	let lastAppliedRecipeSnapshot = $state<string | null>(null);
 
 	// --- Issue Store ---
 	const issueStore = createIssueStore({
@@ -376,6 +379,86 @@
 		await new Promise(r => setTimeout(r, WIPE_DURATION));
 		projectTransition = 'idle';
 	}
+
+	function captureCurrentViewState(): ViewRecipe['filters'] & { columnSort: ViewRecipe['columnSort']; collapsedColumns: ViewRecipe['collapsedColumns']; viewMode: ViewMode } {
+		return {
+			searchQuery,
+			filterPriority,
+			filterType,
+			filterTime,
+			filterStatus,
+			filterLabel,
+			filterActionable,
+			columnSort: columnSortBy,
+			collapsedColumns: [...settings.collapsedColumns],
+			viewMode
+		};
+	}
+
+	function saveRecipe(name: string) {
+		const state = captureCurrentViewState();
+		const recipe: ViewRecipe = {
+			id: crypto.randomUUID(),
+			name,
+			filters: {
+				searchQuery: state.searchQuery,
+				filterPriority: state.filterPriority,
+				filterType: state.filterType,
+				filterTime: state.filterTime,
+				filterStatus: state.filterStatus,
+				filterLabel: state.filterLabel,
+				filterActionable: state.filterActionable
+			},
+			columnSort: state.columnSort,
+			collapsedColumns: state.collapsedColumns,
+			viewMode: state.viewMode,
+			createdAt: new Date().toISOString()
+		};
+		settings.saveRecipe(recipe);
+		currentRecipeId = recipe.id;
+		lastAppliedRecipeSnapshot = JSON.stringify(captureCurrentViewState());
+	}
+
+	function applyRecipe(recipe: ViewRecipe) {
+		searchQuery = recipe.filters.searchQuery;
+		filterPriority = recipe.filters.filterPriority;
+		filterType = recipe.filters.filterType;
+		filterTime = recipe.filters.filterTime;
+		filterStatus = recipe.filters.filterStatus;
+		filterLabel = recipe.filters.filterLabel;
+		filterActionable = recipe.filters.filterActionable;
+		columnSortBy = recipe.columnSort;
+		viewMode = recipe.viewMode;
+
+		const savedCollapsed = new Set(recipe.collapsedColumns);
+		for (const col of [...settings.collapsedColumns]) {
+			if (!savedCollapsed.has(col)) settings.toggleColumnCollapse(col);
+		}
+		for (const col of recipe.collapsedColumns) {
+			if (!settings.collapsedColumns.has(col)) settings.toggleColumnCollapse(col);
+		}
+
+		currentRecipeId = recipe.id;
+		lastAppliedRecipeSnapshot = JSON.stringify(captureCurrentViewState());
+	}
+
+	function deleteRecipe(id: string) {
+		settings.deleteRecipe(id);
+		if (currentRecipeId === id) {
+			currentRecipeId = null;
+			lastAppliedRecipeSnapshot = null;
+		}
+	}
+
+	function renameRecipe(id: string, newName: string) {
+		settings.renameRecipe(id, newName);
+	}
+
+	const hasUnsavedRecipeChanges = $derived(() => {
+		if (!currentRecipeId) return false;
+		const current = JSON.stringify(captureCurrentViewState());
+		return current !== lastAppliedRecipeSnapshot;
+	});
 </script>
 
 <svelte:window onkeydown={handleKeydown} onkeyup={handleKeyup} onpopstate={ops.handlePopState} onclick={ops.closeContextMenu} onmousemove={ops.handleMouseMove} onmouseup={ops.handleMouseUp} onblur={handleWindowBlur} />
@@ -396,6 +479,8 @@
 <RopeDrag ropeDrag={ops.ropeDrag} />
 
 <DepTypePicker pendingDep={ops.pendingDep} onconfirm={ops.confirmDependency} oncancel={ops.cancelDependency} />
+
+<CwdConflictDialog conflict={ops.cwdConflict} onresolve={ops.resolveConflict} ondismiss={ops.dismissConflict} />
 
 <ThemeTransition
 	active={themeTransitionActive}
@@ -456,6 +541,9 @@
 		totalIssues={issues.length}
 		agentPaneCount={wsPanes.size}
 		showAgentPanes={showActivityBar}
+		recipes={settings.viewRecipes}
+		bind:currentRecipeId
+		hasUnsavedChanges={hasUnsavedRecipeChanges()}
 		ontoggleTheme={toggleTheme}
 		onopenKeyboardHelp={() => showKeyboardHelp = true}
 		onopenCreatePanel={ops.openCreatePanel}
@@ -464,6 +552,10 @@
 		onpreviewchange={(previewing) => isFilterPreviewing = previewing}
 		oneditProject={() => showSettings = true}
 		ontoggleAgentPanes={() => showActivityBar = !showActivityBar}
+		onsaverecipe={saveRecipe}
+		onapplyrecipe={applyRecipe}
+		ondeleterecipe={deleteRecipe}
+		onrenamerecipe={renameRecipe}
 	/>
 
 	{#if bdVersion && !bdVersion.compatible}
