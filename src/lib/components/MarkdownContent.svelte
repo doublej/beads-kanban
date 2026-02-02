@@ -66,7 +66,7 @@
 		font: inherit;
 		line-height: 1.5;
 		min-width: 0;
-		overflow: hidden;
+		overflow: auto;
 	}
 
 	.markdown-content :global(p) {
