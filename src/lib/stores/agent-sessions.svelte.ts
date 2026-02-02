@@ -77,9 +77,21 @@ export function createMessageHandler(sessionName: string) {
 				updateSession(sessionName, { serverId: msg.sessionId, streaming: true });
 				break;
 
-			case 'session_resumed':
+			case 'session_resumed': {
 				updateSession(sessionName, { serverId: msg.sessionId, streaming: true });
+				// Populate history from SDK session JSONL if messages are empty
+				if (msg.sdkSessionId && session.messages.length === 0 && session.cwd) {
+					import('../session-persistence').then(({ fetchSessionHistory }) => {
+						fetchSessionHistory(session.cwd!, msg.sdkSessionId!).then((messages) => {
+							if (messages.length === 0) return;
+							const current = sessions.get(sessionName);
+							if (!current || current.messages.length > 0) return;
+							updateSession(sessionName, { messages });
+						});
+					});
+				}
 				break;
+			}
 
 			case 'sdk_session':
 				updateSession(sessionName, {
