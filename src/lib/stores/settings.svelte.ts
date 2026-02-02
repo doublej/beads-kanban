@@ -138,6 +138,7 @@ function createSettings() {
 	let agentTicketDelivery = $state(DEFAULT_AGENT_TICKET_DELIVERY);
 	let agentTicketNotification = $state(DEFAULT_AGENT_TICKET_NOTIFICATION);
 	let agentToolsExpanded = $state(false);
+	let conflictStrategy = $state<'ask' | 'worktree' | 'queue' | 'same'>('ask');
 
 	// Layout
 	let collapsedColumns = $state<Set<string>>(new Set());
@@ -168,6 +169,7 @@ function createSettings() {
 		agentTicketDelivery = loadString('agentTicketDelivery', agentTicketDelivery);
 		agentTicketNotification = loadString('agentTicketNotification', agentTicketNotification);
 		agentToolsExpanded = loadBool('agentToolsExpanded', agentToolsExpanded);
+		conflictStrategy = loadString('conflictStrategy', 'ask') as 'ask' | 'worktree' | 'queue' | 'same';
 		colorScheme = loadString('colorScheme', colorScheme);
 		notificationsEnabled = loadBool('notificationsEnabled', notificationsEnabled);
 		notificationMode = loadString('notificationMode', notificationMode) as NotificationMode;
@@ -236,6 +238,8 @@ function createSettings() {
 		set agentTicketNotification(v: string) { agentTicketNotification = v; persist('agentTicketNotification', v); },
 		get agentToolsExpanded() { return agentToolsExpanded; },
 		set agentToolsExpanded(v: boolean) { agentToolsExpanded = v; persist('agentToolsExpanded', String(v)); },
+		get conflictStrategy() { return conflictStrategy; },
+		set conflictStrategy(v: 'ask' | 'worktree' | 'queue' | 'same') { conflictStrategy = v; persist('conflictStrategy', v); },
 		get collapsedColumns() { return collapsedColumns; },
 		get combinedSystemPrompt() { return combinedSystemPrompt; },
 		get notificationMode() { return notificationMode; },

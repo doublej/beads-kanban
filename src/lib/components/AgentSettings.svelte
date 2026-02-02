@@ -6,6 +6,7 @@
 		agentHost: string;
 		agentPort: number;
 		agentToolsExpanded: boolean;
+		conflictStrategy: 'ask' | 'worktree' | 'queue' | 'same';
 		onopenPromptsEditor: () => void;
 	}
 
@@ -14,6 +15,7 @@
 		agentHost = $bindable(),
 		agentPort = $bindable(),
 		agentToolsExpanded = $bindable(),
+		conflictStrategy = $bindable(),
 		onopenPromptsEditor
 	}: Props = $props();
 </script>
@@ -82,6 +84,52 @@
 				<span class="toggle-track" class:active={agentToolsExpanded}>
 					<span class="toggle-thumb"></span>
 				</span>
+			</button>
+		</div>
+
+		<!-- Conflict Resolution Strategy -->
+		<div class="setting-row" style="margin-top: 0.75rem;">
+			<div class="setting-info">
+				<span class="setting-name">Directory Conflicts</span>
+				<span class="setting-desc">How to handle agent CWD conflicts</span>
+			</div>
+		</div>
+
+		<div class="strategy-selector">
+			<button
+				class="strategy-option"
+				class:active={conflictStrategy === 'ask'}
+				onclick={() => conflictStrategy = 'ask'}
+			>
+				<span class="strategy-label">Ask every time</span>
+				<span class="strategy-hint">Show dialog to choose</span>
+			</button>
+
+			<button
+				class="strategy-option"
+				class:active={conflictStrategy === 'worktree'}
+				onclick={() => conflictStrategy = 'worktree'}
+			>
+				<span class="strategy-label">Always worktree</span>
+				<span class="strategy-hint">Isolated copy (safest)</span>
+			</button>
+
+			<button
+				class="strategy-option"
+				class:active={conflictStrategy === 'queue'}
+				onclick={() => conflictStrategy = 'queue'}
+			>
+				<span class="strategy-label">Always queue</span>
+				<span class="strategy-hint">Wait for current agent</span>
+			</button>
+
+			<button
+				class="strategy-option"
+				class:active={conflictStrategy === 'same'}
+				onclick={() => conflictStrategy = 'same'}
+			>
+				<span class="strategy-label">Use same CWD</span>
+				<span class="strategy-hint">Shared directory (risk)</span>
 			</button>
 		</div>
 	{/if}
@@ -291,5 +339,71 @@
 
 	:global(.app.light) .btn-edit-prompts:hover {
 		background: rgba(59, 130, 246, 0.12);
+	}
+
+	/* Conflict Strategy Selector */
+	.strategy-selector {
+		display: flex;
+		flex-direction: column;
+		gap: 0.375rem;
+		padding: 0.5rem 0 0 0;
+	}
+
+	.strategy-option {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 0.625rem 0.75rem;
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.06);
+		border-radius: var(--radius-md);
+		text-align: left;
+		cursor: pointer;
+		transition: all 180ms ease;
+	}
+
+	.strategy-option:hover {
+		background: rgba(255, 255, 255, 0.06);
+		border-color: rgba(255, 255, 255, 0.12);
+	}
+
+	.strategy-option.active {
+		background: rgba(34, 211, 238, 0.12);
+		border-color: rgba(34, 211, 238, 0.3);
+	}
+
+	.strategy-option.active:hover {
+		background: rgba(34, 211, 238, 0.16);
+		border-color: rgba(34, 211, 238, 0.4);
+	}
+
+	:global(.app.light) .strategy-option {
+		background: rgba(0, 0, 0, 0.02);
+		border-color: rgba(0, 0, 0, 0.06);
+	}
+
+	:global(.app.light) .strategy-option:hover {
+		background: rgba(0, 0, 0, 0.04);
+		border-color: rgba(0, 0, 0, 0.12);
+	}
+
+	:global(.app.light) .strategy-option.active {
+		background: rgba(14, 165, 233, 0.12);
+		border-color: rgba(14, 165, 233, 0.3);
+	}
+
+	:global(.app.light) .strategy-option.active:hover {
+		background: rgba(14, 165, 233, 0.16);
+	}
+
+	.strategy-label {
+		font-weight: 600;
+		font-size: 0.8125rem;
+		color: var(--text-primary);
+	}
+
+	.strategy-hint {
+		font-size: 0.6875rem;
+		color: var(--text-tertiary);
 	}
 </style>

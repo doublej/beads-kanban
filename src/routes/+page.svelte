@@ -526,6 +526,7 @@
 	bind:agentTicketDelivery={settings.agentTicketDelivery}
 	bind:agentTicketNotification={settings.agentTicketNotification}
 	bind:agentToolsExpanded={settings.agentToolsExpanded}
+	bind:conflictStrategy={settings.conflictStrategy}
 	{isDarkMode}
 	{colorScheme}
 	ontoggleTheme={toggleTheme}

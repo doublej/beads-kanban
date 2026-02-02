@@ -80,12 +80,12 @@
 	.conflict-overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
-		backdrop-filter: blur(4px);
+		background: rgba(0, 0, 0, 0.6);
+		backdrop-filter: blur(8px);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 10000;
+		z-index: 9998;
 		animation: overlayFadeIn 200ms ease-out;
 	}
 
@@ -100,7 +100,10 @@
 		border-radius: var(--radius-xl);
 		max-width: 380px;
 		width: 90%;
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		box-shadow:
+			0 0 0 1px rgba(255, 255, 255, 0.06),
+			0 24px 64px rgba(0, 0, 0, 0.5),
+			0 0 120px rgba(0, 0, 0, 0.3);
 		animation: modalSlideUp 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
 		overflow: hidden;
 	}
@@ -154,7 +157,7 @@
 
 	:global(.app.light) .conflict-close:hover { background: rgba(0, 0, 0, 0.06); }
 
-	.conflict-body { padding: 0.75rem 1rem; }
+	.conflict-body { padding: 1rem 1.25rem; }
 
 	.conflict-hint {
 		font-size: 0.75rem;
@@ -191,14 +194,14 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.375rem;
-		padding: 0 0.75rem;
+		padding: 0.5rem 1rem;
 	}
 
 	.conflict-btn {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
-		padding: 0.625rem 0.75rem;
+		gap: 4px;
+		padding: 0.75rem 0.875rem;
 		background: rgba(255, 255, 255, 0.03);
 		border: 1px solid rgba(255, 255, 255, 0.06);
 		border-radius: var(--radius-md);
@@ -256,8 +259,8 @@
 		align-items: center;
 		justify-content: center;
 		gap: 0.5rem;
-		width: calc(100% - 1.5rem);
-		margin: 0.75rem;
+		width: auto;
+		margin: 0.75rem 1rem;
 		padding: 0.5rem;
 		background: transparent;
 		border: 1px solid rgba(255, 255, 255, 0.08);

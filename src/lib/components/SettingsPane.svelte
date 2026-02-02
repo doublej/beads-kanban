@@ -22,6 +22,7 @@
 		agentTicketDelivery: string;
 		agentTicketNotification: string;
 		agentToolsExpanded: boolean;
+		conflictStrategy: 'ask' | 'worktree' | 'queue' | 'same';
 		colorScheme: string;
 		ontoggleTheme: () => void;
 		onsetColorScheme: (scheme: string) => void;
@@ -41,6 +42,7 @@
 		agentTicketDelivery = $bindable(),
 		agentTicketNotification = $bindable(),
 		agentToolsExpanded = $bindable(),
+		conflictStrategy = $bindable(),
 		colorScheme,
 		ontoggleTheme,
 		onsetColorScheme
@@ -87,6 +89,7 @@
 				bind:agentHost
 				bind:agentPort
 				bind:agentToolsExpanded
+				bind:conflictStrategy
 				onopenPromptsEditor={() => showPromptsEditor = true}
 			/>
 

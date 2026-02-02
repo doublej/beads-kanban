@@ -368,8 +368,16 @@ export function createPageOps(ctx: PageOpsContext) {
 
 			const conflicts = getRunningSessionsForCwd(cwd);
 			if (conflicts.length > 0) {
-				cwdConflict = { ticketId: newId, agentName, conflicts, cwd, issue: newIssue, briefing };
-				return;
+				// Check if user wants to always skip modal
+				if (settings.conflictStrategy === 'ask') {
+					cwdConflict = { ticketId: newId, agentName, conflicts, cwd, issue: newIssue, briefing };
+					return;
+				} else {
+					// Auto-resolve with configured strategy
+					cwdConflict = { ticketId: newId, agentName, conflicts, cwd, issue: newIssue, briefing };
+					setTimeout(() => resolveConflict(settings.conflictStrategy), 50);
+					return;
+				}
 			}
 
 			addPane(agentName, cwd, briefing, settings.combinedSystemPrompt, undefined, newId);
@@ -399,8 +407,16 @@ export function createPageOps(ctx: PageOpsContext) {
 
 		const conflicts = getRunningSessionsForCwd(cwd);
 		if (conflicts.length > 0) {
-			cwdConflict = { ticketId: issue.id, agentName, conflicts, cwd, issue, briefing };
-			return;
+			// Check if user wants to always skip modal
+			if (settings.conflictStrategy === 'ask') {
+				cwdConflict = { ticketId: issue.id, agentName, conflicts, cwd, issue, briefing };
+				return;
+			} else {
+				// Auto-resolve with configured strategy
+				cwdConflict = { ticketId: issue.id, agentName, conflicts, cwd, issue, briefing };
+				setTimeout(() => resolveConflict(settings.conflictStrategy), 50);
+				return;
+			}
 		}
 
 		addPane(agentName, cwd, briefing, settings.combinedSystemPrompt, undefined, issue.id);
