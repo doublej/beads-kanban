@@ -12,7 +12,7 @@
 
 	interface Props {
 		conflict: ConflictData | null;
-		onresolve: (useWorktree: boolean) => void;
+		onresolve: (action: 'worktree' | 'queue' | 'same') => void;
 		ondismiss: () => void;
 	}
 
@@ -50,14 +50,19 @@
 					{/each}
 				</ul>
 				<p class="conflict-hint">Starting <code>{conflict.agentName}</code> in the same CWD may cause file conflicts.</p>
+				<p class="conflict-hint">You can queue this ticket to start when the active agent finishes.</p>
 			</div>
 
 			<div class="conflict-actions">
-				<button class="conflict-btn primary" onclick={() => onresolve(true)}>
+				<button class="conflict-btn primary" onclick={() => onresolve('worktree')}>
 					<span class="btn-label">Use worktree</span>
 					<span class="btn-desc">Isolated copy (recommended)</span>
 				</button>
-				<button class="conflict-btn secondary" onclick={() => onresolve(false)}>
+				<button class="conflict-btn secondary" onclick={() => onresolve('queue')}>
+					<span class="btn-label">Queue next</span>
+					<span class="btn-desc">Start after active agents finish</span>
+				</button>
+				<button class="conflict-btn secondary" onclick={() => onresolve('same')}>
 					<span class="btn-label">Use same CWD</span>
 					<span class="btn-desc">Shared directory, risk of conflicts</span>
 				</button>

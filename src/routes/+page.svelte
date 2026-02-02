@@ -209,6 +209,11 @@
 		return () => clearInterval(id);
 	});
 
+	$effect(() => {
+		wsPanes;
+		ops.maybeStartQueuedAgent();
+	});
+
 	const activeAgentNames = $derived([...wsPanes.keys()]);
 
 	// --- Filters ---
