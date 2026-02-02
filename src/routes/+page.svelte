@@ -314,6 +314,18 @@
 		colorScheme = settings.colorScheme;
 	});
 
+	// --- Apply theme to body element ---
+	$effect(() => {
+		if (!browser) return;
+		document.body.classList.toggle('light', !isDarkMode);
+		// Remove all scheme classes first
+		document.body.className = document.body.className.replace(/scheme-\w+/g, '').trim();
+		// Add current scheme if not default
+		if (colorScheme !== 'default') {
+			document.body.classList.add(`scheme-${colorScheme}`);
+		}
+	});
+
 	// --- Lifecycle effects ---
 	$effect(() => {
 		const source = untrack(() => issueStore.connectSSE());

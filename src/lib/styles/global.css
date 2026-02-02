@@ -173,57 +173,67 @@ body {
 }
 
 /* CTA Light mode variants */
+body.light .cta-secondary,
 .app.light .cta-secondary {
 	background: rgba(99, 102, 241, 0.08);
 	border-color: rgba(99, 102, 241, 0.2);
 	color: #6366f1;
 }
 
+body.light .cta-secondary:hover:not(:disabled),
 .app.light .cta-secondary:hover:not(:disabled) {
 	background: rgba(99, 102, 241, 0.14);
 	border-color: rgba(99, 102, 241, 0.3);
 	color: #4f46e5;
 }
 
+body.light .cta-ghost,
 .app.light .cta-ghost {
 	background: rgba(0, 0, 0, 0.04);
 	border-color: rgba(0, 0, 0, 0.06);
 	color: var(--text-secondary);
 }
 
+body.light .cta-ghost:hover:not(:disabled),
 .app.light .cta-ghost:hover:not(:disabled) {
 	background: rgba(0, 0, 0, 0.08);
 	border-color: rgba(0, 0, 0, 0.1);
 }
 
+body.light .cta-danger,
 .app.light .cta-danger {
 	background: rgba(239, 68, 68, 0.08);
 	border-color: rgba(239, 68, 68, 0.15);
 	color: #dc2626;
 }
 
+body.light .cta-danger:hover:not(:disabled),
 .app.light .cta-danger:hover:not(:disabled) {
 	background: rgba(239, 68, 68, 0.14);
 	border-color: rgba(239, 68, 68, 0.25);
 }
 
+body.light .cta-icon,
 .app.light .cta-icon {
 	background: rgba(99, 102, 241, 0.08);
 	border-color: rgba(99, 102, 241, 0.15);
 	color: #6366f1;
 }
 
+body.light .cta-icon:hover:not(:disabled),
 .app.light .cta-icon:hover:not(:disabled) {
 	background: rgba(99, 102, 241, 0.14);
 	border-color: rgba(99, 102, 241, 0.25);
 }
 
+body.light .cta-icon.danger,
 .app.light .cta-icon.danger {
 	background: rgba(239, 68, 68, 0.06);
 	border-color: rgba(239, 68, 68, 0.1);
 	color: var(--text-tertiary);
 }
 
+body.light .cta-icon.danger:hover:not(:disabled),
 .app.light .cta-icon.danger:hover:not(:disabled) {
 	background: rgba(239, 68, 68, 0.12);
 	border-color: rgba(239, 68, 68, 0.2);
@@ -481,6 +491,7 @@ body {
 	z-index: 1;
 }
 
+body.light .app::before,
 .app.light::before {
 	background:
 		/* Core glow - center top concentration */
@@ -494,6 +505,7 @@ body {
 }
 
 /* Light theme - inherits from components.css, add app-specific overrides */
+body.light,
 .app.light {
 	/* Surface levels - cool stone/slate tones */
 	--surface-app: #e4e6e9;
@@ -525,10 +537,10 @@ body {
 	/* CTA buttons - cool backgrounds */
 	--cta-muted: rgba(60, 70, 80, 0.06);
 	--cta-muted-hover: rgba(60, 70, 80, 0.10);
-	background: var(--bg-primary);
 }
 
 /* Color Schemes */
+body.scheme-ocean,
 .app.scheme-ocean {
 	--bg-primary: #0f172a;
 	--bg-secondary: #1e293b;
@@ -538,6 +550,7 @@ body {
 	--accent-glow: rgba(14, 165, 233, 0.15);
 }
 
+body.scheme-forest,
 .app.scheme-forest {
 	--bg-primary: #0f1a0f;
 	--bg-secondary: #14532d;
@@ -547,6 +560,7 @@ body {
 	--accent-glow: rgba(34, 197, 94, 0.15);
 }
 
+body.scheme-sunset,
 .app.scheme-sunset {
 	--bg-primary: #1c0a00;
 	--bg-secondary: #431407;
@@ -556,6 +570,7 @@ body {
 	--accent-glow: rgba(249, 115, 22, 0.15);
 }
 
+body.scheme-rose,
 .app.scheme-rose {
 	--bg-primary: #1a0a10;
 	--bg-secondary: #4c0519;
@@ -566,7 +581,11 @@ body {
 }
 
 /* Light mode + color schemes */
+body.light.scheme-ocean,
 .app.light.scheme-ocean { --accent-primary: #0284c7; }
+body.light.scheme-forest,
 .app.light.scheme-forest { --accent-primary: #16a34a; }
+body.light.scheme-sunset,
 .app.light.scheme-sunset { --accent-primary: #ea580c; }
+body.light.scheme-rose,
 .app.light.scheme-rose { --accent-primary: #e11d48; }
