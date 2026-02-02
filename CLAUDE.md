@@ -18,11 +18,11 @@ bun run check    # Type-check with svelte-check
 
 ### Data Flow
 - **Backend**: API routes in `src/routes/api/` use `$lib/db.ts` for reads, shell out to `bd` CLI for writes
-- **Frontend**: Single-page Kanban in `src/routes/+page.svelte` (large file, ~3600+ lines)
+- **Frontend**: Single-page Kanban in `src/routes/+page.svelte`
 - Issues flow: SQLite DB → `$lib/db.ts` → API → Svelte state → Kanban columns
 
 ### Key Files
-- `src/routes/+page.svelte` - Main Kanban board (all UI logic, drag/drop, keyboard nav)
+- `src/routes/+page.svelte` - Main Kanban board (UI logic, drag/drop, keyboard nav)
 - `src/routes/api/issues/+server.ts` - GET (via db)/POST (via bd CLI) issues
 - `src/routes/api/issues/[id]/+server.ts` - PATCH/DELETE single issue via `bd` CLI
 - `src/lib/db.ts` - SQLite database access for reading issues (bypasses CLI for perf)
@@ -53,3 +53,8 @@ The `.beads/` directory contains the issue database (SQLite + JSONL).
 - SvelteKit 2
 - TypeScript
 - Vite 5
+
+### Local Files
+`local/` is a gitignored directory for local-only assets (not committed).
+- `local/promotion/threads/` - Promotional screenshots sized for Threads
+- `local/promotion/substack/` - Promotional screenshots sized for Substack

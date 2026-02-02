@@ -12,7 +12,7 @@ Agent-specific guidance. See CLAUDE.md for commands and architecture overview.
 
 ## Architecture
 - API routes (`src/routes/api/`) shell out to `bd` CLI commands
-- Main UI in `src/routes/+page.svelte` (large file, ~3600+ lines)
+- Main UI in `src/routes/+page.svelte`
 - Issue status flow: `open` → `in_progress` → `hooked` → `blocked` → `closed`
 
 ## Error Handling
