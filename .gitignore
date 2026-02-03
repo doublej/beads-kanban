@@ -6,6 +6,6 @@ node_modules/
 build/
 .env
 
-# Embedded agent (has its own deps)
-src/lib/server/agent/node_modules/
-src/lib/server/agent/bun.lockb
+# Compiled CLI artifacts
+bin/beads-kanban.js
+bin/beads-kanban.js.map

@@ -3,23 +3,34 @@
 Kanban board UI for the Beads issue tracker. Reads directly from `.beads` SQLite for fast queries and uses the `bd` CLI for writes. Optional embedded Claude Agent SDK server powers autonomous agent panes.
 
 ## Requirements
-- Bun
-- Beads CLI (`bd`) v0.49.0+ and a project initialized with `.beads`
+- **Runtime**: Node 18+ or Bun 1.0+
+- **Beads CLI**: `bd` v0.49.0+ ([install](https://github.com/steveyegge/beads))
+- **Optional**: `uv` + `beads-mcp` for agent MCP tools
 
-Optional (agent panes)
-- Claude Agent SDK credentials (per Anthropic docs)
-- Agent server deps: `cd src/lib/server/agent && bun install`
-- `uv` + beads-mcp plugin (auto-detected) or set `BEADS_MCP_PATH`
+## Installation
 
-## Quickstart
-1. `git clone https://github.com/doublej/beads-kanban && cd beads-kanban && bun install`
-2. Add a shell function to `~/.zshrc`:
-   ```bash
-   beads-kanban() { bun /path/to/beads-kanban/bin/beads-kanban.ts "$@"; }
-   ```
-3. `beads-kanban /path/to/your/project`
+### From npm/git
+```bash
+npm install github:doublej/beads-kanban
+# or
+bun install github:doublej/beads-kanban
+```
 
-The `bin/beads-kanban.ts` entry point handles `bd` version checks, `.beads/` init, `bd doctor --fix`, and starting the dev server.
+### From source
+```bash
+git clone https://github.com/doublej/beads-kanban
+cd beads-kanban
+bun install  # or npm install
+```
+
+### Usage
+```bash
+npx beads-kanban /path/to/project
+# or with Bun
+bunx beads-kanban /path/to/project
+```
+
+The CLI handles `bd` version checks, `.beads/` init, `bd doctor --fix`, and starting the dev server.
 
 ## Notifications (optional)
 Two notification modes are available:
@@ -30,7 +41,7 @@ Two notification modes are available:
 No setup is required — both modes work out of the box.
 
 ## Agent server (optional)
-- Install deps: `cd src/lib/server/agent && bun install`
+- Agent dependencies are included in the root install
 - Run UI + agent server: `bun run dev:agent` (WebSocket on port 9347)
 - Set Anthropic credentials for the SDK (see Anthropic docs)
 

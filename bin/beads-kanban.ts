@@ -3,6 +3,10 @@
  * CLI entry point for beads-kanban.
  * Validates target directory, checks bd CLI, writes .beads-cwd, starts dev server.
  */
+
+// Type guard for Bun runtime
+declare const Bun: unknown | undefined
+
 import { resolve, join, dirname } from 'path'
 import { existsSync } from 'fs'
 import { writeFileSync } from 'fs'
@@ -11,7 +15,7 @@ import { createInterface } from 'readline'
 import { createServer } from 'net'
 
 const MIN_BD_VERSION = '0.49.0'
-const APP_DIR = dirname(import.meta.dirname)
+const APP_DIR = dirname(new URL('.', import.meta.url).pathname)
 
 function parseVersion(v: string): number[] {
 	return v.split('.').map(Number)
@@ -56,11 +60,9 @@ function findFreePort(start = 5185): Promise<number> {
 }
 
 async function main() {
-	const target = resolve(Bun.argv[2] ?? process.cwd())
+	const target = resolve(process.argv[2] ?? process.cwd())
 
 	if (!existsSync(target)) fail(`Directory not found: ${target}`)
-	const stat = Bun.file(target)
-	// Bun.file doesn't check dirs well, use lstatSync
 	const { lstatSync } = await import('fs')
 	if (!lstatSync(target).isDirectory()) fail(`Not a directory: ${target}`)
 
@@ -101,7 +103,8 @@ async function main() {
 
 	// Start dev server on a free port
 	const port = await findFreePort()
-	const child = spawn('bunx', ['vite', 'dev', '--host', '--port', String(port)], {
+	const launcher = typeof Bun !== 'undefined' ? 'bunx' : 'npx'
+	const child = spawn(launcher, ['vite', 'dev', '--host', '--port', String(port)], {
 		cwd: APP_DIR,
 		stdio: 'inherit',
 	})

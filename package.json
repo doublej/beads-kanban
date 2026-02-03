@@ -1,15 +1,18 @@
 {
   "name": "beads-kanban",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A SvelteKit application",
   "type": "module",
   "bin": {
-    "beads-kanban": "./bin/beads-kanban.ts"
+    "beads-kanban": "./bin/beads-kanban"
   },
   "scripts": {
     "dev": "vite dev --host",
-    "dev:agent": "(cd src/lib/server/agent && bun run index.ts) & vite dev --host",
+    "dev:agent": "bun run src/lib/server/agent/index.ts & vite dev --host",
     "build": "vite build",
+    "build:cli": "tsc --project bin/tsconfig.json",
+    "prepublish": "npm run build:cli",
+    "postinstall": "node scripts/postinstall.cjs || true",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
   },
@@ -25,6 +28,8 @@
     "vite": "^5.0.0"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.62",
+    "zod": "3.24.4",
     "better-sqlite3": "^12.5.0",
     "highlight.js": "^11.11.1",
     "lucide-svelte": "^0.561.0",
