@@ -8,8 +8,7 @@
 declare const Bun: unknown | undefined
 
 import { resolve, join, dirname } from 'path'
-import { existsSync } from 'fs'
-import { writeFileSync } from 'fs'
+import { existsSync, writeFileSync, lstatSync } from 'fs'
 import { spawn, execSync } from 'child_process'
 import { createInterface } from 'readline'
 import { createServer } from 'net'
@@ -63,55 +62,42 @@ async function main() {
 	const target = resolve(process.argv[2] ?? process.cwd())
 
 	if (!existsSync(target)) fail(`Directory not found: ${target}`)
-	const { lstatSync } = await import('fs')
 	if (!lstatSync(target).isDirectory()) fail(`Not a directory: ${target}`)
 
-	// Check bd is installed
-	let bdVersion: string
+	// Check bd version
 	try {
 		const output = execSync('bd --version', { encoding: 'utf-8' }).trim()
-		const match = output.match(/(\d+\.\d+\.\d+)/)
-		bdVersion = match?.[1] ?? 'unknown'
+		const bdVersion = output.match(/(\d+\.\d+\.\d+)/)?.[1]
+		if (!bdVersion || !versionAtLeast(bdVersion, MIN_BD_VERSION)) {
+			fail(`bd ${bdVersion ?? 'unknown'} is too old (need >= ${MIN_BD_VERSION}). Upgrade with: brew upgrade bd`)
+		}
 	} catch {
 		fail('bd CLI not found. Install with: brew install bd')
 	}
 
-	if (bdVersion === 'unknown' || !versionAtLeast(bdVersion, MIN_BD_VERSION)) {
-		fail(`bd ${bdVersion} is too old (need >= ${MIN_BD_VERSION}). Upgrade with: brew upgrade bd`)
-	}
-
-	// Check beads is initialized
+	// Initialize beads if needed
 	if (!existsSync(join(target, '.beads'))) {
-		const yes = await confirm(`No .beads/ found in ${target}. Initialize beads?`)
-		if (!yes) process.exit(1)
+		if (!await confirm(`No .beads/ found in ${target}. Initialize beads?`)) process.exit(1)
 		try {
 			execSync('bd init', { cwd: target, stdio: 'inherit' })
-		} catch {
-			fail('bd init failed')
-		}
-		try {
 			execSync('bd doctor --fix --yes', { cwd: target, stdio: 'inherit' })
-		} catch {
-			console.warn('Warning: bd doctor --fix had issues')
+		} catch (err) {
+			fail(`bd init failed: ${err instanceof Error ? err.message : 'unknown error'}`)
 		}
 	}
 
-	// Write .beads-cwd
-	const cwdFile = join(APP_DIR, '.beads-cwd')
-	writeFileSync(cwdFile, target, 'utf-8')
+	// Write .beads-cwd and start server
+	writeFileSync(join(APP_DIR, '.beads-cwd'), target, 'utf-8')
 	console.log(`Targeting: ${target}`)
 
-	// Start dev server on a free port
-	const port = await findFreePort()
 	const launcher = typeof Bun !== 'undefined' ? 'bunx' : 'npx'
-	const child = spawn(launcher, ['vite', 'dev', '--host', '--port', String(port)], {
+	const child = spawn(launcher, ['vite', 'dev', '--host', '--port', String(await findFreePort())], {
 		cwd: APP_DIR,
 		stdio: 'inherit',
 	})
 
 	child.on('exit', (code) => process.exit(code ?? 0))
-	process.on('SIGINT', () => child.kill('SIGINT'))
-	process.on('SIGTERM', () => child.kill('SIGTERM'))
+	;(['SIGINT', 'SIGTERM'] as const).forEach((sig) => process.on(sig, () => child.kill(sig)))
 }
 
 main()

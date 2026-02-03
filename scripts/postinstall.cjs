@@ -17,30 +17,23 @@ function checkCommand(cmd, name, installInstructions) {
   }
 }
 
-function checkNodeVersion() {
-  const [major] = process.versions.node.split('.').map(Number);
-  if (major < 18) {
-    console.warn(`⚠️  Node ${process.versions.node} detected. Node 18+ recommended.`);
-    return false;
-  }
-  return true;
-}
-
 console.log('📦 Validating beads-kanban installation...');
 
-checkNodeVersion();
-
-checkCommand(
-  'bd',
-  'Beads CLI',
-  'Install with: brew install bd (https://github.com/steveyegge/beads)'
-);
-
-// Check for native build tools (better-sqlite3 requirement)
-if (platform() === 'darwin') {
-  checkCommand('xcode-select', 'Xcode Command Line Tools', 'Install with: xcode-select --install');
-} else if (platform() === 'linux') {
-  checkCommand('gcc', 'GCC compiler', 'Install with: sudo apt install build-essential (Debian/Ubuntu)');
+// Check Node version
+const nodeMajor = parseInt(process.versions.node.split('.')[0]);
+if (nodeMajor < 18) {
+  console.warn(`⚠️  Node ${process.versions.node} detected. Node 18+ recommended.`);
 }
+
+// Check bd CLI
+checkCommand('bd', 'Beads CLI', 'Install with: brew install bd (https://github.com/steveyegge/beads)');
+
+// Check native build tools for better-sqlite3
+const buildTools = {
+  darwin: ['xcode-select', 'Xcode Command Line Tools', 'Install with: xcode-select --install'],
+  linux: ['gcc', 'GCC compiler', 'Install with: sudo apt install build-essential (Debian/Ubuntu)']
+};
+const tools = buildTools[platform()];
+if (tools) checkCommand(...tools);
 
 console.log('✅ Installation validation complete');
