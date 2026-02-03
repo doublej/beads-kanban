@@ -9,7 +9,7 @@ import { execSync } from 'child_process';
 import type { Issue, Dependency, MutationEntry, MutationType, Attachment, Comment } from './types';
 import { getMimetype } from './attachments';
 
-const CONFIG_FILE = '/Users/jurrejan/Documents/development/_management/beads-kanban/.beads-cwd';
+const CONFIG_FILE = join(process.cwd(), '.beads-cwd');
 
 export function getStoredCwd(): string {
 	if (existsSync(CONFIG_FILE)) {
