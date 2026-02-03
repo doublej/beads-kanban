@@ -71,7 +71,7 @@ async function main() {
 		const match = output.match(/(\d+\.\d+\.\d+)/)
 		bdVersion = match?.[1] ?? 'unknown'
 	} catch {
-		fail('bd CLI not found. Install with: brew install beads')
+		fail('bd CLI not found. Install with: brew install bd')
 	}
 
 	if (bdVersion === 'unknown' || !versionAtLeast(bdVersion, MIN_BD_VERSION)) {
