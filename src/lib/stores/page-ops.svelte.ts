@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import { pushState as svelteKitPushState } from '$app/navigation';
 import { fetchMutations } from '$lib/mutationStore.svelte';
 import type { Issue, Comment, Attachment } from '$lib/types';
 import { getIssueColumn, columns, getColumnMoveUpdates } from '$lib/utils';
@@ -235,7 +236,7 @@ export function createPageOps(ctx: PageOpsContext) {
 		if (browser && pushState) {
 			const url = new URL(window.location.href);
 			url.searchParams.set('issue', issue.id);
-			history.pushState({ issue: issue.id }, '', url);
+			svelteKitPushState(url, { issue: issue.id });
 		}
 	}
 
@@ -253,7 +254,7 @@ export function createPageOps(ctx: PageOpsContext) {
 		if (browser && pushState) {
 			const url = new URL(window.location.href);
 			url.searchParams.delete('issue');
-			history.pushState({}, '', url);
+			svelteKitPushState(url, {});
 		}
 	}
 

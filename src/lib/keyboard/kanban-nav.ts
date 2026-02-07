@@ -134,7 +134,7 @@ function handleNonInputShortcuts(e: KeyboardEvent, ctx: KeyboardNavContext): boo
 
 function handleColumnJump(e: KeyboardEvent, ctx: KeyboardNavContext): boolean {
 	const colIndex = parseInt(e.key) - 1;
-	if (colIndex < 0 || colIndex >= columns.length) return false;
+	if (isNaN(colIndex) || colIndex < 0 || colIndex >= columns.length) return false;
 
 	const filtered = ctx.getFilteredIssues();
 	const targetColumn = columns[colIndex];
