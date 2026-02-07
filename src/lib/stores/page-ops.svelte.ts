@@ -277,7 +277,19 @@ export function createPageOps(ctx: PageOpsContext) {
 
 	function openIssueById(id: string, pushState = true) {
 		const issue = ctx.getIssues().find(i => i.id === id);
-		if (issue) openEditPanel(issue, pushState);
+		if (issue) {
+			openEditPanel(issue, pushState);
+			return;
+		}
+		// Issue not found in current project — clean up URL and notify user
+		if (browser) {
+			const url = new URL(window.location.href);
+			if (url.searchParams.has('issue')) {
+				url.searchParams.delete('issue');
+				svelteKitPushState(url.pathname + url.search, {});
+			}
+			toastQueue.show({ type: 'warning', title: 'Issue not found', message: `Issue ${id} not found in this project`, duration: 4000 });
+		}
 	}
 
 	function handlePopState(e: PopStateEvent) {

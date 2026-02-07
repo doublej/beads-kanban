@@ -9,8 +9,12 @@ const execAsync = promisify(exec);
 
 export const GET: RequestHandler = async ({ url }) => {
 	const cwd = resolveProjectCwd(url);
-	const issues = getAllIssues(cwd);
-	return json({ issues });
+	try {
+		const issues = getAllIssues(cwd);
+		return json({ issues });
+	} catch {
+		return json({ issues: [], error: 'Failed to load issues for this project' }, { status: 200 });
+	}
 };
 
 export const POST: RequestHandler = async ({ request, url }) => {
