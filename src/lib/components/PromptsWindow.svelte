@@ -134,10 +134,10 @@ NEVER:
 	.prompts-window {
 		position: absolute;
 		top: 0;
-		right: 340px;
+		right: var(--settings-pane-width, 340px);
 		bottom: 0;
 		width: 480px;
-		max-width: calc(100vw - 340px);
+		max-width: calc(100vw - var(--settings-pane-width, 340px));
 		background: var(--bg-primary);
 		border-right: 1px solid var(--border-subtle);
 		display: flex;

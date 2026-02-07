@@ -11,6 +11,7 @@
 		currentSort: 'priority' | 'created' | 'title' | undefined;
 		sortMenuOpen: string | null;
 		hasActiveFilters: boolean;
+		showColumnCounts: boolean;
 		oncollapseclick: (columnKey: string) => void;
 		ontogglecollapse: (e: MouseEvent, columnKey: string) => void;
 		ontogglesortmenu: (columnKey: string, e: MouseEvent) => void;
@@ -26,6 +27,7 @@
 		currentSort,
 		sortMenuOpen,
 		hasActiveFilters,
+		showColumnCounts = true,
 		oncollapseclick,
 		ontogglecollapse,
 		ontogglesortmenu,
@@ -52,7 +54,9 @@
 				</div>
 			{/if}
 		</div>
-		<span class="column-count">{#if hasActiveFilters}{matchingCount}/{issueCount}{:else}{issueCount}{/if}</span>
+		{#if showColumnCounts}
+			<span class="column-count">{#if hasActiveFilters}{matchingCount}/{issueCount}{:else}{issueCount}{/if}</span>
+		{/if}
 		<button class="column-collapse-btn" onclick={(e) => ontogglecollapse(e, column.key)} aria-label={isCollapsed ? 'Expand column' : 'Collapse column'}>
 			{#if isCollapsed}
 				<Icon name="chevron-right" size={10} />

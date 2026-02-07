@@ -6,6 +6,7 @@
 		agentHost: string;
 		agentPort: number;
 		agentToolsExpanded: boolean;
+		showAgentBar: boolean;
 		conflictStrategy: 'ask' | 'worktree' | 'queue' | 'same';
 		onopenPromptsEditor: () => void;
 	}
@@ -15,6 +16,7 @@
 		agentHost = $bindable(),
 		agentPort = $bindable(),
 		agentToolsExpanded = $bindable(),
+		showAgentBar = $bindable(),
 		conflictStrategy = $bindable(),
 		onopenPromptsEditor
 	}: Props = $props();
@@ -29,6 +31,18 @@
 		</div>
 		<button class="toggle-switch" onclick={() => agentEnabled = !agentEnabled}>
 			<span class="toggle-track" class:active={agentEnabled}>
+				<span class="toggle-thumb"></span>
+			</span>
+		</button>
+	</div>
+
+	<div class="setting-row" style="margin-top: 0.75rem">
+		<div class="setting-info">
+			<span class="setting-name">Show chat bar</span>
+			<span class="setting-desc">Display the agent bar at the bottom</span>
+		</div>
+		<button class="toggle-switch" onclick={() => showAgentBar = !showAgentBar}>
+			<span class="toggle-track" class:active={showAgentBar}>
 				<span class="toggle-thumb"></span>
 			</span>
 		</button>

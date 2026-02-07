@@ -20,50 +20,60 @@
 	}: Props = $props();
 </script>
 
-<div class="editor-content">
-	<div class="content-header">
-		<span class="content-hint">{hint}</span>
-	</div>
+<div class="prompt-form">
+	<div class="editor-content">
+		<div class="content-header">
+			<span class="content-hint">{hint}</span>
+		</div>
 
-	{#if showPreview}
-		<div class="split-view">
-			<div class="edit-pane">
-				<textarea
-					class="prompt-textarea"
-					value={activeContent}
-					oninput={(e) => onupdate(e.currentTarget.value)}
-					{placeholder}
-					spellcheck="false"
-				></textarea>
-			</div>
-			<div class="preview-pane">
-				<div class="preview-label">Preview</div>
-				<div class="preview-content">
-					<MarkdownContent content={activeContent || placeholder} />
+		{#if showPreview}
+			<div class="split-view">
+				<div class="edit-pane">
+					<textarea
+						class="prompt-textarea"
+						value={activeContent}
+						oninput={(e) => onupdate(e.currentTarget.value)}
+						{placeholder}
+						spellcheck="false"
+					></textarea>
+				</div>
+				<div class="preview-pane">
+					<div class="preview-label">Preview</div>
+					<div class="preview-content">
+						<MarkdownContent content={activeContent || placeholder} />
+					</div>
 				</div>
 			</div>
+		{:else}
+			<textarea
+				class="prompt-textarea full"
+				value={activeContent}
+				oninput={(e) => onupdate(e.currentTarget.value)}
+				{placeholder}
+				spellcheck="false"
+			></textarea>
+		{/if}
+	</div>
+
+	<footer class="editor-footer">
+		<div class="footer-hint">
+			<kbd>Esc</kbd> close
 		</div>
-	{:else}
-		<textarea
-			class="prompt-textarea full"
-			value={activeContent}
-			oninput={(e) => onupdate(e.currentTarget.value)}
-			{placeholder}
-			spellcheck="false"
-		></textarea>
-	{/if}
+		<div class="footer-stats">
+			{activeContent.length} chars · ~{estimatedTokens} tokens
+		</div>
+	</footer>
 </div>
 
-<footer class="editor-footer">
-	<div class="footer-hint">
-		<kbd>Esc</kbd> close
-	</div>
-	<div class="footer-stats">
-		{activeContent.length} chars · ~{estimatedTokens} tokens
-	</div>
-</footer>
-
 <style>
+	.prompt-form {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		min-height: 0;
+	}
+
 	.editor-content {
 		flex: 1;
 		display: flex;

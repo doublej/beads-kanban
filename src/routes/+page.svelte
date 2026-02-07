@@ -89,7 +89,6 @@
 	let showSettings = $state(false);
 	let showWizard = $state(browser && !localStorage.getItem('beads-wizard-complete'));
 	let showPrompts = $state(false);
-	let showPromptsEditor = $state(false);
 	let projectName = $state('');
 	let teleports = $state<{id: string; from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; startTime: number}[]>([]);
 	let placeholders = $state<{id: string; targetColumn: string; height: number}[]>([]);
@@ -98,6 +97,8 @@
 	let flyingCards = $state<Map<string, {from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; issue: Issue}>>(new Map());
 	let shrinkingSourceIds = $state<Set<string>>(new Set());
 	let viewMode = $state<ViewMode>('kanban');
+	let lastAppliedDefaultView = $state<ViewMode | null>(null);
+	let lastAppliedDefaultSort = $state<SortBy | null>(null);
 	let showMutationLog = $state(false);
 	let projects = $state<Project[]>([]);
 	let showProjectSwitcher = $state(false);
@@ -109,10 +110,12 @@
 	let lastAppliedRecipeSnapshot = $state<string | null>(null);
 
 	// Agent queue drawer state
+	let queueDrawerOpen = $state(false);
 	let runningAgents = $derived.by(() => {
 		const sessions = Array.from(getSessions().values());
 		return sessions.filter(s => s.ticketId && !s.ended);
 	});
+	let totalQueueCount = $derived(ops.agentQueue.length + runningAgents.length);
 
 	// --- Issue Store ---
 	const issueStore = createIssueStore({
@@ -346,6 +349,33 @@
 		colorScheme = settings.colorScheme;
 	});
 
+	$effect(() => {
+		showActivityBar = settings.showAgentBar;
+	});
+
+	$effect(() => {
+		const defaultView = settings.defaultViewMode;
+		if (lastAppliedDefaultView === null || defaultView !== lastAppliedDefaultView) {
+			viewMode = defaultView;
+			lastAppliedDefaultView = defaultView;
+		}
+	});
+
+	$effect(() => {
+		const defaultSort = settings.defaultColumnSort;
+		if (lastAppliedDefaultSort === null) {
+			if (Object.keys(columnSortBy).length === 0) {
+				columnSortBy = Object.fromEntries(columns.map((col) => [col.key, defaultSort])) as Record<string, SortBy>;
+			}
+			lastAppliedDefaultSort = defaultSort;
+			return;
+		}
+		if (defaultSort !== lastAppliedDefaultSort) {
+			columnSortBy = Object.fromEntries(columns.map((col) => [col.key, defaultSort])) as Record<string, SortBy>;
+			lastAppliedDefaultSort = defaultSort;
+		}
+	});
+
 	// --- Apply theme to body element ---
 	$effect(() => {
 		if (!browser) return;
@@ -512,7 +542,7 @@
 
 <svelte:window onkeydown={handleKeydown} onkeyup={handleKeyup} onpopstate={ops.handlePopState} onclick={ops.closeContextMenu} onmousemove={ops.handleMouseMove} onmouseup={ops.handleMouseUp} onblur={handleWindowBlur} />
 
-<div class="app scheme-{colorScheme}" class:light={!isDarkMode} class:panel-open={ops.panelOpen} class:show-hotkeys={showHotkeys} class:has-chat-bar={wsConnected && showActivityBar} style="--project-color: {projectColor}">
+<div class="app scheme-{colorScheme}" class:light={!isDarkMode} class:panel-open={ops.panelOpen} class:show-hotkeys={showHotkeys || settings.alwaysShowHotkeys} class:has-chat-bar={wsConnected && showActivityBar} style="--project-color: {projectColor}">
 
 {#if ops.contextMenu}
 	<ContextMenu
@@ -560,7 +590,6 @@
 <SettingsPane
 	bind:show={showSettings}
 	bind:showPrompts
-	bind:showPromptsEditor
 	bind:agentEnabled={settings.agentEnabled}
 	bind:agentHost={settings.agentHost}
 	bind:agentPort={settings.agentPort}
@@ -570,6 +599,7 @@
 	bind:agentTicketDelivery={settings.agentTicketDelivery}
 	bind:agentTicketNotification={settings.agentTicketNotification}
 	bind:agentToolsExpanded={settings.agentToolsExpanded}
+	bind:showAgentBar={settings.showAgentBar}
 	bind:conflictStrategy={settings.conflictStrategy}
 	{isDarkMode}
 	{colorScheme}
@@ -601,7 +631,7 @@
 		onopenPrompts={() => { showSettings = true; showPrompts = true; }}
 		onpreviewchange={(previewing) => isFilterPreviewing = previewing}
 		oneditProject={() => showSettings = true}
-		ontoggleAgentPanes={() => showActivityBar = !showActivityBar}
+		ontoggleAgentPanes={() => { showActivityBar = !showActivityBar; settings.showAgentBar = showActivityBar; }}
 		onsaverecipe={saveRecipe}
 		onapplyrecipe={applyRecipe}
 		ondeleterecipe={deleteRecipe}
@@ -621,6 +651,7 @@
 		{issues}
 		{filteredIssues}
 		{hasActiveFilters}
+		showColumnCounts={settings.showColumnCounts}
 	/>
 
 	<div class="main-content" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
@@ -630,7 +661,7 @@
 					{@render detailPanel()}
 				{/if}
 				{@const rawColumnIssues = issues.filter((x) => getIssueColumn(x).key === column.key)}
-				{@const allColumnIssues = sortIssues(rawColumnIssues, columnSortBy[column.key] ?? 'created')}
+				{@const allColumnIssues = sortIssues(rawColumnIssues, columnSortBy[column.key] ?? settings.defaultColumnSort)}
 				{@const matchingCount = allColumnIssues.filter(issueMatchesFilters).length}
 				{@const isCollapsed = collapsedColumns.has(column.key)}
 				{@const currentSort = columnSortBy[column.key]}
@@ -656,6 +687,7 @@
 					{placeholders}
 					{shrinkingSourceIds}
 					{activeColumnIndex}
+					showColumnCounts={settings.showColumnCounts}
 					{registerCard}
 					{registerPlaceholder}
 					{issueMatchesFilters}
@@ -728,6 +760,8 @@
 	agentFirstMessage={settings.agentFirstMessage}
 	combinedSystemPrompt={settings.combinedSystemPrompt}
 	agentSystemPrompt={settings.agentSystemPrompt}
+	queueCount={totalQueueCount}
+	bind:queueOpen={queueDrawerOpen}
 	{getPersistedSdkSessionId}
 	{getUnreadCount}
 	{getTotalUnreadCount}
@@ -749,6 +783,7 @@
 	oncyclePaneSize={cyclePaneSize}
 	onhandleMouseMove={ops.handleMouseMove}
 	onhandleMouseUp={ops.handleMouseUp}
+	ontogglequeue={() => queueDrawerOpen = !queueDrawerOpen}
 />
 
 <FlyingCardComponent {teleports} />
@@ -803,14 +838,14 @@
 
 <ToastContainer />
 
-{#if (ops.agentQueue.length > 0 || runningAgents.length > 0)}
-	<AgentQueueDrawer
-		queue={ops.agentQueue}
-		runningSessions={runningAgents}
-		onCancel={(ticketId) => ops.cancelQueueItem(ticketId)}
-		onReorder={(from, to) => ops.reorderQueue(from, to)}
-	/>
-{/if}
+<AgentQueueDrawer
+	show={queueDrawerOpen && totalQueueCount > 0}
+	queue={ops.agentQueue}
+	runningSessions={runningAgents}
+	onCancel={(ticketId) => ops.cancelQueueItem(ticketId)}
+	onReorder={(from, to) => ops.reorderQueue(from, to)}
+	onclose={() => queueDrawerOpen = false}
+/>
 
 <PwaInstallPrompt />
 

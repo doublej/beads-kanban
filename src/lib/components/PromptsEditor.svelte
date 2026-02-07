@@ -3,7 +3,9 @@
 	import PromptTemplateForm from './PromptTemplateForm.svelte';
 
 	interface Props {
-		show: boolean;
+		show?: boolean;
+		embedded?: boolean;
+		onback?: () => void;
 		agentFirstMessage: string;
 		agentSystemPrompt: string;
 		agentWorkflow: string;
@@ -12,7 +14,9 @@
 	}
 
 	let {
-		show = $bindable(),
+		show = $bindable(false),
+		embedded = false,
+		onback,
 		agentFirstMessage = $bindable(),
 		agentSystemPrompt = $bindable(),
 		agentWorkflow = $bindable(),
@@ -68,18 +72,27 @@
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
-			show = false;
+			if (embedded) {
+				onback?.();
+			} else {
+				show = false;
+			}
 		}
 	}
 </script>
 
-<svelte:window onkeydown={show ? handleKeydown : undefined} />
+<svelte:window onkeydown={(embedded || show) ? handleKeydown : undefined} />
 
-{#if show}
+{#if embedded || show}
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-<aside class="editor-window" role="dialog" aria-label="Prompts Editor" tabindex="-1" onclick={(e) => e.stopPropagation()}>
+<aside class={embedded ? 'editor-embedded' : 'editor-window'} role="dialog" aria-label="Prompts Editor" tabindex="-1" onclick={(e) => e.stopPropagation()}>
 		<header class="editor-header">
 			<div class="header-left">
+				{#if embedded && onback}
+					<button class="back-btn" onclick={onback} aria-label="Back to Agent settings">
+						<Icon name="chevron-left" size={14} />
+					</button>
+				{/if}
 				<Icon name="sliders" size={16} />
 				<h2>Agent Prompts</h2>
 			</div>
@@ -92,9 +105,11 @@
 					<Icon name="view-board" size={14} />
 					<span>Preview</span>
 				</button>
-				<button class="close-btn" onclick={() => show = false} aria-label="Close">
-					<Icon name="close" size={16} />
-				</button>
+				{#if !embedded}
+					<button class="close-btn" onclick={() => show = false} aria-label="Close">
+						<Icon name="close" size={16} />
+					</button>
+				{/if}
 			</div>
 		</header>
 
@@ -125,13 +140,24 @@
 {/if}
 
 <style>
+	.editor-embedded {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+		height: 100%;
+		background: transparent;
+		border-right: none;
+		box-shadow: none;
+	}
+
 	.editor-window {
 		position: absolute;
 		top: 0;
-		right: 340px;
+		right: var(--settings-pane-width, 340px);
 		bottom: 0;
 		width: 680px;
-		max-width: calc(100vw - 340px);
+		max-width: calc(100vw - var(--settings-pane-width, 340px));
 		background: var(--bg-primary);
 		border-right: 1px solid var(--border-subtle);
 		display: flex;
@@ -163,6 +189,29 @@
 		align-items: center;
 		gap: 0.625rem;
 		color: var(--text-tertiary);
+	}
+
+	.back-btn {
+		width: 1.75rem;
+		height: 1.75rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--text-tertiary);
+		cursor: pointer;
+		transition: all 150ms ease;
+	}
+
+	.back-btn:hover {
+		background: rgba(255, 255, 255, 0.06);
+		color: var(--text-secondary);
+	}
+
+	:global(.app.light) .back-btn:hover {
+		background: rgba(0, 0, 0, 0.06);
 	}
 
 	.header-left h2 {

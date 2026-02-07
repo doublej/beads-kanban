@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 import type { NotificationMode, NotificationEventSettings } from '$lib/notifications/types';
-import type { ViewRecipe } from '$lib/types';
+import type { ViewRecipe, ViewMode, SortBy } from '$lib/types';
 
 const DEFAULT_AGENT_FIRST_MESSAGE = 'You are an agent named "{name}". Await further instructions.';
 
@@ -111,6 +111,11 @@ function createSettings() {
 	let colorScheme = $state('default');
 	let notificationsEnabled = $state(false);
 
+	// Board
+	let defaultViewMode = $state<ViewMode>('kanban');
+	let defaultColumnSort = $state<SortBy>('created');
+	let showColumnCounts = $state(true);
+
 	// Notifications
 	let notificationMode = $state<NotificationMode>('none');
 	let notificationEvents = $state<NotificationEventSettings>({
@@ -139,9 +144,11 @@ function createSettings() {
 	let agentTicketNotification = $state(DEFAULT_AGENT_TICKET_NOTIFICATION);
 	let agentToolsExpanded = $state(false);
 	let conflictStrategy = $state<'ask' | 'worktree' | 'queue' | 'same'>('ask');
+	let showAgentBar = $state(true);
 
 	// Layout
 	let collapsedColumns = $state<Set<string>>(new Set());
+	let alwaysShowHotkeys = $state(false);
 
 	// View Recipes
 	let viewRecipes = $state<ViewRecipe[]>([]);
@@ -170,12 +177,17 @@ function createSettings() {
 		agentTicketNotification = loadString('agentTicketNotification', agentTicketNotification);
 		agentToolsExpanded = loadBool('agentToolsExpanded', agentToolsExpanded);
 		conflictStrategy = loadString('conflictStrategy', 'ask') as 'ask' | 'worktree' | 'queue' | 'same';
+		showAgentBar = loadBool('showAgentBar', showAgentBar);
 		colorScheme = loadString('colorScheme', colorScheme);
 		notificationsEnabled = loadBool('notificationsEnabled', notificationsEnabled);
 		notificationMode = loadString('notificationMode', notificationMode) as NotificationMode;
 		notificationEvents = loadObject('notificationEvents', notificationEvents);
 		mcpBatchDelay = loadNumber('mcpBatchDelay', mcpBatchDelay);
 		viewRecipes = loadObject('viewRecipes', viewRecipes);
+		defaultViewMode = loadString('defaultViewMode', defaultViewMode) as ViewMode;
+		defaultColumnSort = loadString('defaultColumnSort', defaultColumnSort) as SortBy;
+		showColumnCounts = loadBool('showColumnCounts', showColumnCounts);
+		alwaysShowHotkeys = loadBool('alwaysShowHotkeys', alwaysShowHotkeys);
 	}
 
 	function toggleColumnCollapse(key: string) {
@@ -240,6 +252,16 @@ function createSettings() {
 		set agentToolsExpanded(v: boolean) { agentToolsExpanded = v; persist('agentToolsExpanded', String(v)); },
 		get conflictStrategy() { return conflictStrategy; },
 		set conflictStrategy(v: 'ask' | 'worktree' | 'queue' | 'same') { conflictStrategy = v; persist('conflictStrategy', v); },
+		get showAgentBar() { return showAgentBar; },
+		set showAgentBar(v: boolean) { showAgentBar = v; persist('showAgentBar', String(v)); },
+		get defaultViewMode() { return defaultViewMode; },
+		set defaultViewMode(v: ViewMode) { defaultViewMode = v; persist('defaultViewMode', v); },
+		get defaultColumnSort() { return defaultColumnSort; },
+		set defaultColumnSort(v: SortBy) { defaultColumnSort = v; persist('defaultColumnSort', v); },
+		get showColumnCounts() { return showColumnCounts; },
+		set showColumnCounts(v: boolean) { showColumnCounts = v; persist('showColumnCounts', String(v)); },
+		get alwaysShowHotkeys() { return alwaysShowHotkeys; },
+		set alwaysShowHotkeys(v: boolean) { alwaysShowHotkeys = v; persist('alwaysShowHotkeys', String(v)); },
 		get collapsedColumns() { return collapsedColumns; },
 		get combinedSystemPrompt() { return combinedSystemPrompt; },
 		get notificationMode() { return notificationMode; },

@@ -26,6 +26,7 @@
 		shrinkingSourceIds: Set<string>;
 		activeColumnIndex: number;
 		showAddButton?: boolean;
+		showColumnCounts?: boolean;
 		registerCard: (node: HTMLElement, id: string) => void;
 		registerPlaceholder: (node: HTMLElement, id: string) => void;
 		issueMatchesFilters: (issue: Issue) => boolean;
@@ -67,6 +68,7 @@
 		shrinkingSourceIds,
 		activeColumnIndex,
 		showAddButton = false,
+		showColumnCounts = true,
 		registerCard,
 		registerPlaceholder,
 		issueMatchesFilters,
@@ -106,6 +108,7 @@
 		{currentSort}
 		{sortMenuOpen}
 		{hasActiveFilters}
+		{showColumnCounts}
 		{oncollapseclick}
 		{ontogglecollapse}
 		{ontogglesortmenu}

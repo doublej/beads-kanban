@@ -32,6 +32,8 @@
 		agentFirstMessage: string;
 		combinedSystemPrompt: string;
 		agentSystemPrompt: string;
+		queueCount: number;
+		queueOpen: boolean;
 		// Callbacks
 		getPersistedSdkSessionId: (name: string) => string | undefined;
 		getUnreadCount: (name: string) => number;
@@ -54,6 +56,7 @@
 		oncyclePaneSize: (name: string) => void;
 		onhandleMouseMove: (e: MouseEvent) => void;
 		onhandleMouseUp: () => void;
+		ontogglequeue: () => void;
 	}
 
 	let {
@@ -83,6 +86,8 @@
 		agentFirstMessage,
 		combinedSystemPrompt,
 		agentSystemPrompt,
+		queueCount,
+		queueOpen = $bindable(),
 		getPersistedSdkSessionId,
 		getUnreadCount,
 		getTotalUnreadCount,
@@ -104,6 +109,7 @@
 		oncyclePaneSize,
 		onhandleMouseMove,
 		onhandleMouseUp,
+		ontogglequeue,
 	}: Props = $props();
 
 	let agentMenuOpen = $state(false);
@@ -289,6 +295,19 @@
 				</button>
 			{/each}
 		</div>
+		{#if queueCount > 0}
+			<button
+				class="queue-btn"
+				class:active={queueOpen}
+				onclick={ontogglequeue}
+				title="Agent Queue ({queueCount})"
+			>
+				<svg viewBox="0 0 16 16" width="12" height="12">
+					<path d="M2 4h12M2 8h9M2 12h6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+				</svg>
+				<span class="queue-count">{queueCount}</span>
+			</button>
+		{/if}
 		<div class="agent-bar-spacer"></div>
 		<div class="agent-bar-status">
 			<StatusBar
@@ -751,5 +770,52 @@
 	@keyframes pulse {
 		0%, 100% { opacity: 1; }
 		50% { opacity: 0.5; }
+	}
+
+	/* ===== Queue Button ===== */
+	.queue-btn {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		padding: 5px 8px;
+		background: rgba(245, 158, 11, 0.08);
+		border: 1px solid rgba(245, 158, 11, 0.15);
+		border-radius: 5px;
+		color: #f59e0b;
+		font: 500 11px/1 system-ui, -apple-system, sans-serif;
+		cursor: pointer;
+		transition: all 100ms ease;
+		flex-shrink: 0;
+	}
+
+	.queue-btn:hover {
+		background: rgba(245, 158, 11, 0.14);
+		border-color: rgba(245, 158, 11, 0.25);
+	}
+
+	.queue-btn.active {
+		background: rgba(245, 158, 11, 0.18);
+		border-color: rgba(245, 158, 11, 0.3);
+	}
+
+	.queue-btn svg { flex-shrink: 0; }
+
+	.queue-count {
+		font: 600 10px/1 'IBM Plex Mono', ui-monospace, monospace;
+	}
+
+	:global(.app.light) .queue-btn {
+		background: rgba(245, 158, 11, 0.06);
+		border-color: rgba(245, 158, 11, 0.12);
+	}
+
+	:global(.app.light) .queue-btn:hover {
+		background: rgba(245, 158, 11, 0.1);
+		border-color: rgba(245, 158, 11, 0.2);
+	}
+
+	:global(.app.light) .queue-btn.active {
+		background: rgba(245, 158, 11, 0.14);
+		border-color: rgba(245, 158, 11, 0.25);
 	}
 </style>

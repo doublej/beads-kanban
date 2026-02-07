@@ -8,9 +8,17 @@
 		issues: Issue[];
 		filteredIssues: Issue[];
 		hasActiveFilters: boolean;
+		showColumnCounts?: boolean;
 	}
 
-	let { columns, activeColumnIndex = $bindable(), issues, filteredIssues, hasActiveFilters }: Props = $props();
+	let {
+		columns,
+		activeColumnIndex = $bindable(),
+		issues,
+		filteredIssues,
+		hasActiveFilters,
+		showColumnCounts = true
+	}: Props = $props();
 </script>
 
 <nav class="column-nav">
@@ -25,7 +33,9 @@
 		>
 			<span class="column-tab-icon">{column.icon}</span>
 			<span class="column-tab-label">{column.label}</span>
-			<span class="column-tab-count">{#if hasActiveFilters}{matchingInColumn}/{totalInColumn}{:else}{totalInColumn}{/if}</span>
+			{#if showColumnCounts}
+				<span class="column-tab-count">{#if hasActiveFilters}{matchingInColumn}/{totalInColumn}{:else}{totalInColumn}{/if}</span>
+			{/if}
 		</button>
 	{/each}
 </nav>
