@@ -115,6 +115,23 @@
 	let agentMenuOpen = $state(false);
 	let agentNameInputOpen = $state(false);
 	let agentNameInputRef = $state<HTMLInputElement | null>(null);
+	let generatingName = $state(false);
+
+	async function generateAgentName() {
+		if (generatingName) return;
+		generatingName = true;
+		try {
+			const res = await fetch('/api/agent/name', { method: 'POST' });
+			if (res.ok) {
+				const { name } = await res.json();
+				newPaneName = name;
+			}
+		} catch (e) {
+			console.error('Failed to generate name:', e);
+		} finally {
+			generatingName = false;
+		}
+	}
 
 	function handleNewAgent() {
 		agentMenuOpen = false;
@@ -233,6 +250,18 @@
 					onblur={() => { if (!newPaneName.trim()) setTimeout(() => agentNameInputOpen = false, 150); }}
 					onkeydown={(e) => { if (e.key === 'Escape') { newPaneName = ''; agentNameInputOpen = false; } }}
 				/>
+				<button
+					type="button"
+					class="cta cta-icon generate"
+					onclick={generateAgentName}
+					disabled={generatingName}
+					title="Generate creative name"
+				>
+					<svg viewBox="0 0 16 16" width="12" height="12" class:spinning={generatingName}>
+						<path d="M8 2a6 6 0 100 12 6 6 0 000-12zM4 8a4 4 0 118 0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+						<circle cx="8" cy="4" r="1" fill="currentColor"/>
+					</svg>
+				</button>
 				<button type="submit" class="cta cta-icon" disabled={!newPaneName.trim()}>
 					<svg viewBox="0 0 16 16" width="12" height="12">
 						<path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -642,6 +671,29 @@
 
 	:global(.app.light) .agent-name-input:focus {
 		background: rgba(0, 0, 0, 0.06);
+	}
+
+	.cta.generate {
+		color: #a78bfa;
+	}
+
+	.cta.generate:hover {
+		color: #c4b5fd;
+		background: rgba(167, 139, 250, 0.12);
+	}
+
+	.cta.generate:disabled {
+		opacity: 0.5;
+		cursor: wait;
+	}
+
+	.cta.generate svg.spinning {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 
 	/* ===== Resume Prompt ===== */
