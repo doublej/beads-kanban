@@ -11,6 +11,7 @@ import {
 	setIsTabLeader,
 	setBroadcastCallback,
 	updateSession,
+	setSessionError,
 	createMessageHandler,
 } from './agent-sessions.svelte';
 import { fetchSessionHistory } from '../session-persistence';
@@ -23,7 +24,7 @@ function getWsUrl(): string {
 	return `ws://${host}:9347`;
 }
 
-function getOrCreateSocket(sessionName: string): WebSocket | null {
+async function getOrCreateSocket(sessionName: string): Promise<WebSocket | null> {
 	if (!getIsTabLeader()) {
 		console.log(`[agent:${sessionName}] not leader, skipping socket creation`);
 		return null;
@@ -36,6 +37,14 @@ function getOrCreateSocket(sessionName: string): WebSocket | null {
 	if (ws) {
 		ws.close();
 		sockets.delete(sessionName);
+	}
+
+	// Check health before attempting WebSocket to avoid uncatchable console errors
+	const healthy = await checkServerHealth();
+	if (!healthy) {
+		setSessionError(sessionName, 'Agent server not available. Start it with `bun run dev:agent`.');
+		setServerAvailable(false);
+		return null;
 	}
 
 	ws = new WebSocket(getWsUrl());
@@ -52,8 +61,7 @@ function getOrCreateSocket(sessionName: string): WebSocket | null {
 		updateSession(sessionName, { streaming: false });
 	};
 
-	ws.onerror = (e) => {
-		console.error(`[agent:${sessionName}] error`, e);
+	ws.onerror = () => {
 		ws?.close();
 	};
 
@@ -71,13 +79,13 @@ function sendToSocket(sessionName: string, payload: Record<string, unknown>) {
 }
 
 // Resume a session that has a serverId
-export function resumeSession(name: string) {
+export async function resumeSession(name: string) {
 	const session = getSessions().get(name);
 	if (!session?.serverId) return;
 
 	console.log(`[agent:${name}] resuming session`, session.serverId);
 
-	const ws = getOrCreateSocket(name);
+	const ws = await getOrCreateSocket(name);
 	if (!ws) return;
 
 	const sendResume = () => {
@@ -106,7 +114,7 @@ setBroadcastCallback(broadcastSessionsToFollowers);
 
 // --- Internal functions (called by leader tab) ---
 
-function startSessionInternal(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string) {
+async function startSessionInternal(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string) {
 	console.log('[agent] startSession:', name, 'cwd:', cwd, resumeSessionId ? `resuming: ${resumeSessionId}` : '', ticketId ? `ticket: ${ticketId}` : '');
 
 	const sessions = getSessions();
@@ -136,7 +144,7 @@ function startSessionInternal(name: string, cwd: string, briefing: string, syste
 		});
 	}
 
-	const ws = getOrCreateSocket(name);
+	const ws = await getOrCreateSocket(name);
 	if (!ws) return;
 
 	const sendStart = () => {
@@ -232,29 +240,37 @@ export const internalActions = {
 
 // --- Public functions (forward to leader if not leader) ---
 
+async function checkServerHealth() {
+	try {
+		const res = await fetch('/api/agent/health');
+		const data = await res.json();
+		return data.ok === true;
+	} catch {
+		return false;
+	}
+}
+
 export function connect() {
 	if (typeof window === 'undefined') return;
 
 	initTabCoordinator();
 
-	const ws = new WebSocket(getWsUrl());
-	ws.onopen = () => {
-		setServerAvailable(true);
-		ws.close();
-		if (getIsTabLeader()) {
+	checkServerHealth().then((ok) => {
+		setServerAvailable(ok);
+		if (ok && getIsTabLeader()) {
 			for (const [name, session] of getSessions()) {
 				if (session.serverId && !session.streaming) {
 					resumeSession(name);
 				}
 			}
 		}
-	};
-	ws.onerror = () => {
-		setServerAvailable(false);
-	};
+	});
+
 	if (!checkTimer) {
 		checkTimer = setInterval(() => {
-			if (!getServerAvailable() && getIsTabLeader()) connect();
+			if (!getServerAvailable() && getIsTabLeader()) {
+				checkServerHealth().then((ok) => setServerAvailable(ok));
+			}
 		}, 5000);
 	}
 }
@@ -325,7 +341,7 @@ export function clearAllSessions() {
 	}
 }
 
-export function sendToPane(name: string, message: string, cwd: string) {
+export async function sendToPane(name: string, message: string, cwd: string) {
 	console.log('[agent] sendToPane:', name, 'cwd:', cwd);
 	const sessions = getSessions();
 	const session = sessions.get(name);
@@ -335,7 +351,7 @@ export function sendToPane(name: string, message: string, cwd: string) {
 	} else if (!session.streaming) {
 		updateSession(name, { streaming: true });
 		if (getIsTabLeader()) {
-			const ws = getOrCreateSocket(name);
+			const ws = await getOrCreateSocket(name);
 			if (!ws) return;
 			const send = () => sendToSocket(name, { type: 'message', text: message });
 			if (ws.readyState === WebSocket.OPEN) {
