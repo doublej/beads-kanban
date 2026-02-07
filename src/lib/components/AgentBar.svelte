@@ -776,26 +776,24 @@
 	.queue-btn {
 		display: flex;
 		align-items: center;
-		gap: 5px;
-		padding: 5px 8px;
+		gap: 0.25rem;
+		padding: 0.25rem 0.5rem;
 		background: rgba(245, 158, 11, 0.08);
-		border: 1px solid rgba(245, 158, 11, 0.15);
-		border-radius: 5px;
+		border: none;
+		border-radius: 3px;
 		color: #f59e0b;
-		font: 500 11px/1 system-ui, -apple-system, sans-serif;
+		font: 500 11px/1 'IBM Plex Mono', ui-monospace, monospace;
 		cursor: pointer;
-		transition: all 100ms ease;
+		transition: all 80ms ease;
 		flex-shrink: 0;
 	}
 
 	.queue-btn:hover {
 		background: rgba(245, 158, 11, 0.14);
-		border-color: rgba(245, 158, 11, 0.25);
 	}
 
 	.queue-btn.active {
 		background: rgba(245, 158, 11, 0.18);
-		border-color: rgba(245, 158, 11, 0.3);
 	}
 
 	.queue-btn svg { flex-shrink: 0; }
@@ -806,16 +804,13 @@
 
 	:global(.app.light) .queue-btn {
 		background: rgba(245, 158, 11, 0.06);
-		border-color: rgba(245, 158, 11, 0.12);
 	}
 
 	:global(.app.light) .queue-btn:hover {
 		background: rgba(245, 158, 11, 0.1);
-		border-color: rgba(245, 158, 11, 0.2);
 	}
 
 	:global(.app.light) .queue-btn.active {
 		background: rgba(245, 158, 11, 0.14);
-		border-color: rgba(245, 158, 11, 0.25);
 	}
 </style>
