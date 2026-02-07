@@ -81,7 +81,8 @@
 		{ key: 'kanban', label: 'board' },
 		{ key: 'tree', label: 'tree' },
 		{ key: 'graph', label: 'dependency graph' },
-		{ key: 'stats', label: 'stats' }
+		{ key: 'stats', label: 'stats' },
+		{ key: 'diff', label: 'diff' }
 	];
 
 	const activeViewLabel = $derived(viewModes.find(m => m.key === viewMode)?.label ?? 'board');

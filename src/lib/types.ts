@@ -86,7 +86,23 @@ export interface RopeDragState {
 
 export type SortBy = 'priority' | 'created' | 'title';
 export type PaneSize = 'compact' | 'medium' | 'large';
-export type ViewMode = 'kanban' | 'tree' | 'graph' | 'stats';
+export type ViewMode = 'kanban' | 'tree' | 'graph' | 'stats' | 'diff';
+
+export interface DiffChange {
+	issue: { id: string; title: string; status: string; priority: number; issue_type: string };
+	changeType: 'added' | 'closed' | 'reopened' | 'status_changed' | 'priority_changed';
+	oldValue?: string;
+	newValue?: string;
+}
+
+export interface DiffResult {
+	rev: string;
+	revLabel: string;
+	currentCount: number;
+	historicalCount: number;
+	changes: DiffChange[];
+	commits: { hash: string; message: string; date: string }[];
+}
 
 export type LoadingPhase = 'disconnected' | 'ready' | 'error';
 

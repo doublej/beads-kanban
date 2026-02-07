@@ -26,7 +26,9 @@
 		// Agents & AI
 		Bot, Cpu, Activity,
 		// Misc
-		Send, Calendar, Tag, User, Users, Bell
+		Send, Calendar, Tag, User, Users, Bell,
+		// Diff
+		History
 	} from 'lucide-svelte';
 
 	type IconName =
@@ -42,7 +44,7 @@
 		// Issue Types
 		| 'task' | 'bug' | 'feature' | 'epic' | 'chore'
 		// Views
-		| 'view-board' | 'view-tree' | 'view-graph' | 'view-stats'
+		| 'view-board' | 'view-tree' | 'view-graph' | 'view-stats' | 'view-diff'
 		// Dependency Types
 		| 'dep-blocks' | 'dep-related' | 'dep-parent' | 'dep-discovered'
 		// Theme & Settings
@@ -112,6 +114,7 @@
 		'view-tree': GitBranch,
 		'view-graph': Network,
 		'view-stats': BarChart3,
+		'view-diff': History,
 		// Dependency Types
 		'dep-blocks': Ban,
 		'dep-related': ArrowLeftRight,

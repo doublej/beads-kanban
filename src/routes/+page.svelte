@@ -38,6 +38,7 @@
 	import SetupWizard from '$lib/components/SetupWizard.svelte';
 	import { fetchMutations } from '$lib/mutationStore.svelte';
 	import StatsView from '$lib/components/StatsView.svelte';
+	import DiffView from '$lib/components/DiffView.svelte';
 	import ThemeTransition from '$lib/components/ThemeTransition.svelte';
 	import ProjectSwitcher from '$lib/components/ProjectSwitcher.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
@@ -792,6 +793,10 @@
 	{:else if viewMode === 'stats'}
 		<div class="stats-view-wrapper" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
 			<StatsView {issues} />
+		</div>
+	{:else if viewMode === 'diff'}
+		<div class="stats-view-wrapper" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
+			<DiffView />
 		</div>
 	{/if}
 

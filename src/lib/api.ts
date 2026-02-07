@@ -1,4 +1,4 @@
-import type { Issue, Comment, Attachment } from './types';
+import type { Issue, Comment, Attachment, DiffResult } from './types';
 import { fetchJSON, postJSON, patchJSON, deleteJSON, postFormData } from './http';
 
 export async function updateIssue(id: string, updates: Partial<Issue>): Promise<void> {
@@ -62,4 +62,8 @@ export async function getChildrenApi(id: string): Promise<{ id: string; title: s
 export async function getTypesApi(): Promise<string[]> {
 	const data = await fetchJSON<{ types?: string[] }>('/api/types');
 	return data.types || [];
+}
+
+export async function getDiffApi(rev = 'HEAD~1'): Promise<DiffResult> {
+	return fetchJSON<DiffResult>(`/api/diff?rev=${encodeURIComponent(rev)}`);
 }
