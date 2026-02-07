@@ -127,8 +127,6 @@
 		const sessions = Array.from(getSessions().values());
 		return sessions.filter(s => s.ticketId && !s.ended);
 	});
-	let totalQueueCount = $derived(ops.agentQueue.length + runningAgents.length);
-
 	// --- Issue Store ---
 	const issueStore = createIssueStore({
 		onNewIssue: () => {}, // Notifications now handled by event system
@@ -209,6 +207,8 @@
 		getExpandedPanes: () => expandedPanes,
 		setExpandedPanes: (v) => { expandedPanes = v; },
 	});
+
+	let totalQueueCount = $derived(ops.agentQueue.length + runningAgents.length);
 
 	// --- Card Drag/Drop & Touch ---
 	const cardDrag = createCardDrag({
