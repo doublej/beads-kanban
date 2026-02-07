@@ -3,6 +3,22 @@ import type { AgentSession } from "./session-types";
 import { BLOCKED_BEADS_TOOLS, createBeadsToolsServer } from "./beads-tools";
 import { extractFilePath, snapshotFile, computeDiffs } from "./file-diff";
 
+// Intercept fetch to log auth headers
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (...args: Parameters<typeof fetch>) => {
+  const [url, init] = args;
+  if (url.toString().includes('anthropic.com') || url.toString().includes('claude.ai')) {
+    const headers = new Headers(init?.headers);
+    console.log('\n[AUTH INTERCEPT]', {
+      url: url.toString().substring(0, 50) + '...',
+      'x-api-key': headers.get('x-api-key')?.substring(0, 20) + '...' || '(not set)',
+      'authorization': headers.get('authorization')?.substring(0, 30) + '...' || '(not set)',
+      'cookie': headers.get('cookie') ? '(present)' : '(not set)',
+    });
+  }
+  return originalFetch(...args);
+};
+
 export function sendToClient(session: AgentSession, msg: object) {
   if (session.ws) {
     session.ws.send(JSON.stringify(msg));
