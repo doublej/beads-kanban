@@ -1,6 +1,7 @@
 export function formatCwdForDisplay(cwd: string, maxLength = 30): string {
-	const home = process.env.HOME || '~';
-	const shortened = cwd.replace(home, '~');
+	// Detect home directory pattern (e.g., /Users/username or /home/username)
+	const homeMatch = cwd.match(/^(\/(?:Users|home)\/[^/]+)/);
+	const shortened = homeMatch ? cwd.replace(homeMatch[1], '~') : cwd;
 
 	if (shortened.length <= maxLength) return shortened;
 
