@@ -1,8 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import Anthropic from '@anthropic-ai/sdk';
-
-const anthropic = new Anthropic();
+import { unstable_v2_prompt } from '@anthropic-ai/claude-agent-sdk';
 
 const PROMPT = `You're naming an AI coding agent for "beads-kanban" - a task tracker where issues are like beads strung together on a string.
 
@@ -25,18 +23,15 @@ Output ONLY the name, nothing else.`;
 
 export const POST: RequestHandler = async () => {
 	try {
-		const message = await anthropic.messages.create({
+		const result = await unstable_v2_prompt(PROMPT, {
 			model: 'claude-haiku-4-20250514',
-			max_tokens: 50,
-			messages: [{ role: 'user', content: PROMPT }],
 		});
 
-		const textBlock = message.content[0];
-		if (textBlock.type !== 'text') {
-			return json({ error: 'Unexpected response type' }, { status: 500 });
+		if (result.subtype !== 'success' || !result.result) {
+			return json({ error: 'Failed to generate name' }, { status: 500 });
 		}
 
-		const name = textBlock.text.trim().toLowerCase().replace(/\s+/g, '-');
+		const name = result.result.trim().toLowerCase().replace(/\s+/g, '-');
 
 		return json({ name });
 	} catch (error) {
