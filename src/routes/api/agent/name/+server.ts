@@ -4,19 +4,24 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const anthropic = new Anthropic();
 
-const PROMPT = `You're naming an AI coding agent for "beads-kanban" - a task tracker where issues are like beads strung together.
+const PROMPT = `You're naming an AI coding agent for "beads-kanban" - a task tracker where issues are like beads strung together on a string.
 
-Creative directions to explore:
-• Bead/gem/jewelry wordplay mixed with coding terms
-• Thread/string puns (threading, stringing, weaving)
-• Kanban flow metaphors (columns, cards, lanes)
-• Nautical (pearls, diving, oysters) meets programming
-• Alliterative combos that sound fun to say
-• Dad-joke-level puns that make developers groan-smile
+Generate ONE creative agent name. Pick from these vibes (vary your choice):
 
-Invent something fresh and memorable. Mash up unexpected concepts. Channel the spirit of a witty coworker naming their shell alias.
+🔮 GEM/BEAD wordplay: jade-juggler, quartz-coder, opal-ops, ruby-runner
+📿 STRING/THREAD puns: string-theory, loop-weaver, knot-navigator, fiber-fixer
+🌊 PEARL-DIVER energy: deep-diver, shell-seeker, reef-raider, tide-turner
+🎯 KANBAN mashups: lane-legend, card-shark, flow-state, column-climber
+🎲 PLAYFUL coding: byte-beader, git-gem, merge-marble, commit-crystal
 
-Format: 1-3 words, lowercase, hyphenated. Output only the name.`;
+Rules:
+- 1-2 words max, hyphenated, lowercase
+- Must sound fun to say out loud
+- Should make a developer smile
+- No generic names like "code-helper" or "task-bot"
+- Be creative! Invent new combos
+
+Output ONLY the name, nothing else.`;
 
 export const POST: RequestHandler = async () => {
 	try {
