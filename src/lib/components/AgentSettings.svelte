@@ -5,6 +5,7 @@
 		agentEnabled: boolean;
 		agentHost: string;
 		agentPort: number;
+		agentModel: string;
 		agentToolsExpanded: boolean;
 		showAgentBar: boolean;
 		conflictStrategy: 'ask' | 'worktree' | 'queue' | 'same';
@@ -15,11 +16,19 @@
 		agentEnabled = $bindable(),
 		agentHost = $bindable(),
 		agentPort = $bindable(),
+		agentModel = $bindable(),
 		agentToolsExpanded = $bindable(),
 		showAgentBar = $bindable(),
 		conflictStrategy = $bindable(),
 		onopenPromptsEditor
 	}: Props = $props();
+
+	const modelOptions = [
+		{ value: '', label: 'Default', hint: 'CLI default model' },
+		{ value: 'haiku', label: 'Haiku', hint: 'Fast & lightweight' },
+		{ value: 'sonnet', label: 'Sonnet', hint: 'Balanced performance' },
+		{ value: 'opus', label: 'Opus', hint: 'Most capable' },
+	];
 </script>
 
 <section class="settings-section">
@@ -74,6 +83,27 @@
 				<span class="endpoint-label">Endpoint</span>
 				<code class="endpoint-value">ws://{agentHost}:{agentPort}</code>
 			</div>
+		</div>
+
+		<!-- Agent Model -->
+		<div class="setting-row" style="margin-top: 0.75rem;">
+			<div class="setting-info">
+				<span class="setting-name">Model</span>
+				<span class="setting-desc">Claude model for agent sessions</span>
+			</div>
+		</div>
+
+		<div class="strategy-selector">
+			{#each modelOptions as opt}
+				<button
+					class="strategy-option"
+					class:active={agentModel === opt.value}
+					onclick={() => agentModel = opt.value}
+				>
+					<span class="strategy-label">{opt.label}</span>
+					<span class="strategy-hint">{opt.hint}</span>
+				</button>
+			{/each}
 		</div>
 
 		<!-- Agent Prompts -->

@@ -11,9 +11,10 @@ import { resolve, join, dirname } from 'path'
 import { existsSync, writeFileSync, lstatSync } from 'fs'
 import { spawn, execSync } from 'child_process'
 import { createInterface } from 'readline'
-import { createServer } from 'net'
+import { createServer, createConnection } from 'net'
 
 const MIN_BD_VERSION = '0.49.0'
+const AGENT_PORT = 9347
 const APP_DIR = dirname(new URL('.', import.meta.url).pathname)
 
 function parseVersion(v: string): number[] {
@@ -42,6 +43,14 @@ async function confirm(question: string): Promise<boolean> {
 			rl.close()
 			res(answer.toLowerCase().startsWith('y'))
 		})
+	})
+}
+
+function isPortInUse(port: number): Promise<boolean> {
+	return new Promise((res) => {
+		const sock = createConnection({ port, host: '127.0.0.1' })
+		sock.on('connect', () => { sock.destroy(); res(true) })
+		sock.on('error', () => res(false))
 	})
 }
 
@@ -90,14 +99,37 @@ async function main() {
 	writeFileSync(join(APP_DIR, '.beads-cwd'), target, 'utf-8')
 	console.log(`Targeting: ${target}`)
 
+	// Spawn agent WebSocket server (optional — vite continues if it crashes)
+	let agentChild: ReturnType<typeof spawn> | null = null
+	const agentPortInUse = await isPortInUse(AGENT_PORT)
+	if (agentPortInUse) {
+		console.log(`Agent server already running on port ${AGENT_PORT}, reusing`)
+	} else {
+		agentChild = spawn('bun', ['run', join(APP_DIR, 'src/lib/server/agent/index.ts')], {
+			cwd: APP_DIR,
+			stdio: 'inherit',
+		})
+		agentChild.on('exit', (code) => {
+			if (code !== 0 && code !== null) console.warn(`Agent server exited with code ${code}`)
+		})
+	}
+
 	const launcher = typeof Bun !== 'undefined' ? 'bunx' : 'npx'
 	const child = spawn(launcher, ['vite', 'dev', '--host', '--port', String(await findFreePort())], {
 		cwd: APP_DIR,
 		stdio: 'inherit',
 	})
 
-	child.on('exit', (code) => process.exit(code ?? 0))
-	;(['SIGINT', 'SIGTERM'] as const).forEach((sig) => process.on(sig, () => child.kill(sig)))
+	child.on('exit', (code) => {
+		agentChild?.kill()
+		process.exit(code ?? 0)
+	})
+	;(['SIGINT', 'SIGTERM'] as const).forEach((sig) =>
+		process.on(sig, () => {
+			agentChild?.kill(sig)
+			child.kill(sig)
+		})
+	)
 }
 
 main()

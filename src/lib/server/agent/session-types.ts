@@ -18,11 +18,12 @@ export type AgentSession = {
   isRunning: boolean;
   allowedTools?: string[];
   disallowedTools?: string[];
+  model?: string;
   usage: { inputTokens: number; outputTokens: number; cacheRead: number; cacheCreation: number };
 };
 
 export type ClientMessage =
-  | { type: "start"; cwd: string; agentName?: string; systemPromptAppend?: string; briefing: string; allowedTools?: string[]; disallowedTools?: string[]; resumeSessionId?: string }
+  | { type: "start"; cwd: string; agentName?: string; systemPromptAppend?: string; briefing: string; allowedTools?: string[]; disallowedTools?: string[]; resumeSessionId?: string; model?: string }
   | { type: "resume"; sessionId: string }
   | { type: "continue"; text: string }
   | { type: "message"; text: string }

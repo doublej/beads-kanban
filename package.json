@@ -1,7 +1,7 @@
 {
   "name": "beads-kanban",
   "version": "0.2.0",
-  "description": "A SvelteKit application",
+  "description": "Kanban board UI for the Beads issue tracker with drag-and-drop and agent integration",
   "type": "module",
   "bin": {
     "beads-kanban": "./bin/beads-kanban"

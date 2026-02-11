@@ -67,7 +67,7 @@ function handleActionRequest(request: ActionRequest) {
 	getConnectionModule().then(({ internalActions }) => {
 		switch (action) {
 			case 'startSession':
-				internalActions.startSessionInternal(sessionName, ...(args as [string, string, string?, string?, string?]));
+				internalActions.startSessionInternal(sessionName, ...(args as [string, string, string?, string?, string?, string?]));
 				break;
 			case 'sendMessage':
 				internalActions.sendMessageInternal(sessionName, args[0] as string);

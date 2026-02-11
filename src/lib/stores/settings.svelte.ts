@@ -143,6 +143,7 @@ function createSettings() {
 	let agentTicketDelivery = $state(DEFAULT_AGENT_TICKET_DELIVERY);
 	let agentTicketNotification = $state(DEFAULT_AGENT_TICKET_NOTIFICATION);
 	let agentToolsExpanded = $state(false);
+	let agentModel = $state('');
 	let conflictStrategy = $state<'ask' | 'worktree' | 'queue' | 'same'>('ask');
 	let showAgentBar = $state(true);
 
@@ -176,6 +177,7 @@ function createSettings() {
 		agentTicketDelivery = loadString('agentTicketDelivery', agentTicketDelivery);
 		agentTicketNotification = loadString('agentTicketNotification', agentTicketNotification);
 		agentToolsExpanded = loadBool('agentToolsExpanded', agentToolsExpanded);
+		agentModel = loadString('agentModel', agentModel);
 		conflictStrategy = loadString('conflictStrategy', 'ask') as 'ask' | 'worktree' | 'queue' | 'same';
 		showAgentBar = loadBool('showAgentBar', showAgentBar);
 		colorScheme = loadString('colorScheme', colorScheme);
@@ -250,6 +252,8 @@ function createSettings() {
 		set agentTicketNotification(v: string) { agentTicketNotification = v; persist('agentTicketNotification', v); },
 		get agentToolsExpanded() { return agentToolsExpanded; },
 		set agentToolsExpanded(v: boolean) { agentToolsExpanded = v; persist('agentToolsExpanded', String(v)); },
+		get agentModel() { return agentModel; },
+		set agentModel(v: string) { agentModel = v; persist('agentModel', v); },
 		get conflictStrategy() { return conflictStrategy; },
 		set conflictStrategy(v: 'ask' | 'worktree' | 'queue' | 'same') { conflictStrategy = v; persist('conflictStrategy', v); },
 		get showAgentBar() { return showAgentBar; },

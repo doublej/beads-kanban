@@ -21,6 +21,7 @@
 		agentWorkflow: string;
 		agentTicketDelivery: string;
 		agentTicketNotification: string;
+		agentModel: string;
 		agentToolsExpanded: boolean;
 		showAgentBar: boolean;
 		conflictStrategy: 'ask' | 'worktree' | 'queue' | 'same';
@@ -41,6 +42,7 @@
 		agentWorkflow = $bindable(),
 		agentTicketDelivery = $bindable(),
 		agentTicketNotification = $bindable(),
+		agentModel = $bindable(),
 		agentToolsExpanded = $bindable(),
 		showAgentBar = $bindable(),
 		conflictStrategy = $bindable(),
@@ -132,6 +134,7 @@
 						bind:agentEnabled
 						bind:agentHost
 						bind:agentPort
+						bind:agentModel
 						bind:agentToolsExpanded
 						bind:showAgentBar
 						bind:conflictStrategy

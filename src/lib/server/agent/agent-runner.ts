@@ -122,6 +122,7 @@ export async function runAgent(session: AgentSession, briefing: string, opts: Ru
   const options: Options = {
     cwd: session.cwd,
     abortController: session.abortController,
+    ...(session.model && { model: session.model }),
     permissionMode: "bypassPermissions",
     allowDangerouslySkipPermissions: true,
     includePartialMessages: true,

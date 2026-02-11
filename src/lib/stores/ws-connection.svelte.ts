@@ -114,7 +114,7 @@ setBroadcastCallback(broadcastSessionsToFollowers);
 
 // --- Internal functions (called by leader tab) ---
 
-async function startSessionInternal(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string) {
+async function startSessionInternal(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string, model?: string) {
 	console.log('[agent] startSession:', name, 'cwd:', cwd, resumeSessionId ? `resuming: ${resumeSessionId}` : '', ticketId ? `ticket: ${ticketId}` : '');
 
 	const sessions = getSessions();
@@ -148,7 +148,7 @@ async function startSessionInternal(name: string, cwd: string, briefing: string,
 	if (!ws) return;
 
 	const sendStart = () => {
-		sendToSocket(name, { type: 'start', cwd, agentName: name, briefing, systemPromptAppend, resumeSessionId });
+		sendToSocket(name, { type: 'start', cwd, agentName: name, briefing, systemPromptAppend, resumeSessionId, model });
 	};
 
 	if (ws.readyState === WebSocket.OPEN) {
@@ -293,11 +293,11 @@ export function getConnected() { return getServerAvailable(); }
 export function getPanes() { return getSessions(); }
 export function isLeaderTab() { return getIsTabLeader(); }
 
-export function startSession(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string) {
+export function startSession(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string, model?: string) {
 	if (getIsTabLeader()) {
-		startSessionInternal(name, cwd, briefing, systemPromptAppend, resumeSessionId, ticketId);
+		startSessionInternal(name, cwd, briefing, systemPromptAppend, resumeSessionId, ticketId, model);
 	} else {
-		tabCoordinator.requestAction({ action: 'startSession', sessionName: name, args: [cwd, briefing, systemPromptAppend, resumeSessionId, ticketId] });
+		tabCoordinator.requestAction({ action: 'startSession', sessionName: name, args: [cwd, briefing, systemPromptAppend, resumeSessionId, ticketId, model] });
 	}
 }
 
@@ -317,10 +317,10 @@ export function interrupt(name: string) {
 	}
 }
 
-export function addPane(name: string, cwd: string, firstMessage?: string, systemPrompt?: string, resumeSessionId?: string, ticketId?: string) {
+export function addPane(name: string, cwd: string, firstMessage?: string, systemPrompt?: string, resumeSessionId?: string, ticketId?: string, model?: string) {
 	const briefing = firstMessage ? firstMessage.replace('{name}', name) : `You are an agent named "${name}". Await further instructions.`;
 	const prompt = systemPrompt ? systemPrompt.replace('{name}', name) : undefined;
-	startSession(name, cwd, briefing, prompt, resumeSessionId, ticketId);
+	startSession(name, cwd, briefing, prompt, resumeSessionId, ticketId, model);
 }
 
 export function killSession(name: string) {

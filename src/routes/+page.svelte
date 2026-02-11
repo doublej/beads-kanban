@@ -662,6 +662,7 @@
 	bind:agentWorkflow={settings.agentWorkflow}
 	bind:agentTicketDelivery={settings.agentTicketDelivery}
 	bind:agentTicketNotification={settings.agentTicketNotification}
+	bind:agentModel={settings.agentModel}
 	bind:agentToolsExpanded={settings.agentToolsExpanded}
 	bind:showAgentBar={settings.showAgentBar}
 	bind:conflictStrategy={settings.conflictStrategy}

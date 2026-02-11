@@ -169,7 +169,7 @@ export function createPageOps(ctx: PageOpsContext) {
 			}
 		}
 
-		addPane(entry.agentName, effectiveCwd, briefing, settings.combinedSystemPrompt, undefined, entry.ticketId);
+		addPane(entry.agentName, effectiveCwd, briefing, settings.combinedSystemPrompt, undefined, entry.ticketId, settings.agentModel || undefined);
 		if (entry.useWorktree) updateSession(entry.agentName, { worktreePath: effectiveCwd });
 		expandPane(entry.agentName);
 		return true;
@@ -413,7 +413,7 @@ export function createPageOps(ctx: PageOpsContext) {
 				}
 			}
 
-			addPane(agentName, cwd, briefing, settings.combinedSystemPrompt, undefined, newId);
+			addPane(agentName, cwd, briefing, settings.combinedSystemPrompt, undefined, newId, settings.agentModel || undefined);
 			expandPane(agentName);
 		}
 	}
@@ -452,7 +452,7 @@ export function createPageOps(ctx: PageOpsContext) {
 			}
 		}
 
-		addPane(agentName, cwd, briefing, settings.combinedSystemPrompt, undefined, issue.id);
+		addPane(agentName, cwd, briefing, settings.combinedSystemPrompt, undefined, issue.id, settings.agentModel || undefined);
 		expandPane(agentName);
 		editingIssue = null;
 		isCreating = false;
