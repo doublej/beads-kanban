@@ -47,6 +47,73 @@ export function calculateSessionUsage(cwd: string, sessionId: string): { inputTo
   }
 }
 
+function parseSessionFile(fullPath: string, filename: string): SdkSessionInfo | null {
+  try {
+    const content = readFileSync(fullPath, "utf8");
+    const lines = content.split("\n").filter((l: string) => l.trim());
+    if (lines.length === 0) return null;
+
+    let sessionId = filename.replace(".jsonl", "");
+    let timestamp = "";
+    let agentName: string | undefined;
+    let summary: string | undefined;
+    const preview: string[] = [];
+
+    for (const line of lines.slice(0, 50)) {
+      try {
+        const data = JSON.parse(line);
+
+        if (data.sessionId && !timestamp) {
+          sessionId = data.sessionId;
+          timestamp = data.timestamp || "";
+        }
+
+        if (data.type === "summary" && data.summary) {
+          summary = data.summary;
+        }
+
+        if (data.type === "user" && typeof data.message?.content === "string") {
+          const match = data.message.content.match(/You are an agent named "([^"]+)"/);
+          if (match) agentName = match[1];
+        }
+
+        if (data.type === "user" && !data.isMeta && data.message?.content) {
+          const text = typeof data.message.content === "string"
+            ? data.message.content
+            : Array.isArray(data.message.content)
+              ? data.message.content.find((c: any) => c.type === "text")?.text
+              : null;
+          if (text && !text.startsWith("<") && text.length > 5 && preview.length < 10) {
+            const clean = text.replace(/\s+/g, " ").trim().slice(0, 120);
+            if (clean && !clean.startsWith("You are an agent")) {
+              preview.push(clean);
+            }
+          }
+        }
+
+        if (data.type === "assistant" && data.message?.content) {
+          const content = data.message.content;
+          const text = Array.isArray(content)
+            ? content.find((c: any) => c.type === "text")?.text
+            : typeof content === "string" ? content : null;
+          if (text && preview.length < 10) {
+            const firstSentence = text.split(/[.!?\n]/)[0]?.trim().slice(0, 80);
+            if (firstSentence && firstSentence.length > 10) {
+              preview.push(`> ${firstSentence}`);
+            }
+          }
+        }
+      } catch { /* skip */ }
+    }
+
+    if (!timestamp) return null;
+
+    return { sessionId, agentName, timestamp, summary, preview } as SdkSessionInfo;
+  } catch {
+    return null;
+  }
+}
+
 export function listSdkSessions(cwd: string): SdkSessionInfo[] {
   const sessionsDir = getProjectDir(cwd);
 
@@ -59,73 +126,7 @@ export function listSdkSessions(cwd: string): SdkSessionInfo[] {
 
   const files = readdirSync(sessionsDir)
     .filter(f => f.endsWith(".jsonl"))
-    .map(f => {
-      const fullPath = join(sessionsDir, f);
-      try {
-        const content = readFileSync(fullPath, "utf8");
-        const lines = content.split("\n").filter((l: string) => l.trim());
-        if (lines.length === 0) return null;
-
-        let sessionId = f.replace(".jsonl", "");
-        let timestamp = "";
-        let agentName: string | undefined;
-        let summary: string | undefined;
-        const preview: string[] = [];
-
-        for (const line of lines.slice(0, 50)) {
-          try {
-            const data = JSON.parse(line);
-
-            if (data.sessionId && !timestamp) {
-              sessionId = data.sessionId;
-              timestamp = data.timestamp || "";
-            }
-
-            if (data.type === "summary" && data.summary) {
-              summary = data.summary;
-            }
-
-            if (data.type === "user" && typeof data.message?.content === "string") {
-              const match = data.message.content.match(/You are an agent named "([^"]+)"/);
-              if (match) agentName = match[1];
-            }
-
-            if (data.type === "user" && !data.isMeta && data.message?.content) {
-              const text = typeof data.message.content === "string"
-                ? data.message.content
-                : Array.isArray(data.message.content)
-                  ? data.message.content.find((c: any) => c.type === "text")?.text
-                  : null;
-              if (text && !text.startsWith("<") && text.length > 5 && preview.length < 10) {
-                const clean = text.replace(/\s+/g, " ").trim().slice(0, 120);
-                if (clean && !clean.startsWith("You are an agent")) {
-                  preview.push(clean);
-                }
-              }
-            }
-
-            if (data.type === "assistant" && data.message?.content) {
-              const content = data.message.content;
-              const text = Array.isArray(content)
-                ? content.find((c: any) => c.type === "text")?.text
-                : typeof content === "string" ? content : null;
-              if (text && preview.length < 10) {
-                const firstSentence = text.split(/[.!?\n]/)[0]?.trim().slice(0, 80);
-                if (firstSentence && firstSentence.length > 10) {
-                  preview.push(`> ${firstSentence}`);
-                }
-              }
-            }
-          } catch { /* skip */ }
-        }
-
-        if (!timestamp) return null;
-
-        return { sessionId, agentName, timestamp, summary, preview } as SdkSessionInfo;
-      } catch {
-        return null;
-      }
-    })
+    .map(f => parseSessionFile(join(sessionsDir, f), f))
     .filter((s): s is SdkSessionInfo => s !== null)
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 

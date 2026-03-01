@@ -70,54 +70,55 @@ export function createPaneDrag() {
 		}
 	}
 
+	function applyDrag(e: MouseEvent) {
+		const el = document.querySelector(`[data-pane="${draggingPane}"]`) as HTMLElement;
+		if (!el) return;
+		const x = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffset.x));
+		const y = Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragOffset.y));
+		el.style.left = `${x}px`;
+		el.style.top = `${y}px`;
+		el.style.position = 'fixed';
+		panePositions[draggingPane!] = { x, y };
+	}
+
+	function applyResize(e: MouseEvent) {
+		const el = document.querySelector(`[data-pane="${resizingPane}"]`) as HTMLElement;
+		if (!el) return;
+		const dx = e.clientX - resizeStart.x;
+		const dy = e.clientY - resizeStart.y;
+		let w = resizeStart.w, h = resizeStart.h, x = resizeStart.px, y = resizeStart.py;
+
+		if (resizeEdge!.includes('e')) {
+			w = Math.max(280, Math.min(window.innerWidth - x - 10, resizeStart.w + dx));
+		}
+		if (resizeEdge!.includes('w')) {
+			const newW = Math.max(280, resizeStart.w - dx);
+			const maxW = resizeStart.px + resizeStart.w - 10;
+			w = Math.min(newW, maxW);
+			x = resizeStart.px + resizeStart.w - w;
+		}
+		if (resizeEdge!.includes('s')) {
+			h = Math.max(200, Math.min(window.innerHeight - y - 50, resizeStart.h + dy));
+		}
+		if (resizeEdge === 'n' || resizeEdge === 'ne' || resizeEdge === 'nw') {
+			const newH = Math.max(200, resizeStart.h - dy);
+			const maxH = resizeStart.py + resizeStart.h - 10;
+			h = Math.min(newH, maxH);
+			y = resizeStart.py + resizeStart.h - h;
+		}
+
+		el.style.width = `${w}px`;
+		el.style.height = `${h}px`;
+		el.style.left = `${x}px`;
+		el.style.top = `${y}px`;
+		el.style.position = 'fixed';
+		paneCustomSizes[resizingPane!] = { w, h };
+		panePositions[resizingPane!] = { x, y };
+	}
+
 	function handleDocumentMouseMove(e: MouseEvent) {
-		if (draggingPane) {
-			e.preventDefault();
-			const el = document.querySelector(`[data-pane="${draggingPane}"]`) as HTMLElement;
-			if (el) {
-				const x = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffset.x));
-				const y = Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragOffset.y));
-				el.style.left = `${x}px`;
-				el.style.top = `${y}px`;
-				el.style.position = 'fixed';
-				panePositions[draggingPane] = { x, y };
-			}
-		}
-		if (resizingPane && resizeEdge) {
-			e.preventDefault();
-			const el = document.querySelector(`[data-pane="${resizingPane}"]`) as HTMLElement;
-			if (!el) return;
-			const dx = e.clientX - resizeStart.x;
-			const dy = e.clientY - resizeStart.y;
-			let w = resizeStart.w, h = resizeStart.h, x = resizeStart.px, y = resizeStart.py;
-
-			if (resizeEdge.includes('e')) {
-				w = Math.max(280, Math.min(window.innerWidth - x - 10, resizeStart.w + dx));
-			}
-			if (resizeEdge.includes('w')) {
-				const newW = Math.max(280, resizeStart.w - dx);
-				const maxW = resizeStart.px + resizeStart.w - 10;
-				w = Math.min(newW, maxW);
-				x = resizeStart.px + resizeStart.w - w;
-			}
-			if (resizeEdge.includes('s')) {
-				h = Math.max(200, Math.min(window.innerHeight - y - 50, resizeStart.h + dy));
-			}
-			if (resizeEdge === 'n' || resizeEdge === 'ne' || resizeEdge === 'nw') {
-				const newH = Math.max(200, resizeStart.h - dy);
-				const maxH = resizeStart.py + resizeStart.h - 10;
-				h = Math.min(newH, maxH);
-				y = resizeStart.py + resizeStart.h - h;
-			}
-
-			el.style.width = `${w}px`;
-			el.style.height = `${h}px`;
-			el.style.left = `${x}px`;
-			el.style.top = `${y}px`;
-			el.style.position = 'fixed';
-			paneCustomSizes[resizingPane] = { w, h };
-			panePositions[resizingPane] = { x, y };
-		}
+		if (draggingPane) { e.preventDefault(); applyDrag(e); }
+		if (resizingPane && resizeEdge) { e.preventDefault(); applyResize(e); }
 	}
 
 	function handleDocumentMouseUp() {
