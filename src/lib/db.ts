@@ -1,12 +1,11 @@
 /**
- * Read-only SQLite access to beads database.
- * SAFETY: Opens in readonly mode - cannot modify data.
+ * Read-only database access via `bd sql --json`.
+ * Works with both SQLite and Dolt backends (v0.57+).
  */
-import Database from 'better-sqlite3';
+import { spawnSync } from 'child_process';
 import { join, resolve } from 'path';
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
-import { execSync } from 'child_process';
-import type { Issue, Dependency, MutationEntry, MutationType, Attachment, Comment } from './types';
+import type { Issue, Dependency, MutationEntry, Attachment, Comment } from './types';
 import { getMimetype } from './attachments';
 
 const CONFIG_FILE = join(process.cwd(), '.beads-cwd');
@@ -33,33 +32,35 @@ export function resolveProjectCwd(url: URL): string {
 	return getStoredCwd();
 }
 
-/** Cached database path from `bd where --json` */
-let cachedDbPath: string | null = null;
-let cachedDbCwd: string | null = null;
+/** Validate issue IDs to prevent SQL injection in interpolated queries. */
+function safeId(id: string): string {
+	if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error(`Invalid issue ID: ${id}`);
+	return id;
+}
 
-function getDbPath(cwd?: string): string {
-	const effectiveCwd = cwd ?? getStoredCwd();
-	if (cachedDbPath && cachedDbCwd === effectiveCwd) return cachedDbPath;
-
-	// Try `bd where --json` for dynamic discovery
-	try {
-		const output = execSync('bd where --json', { cwd: effectiveCwd, encoding: 'utf-8', timeout: 5000 }).trim();
-		const info = JSON.parse(output);
-		const dbPath = info.database_path as string | undefined;
-		if (dbPath && existsSync(dbPath)) {
-			cachedDbPath = dbPath;
-			cachedDbCwd = effectiveCwd;
-			return dbPath;
-		}
-	} catch {
-		// bd where failed — fall through to default
+function buildMap<T, V>(rows: T[], key: (r: T) => string, val: (r: T) => V): Map<string, V[]> {
+	const map = new Map<string, V[]>();
+	for (const r of rows) {
+		const list = map.get(key(r)) ?? [];
+		list.push(val(r));
+		map.set(key(r), list);
 	}
+	return map;
+}
 
-	// Fallback: classic SQLite path
-	const fallback = join(effectiveCwd, '.beads', 'beads.db');
-	cachedDbPath = fallback;
-	cachedDbCwd = effectiveCwd;
-	return fallback;
+/** Run a SELECT query via `bd sql --json`. Uses spawnSync to avoid shell-quoting issues. */
+function bdSql<T>(query: string, cwd?: string): T[] {
+	const effectiveCwd = cwd ?? getStoredCwd();
+	const result = spawnSync('bd', ['sql', '--json', query], {
+		cwd: effectiveCwd,
+		encoding: 'utf-8',
+		timeout: 10000
+	});
+	if (result.status !== 0 || result.error) {
+		const msg = result.stderr?.trim() || result.error?.message || 'bd sql failed';
+		throw new Error(msg);
+	}
+	return JSON.parse(result.stdout.trim()) as T[];
 }
 
 interface DbIssue {
@@ -91,60 +92,34 @@ interface DbLabel {
 	label: string;
 }
 
-function openReadonly(cwd?: string): Database.Database {
-	return new Database(getDbPath(cwd), { readonly: true, fileMustExist: true });
-}
-
 export function getAllIssues(cwd?: string): Issue[] {
-	const db = openReadonly(cwd);
-
-	const issues = db.prepare(`
+	const issues = bdSql<DbIssue>(`
 		SELECT id, title, description, design, acceptance_criteria, notes,
 		       status, priority, issue_type, assignee, created_at, updated_at, closed_at
 		FROM issues
-		WHERE status != 'tombstone'
+		WHERE status <> 'tombstone'
 		ORDER BY priority DESC, created_at DESC
-	`).all() as DbIssue[];
+	`, cwd);
 
-	const deps = db.prepare(`
+	const deps = bdSql<DbDependency>(`
 		SELECT d.issue_id, d.depends_on_id, d.type, i.title as dep_title, i.status as dep_status
 		FROM dependencies d
 		JOIN issues i ON i.id = d.depends_on_id
-	`).all() as DbDependency[];
+	`, cwd);
 
-	const dependents = db.prepare(`
+	const dependents = bdSql<{ issue_id: string; dependent_id: string; type: string; title: string; status: string }>(`
 		SELECT d.depends_on_id as issue_id, d.issue_id as dependent_id, d.type, i.title, i.status
 		FROM dependencies d
 		JOIN issues i ON i.id = d.issue_id
-	`).all() as { issue_id: string; dependent_id: string; type: string; title: string; status: string }[];
+	`, cwd);
 
-	const labels = db.prepare(`SELECT issue_id, label FROM labels`).all() as DbLabel[];
-
-	db.close();
+	const labels = bdSql<DbLabel>(`SELECT issue_id, label FROM labels`, cwd);
 
 	// Build lookup maps
-	const depsMap = new Map<string, Dependency[]>();
-	for (const d of deps) {
-		const list = depsMap.get(d.issue_id) ?? [];
-		list.push({ id: d.depends_on_id, title: d.dep_title, status: d.dep_status, dependency_type: d.type });
-		depsMap.set(d.issue_id, list);
-	}
+	const depsMap = buildMap(deps, d => d.issue_id, d => ({ id: d.depends_on_id, title: d.dep_title, status: d.dep_status, dependency_type: d.type }));
+	const dependentsMap = buildMap(dependents, d => d.issue_id, d => ({ id: d.dependent_id, title: d.title, status: d.status, dependency_type: d.type }));
+	const labelsMap = buildMap(labels, l => l.issue_id, l => l.label);
 
-	const dependentsMap = new Map<string, Dependency[]>();
-	for (const d of dependents) {
-		const list = dependentsMap.get(d.issue_id) ?? [];
-		list.push({ id: d.dependent_id, title: d.title, status: d.status, dependency_type: d.type });
-		dependentsMap.set(d.issue_id, list);
-	}
-
-	const labelsMap = new Map<string, string[]>();
-	for (const l of labels) {
-		const list = labelsMap.get(l.issue_id) ?? [];
-		list.push(l.label);
-		labelsMap.set(l.issue_id, list);
-	}
-
-	// Get all attachments and comments in one pass
 	const attachmentsMap = getAllAttachments(cwd);
 	const commentsMap = getAllComments(cwd);
 
@@ -173,41 +148,35 @@ export function getAllIssues(cwd?: string): Issue[] {
 }
 
 export function getIssueById(id: string, cwd?: string): Issue | null {
-	const db = openReadonly(cwd);
-
-	const issue = db.prepare(`
+	const sid = safeId(id);
+	const issues = bdSql<DbIssue>(`
 		SELECT id, title, description, design, acceptance_criteria, notes,
 		       status, priority, issue_type, assignee, created_at, updated_at, closed_at
 		FROM issues
-		WHERE id = ? AND status != 'tombstone'
-	`).get(id) as DbIssue | undefined;
+		WHERE id = '${sid}' AND status <> 'tombstone'
+	`, cwd);
 
-	if (!issue) {
-		db.close();
-		return null;
-	}
+	const issue = issues[0];
+	if (!issue) return null;
 
-	const deps = db.prepare(`
+	const deps = bdSql<DbDependency>(`
 		SELECT d.depends_on_id, d.type, i.title as dep_title, i.status as dep_status
 		FROM dependencies d
 		JOIN issues i ON i.id = d.depends_on_id
-		WHERE d.issue_id = ?
-	`).all(id) as DbDependency[];
+		WHERE d.issue_id = '${sid}'
+	`, cwd);
 
-	const dependents = db.prepare(`
+	const dependents = bdSql<{ dependent_id: string; type: string; title: string; status: string }>(`
 		SELECT d.issue_id as dependent_id, d.type, i.title, i.status
 		FROM dependencies d
 		JOIN issues i ON i.id = d.issue_id
-		WHERE d.depends_on_id = ?
-	`).all(id) as { dependent_id: string; type: string; title: string; status: string }[];
+		WHERE d.depends_on_id = '${sid}'
+	`, cwd);
 
-	const labels = db.prepare(`
-		SELECT label FROM labels WHERE issue_id = ?
-	`).all(id) as { label: string }[];
+	const labels = bdSql<{ label: string }>(`
+		SELECT label FROM labels WHERE issue_id = '${sid}'
+	`, cwd);
 
-	db.close();
-
-	// Get attachments and comments
 	const attachmentsMap = getAllAttachments(cwd);
 	const commentsMap = getAllComments(cwd);
 
@@ -279,7 +248,6 @@ function parseEventToMutation(ev: DbEvent): MutationEntry | null {
 			return { ...base, mutationType: 'status', field: 'status', previousValue: oldVal?.status, newValue: newVal?.status };
 		case 'dependency_added':
 		case 'dependency_removed': {
-			// Parse from comment: "Added dependency: X blocks Y" or "Removed dependency: X blocks Y"
 			const depMatch = ev.comment?.match(/dependency:\s*(\S+)\s+blocks\s+(\S+)/i);
 			if (!depMatch) return null;
 			const action = ev.event_type === 'dependency_added' ? '+' : '-';
@@ -287,7 +255,6 @@ function parseEventToMutation(ev: DbEvent): MutationEntry | null {
 		}
 		case 'label_added':
 		case 'label_removed': {
-			// Parse from comment: "Added label: foo" or "Removed label: foo"
 			const labelMatch = ev.comment?.match(/label:\s*(.+)/i);
 			if (!labelMatch) return null;
 			const labelAction = ev.event_type === 'label_added' ? '+' : '-';
@@ -302,19 +269,17 @@ function parseEventToMutation(ev: DbEvent): MutationEntry | null {
 					return { ...base, mutationType: 'assignee', field: 'assignee', previousValue: oldVal.assignee || null, newValue: newVal.assignee || 'unassigned' };
 				}
 			}
-			return null; // Skip generic updates we can't categorize
+			return null;
 		default:
 			return null;
 	}
 }
 
 export function getRecentEvents(limit = 100, cwd?: string): MutationEntry[] {
-	const db = openReadonly(cwd);
-	const rows = db.prepare(`
+	const rows = bdSql<DbEvent>(`
 		SELECT id, issue_id, event_type, actor, old_value, new_value, comment, created_at
-		FROM events ORDER BY created_at DESC LIMIT ?
-	`).all(limit) as DbEvent[];
-	db.close();
+		FROM events ORDER BY created_at DESC LIMIT ${Math.floor(limit)}
+	`, cwd);
 
 	return rows.map(parseEventToMutation).filter((m): m is MutationEntry => m !== null);
 }
@@ -328,23 +293,20 @@ interface DbComment {
 }
 
 export function getComments(issueId: string, cwd?: string): Comment[] {
-	const db = openReadonly(cwd);
-	const rows = db.prepare(`
+	const sid = safeId(issueId);
+	const rows = bdSql<DbComment>(`
 		SELECT id, issue_id, author, text, created_at
-		FROM comments WHERE issue_id = ? ORDER BY created_at ASC
-	`).all(issueId) as DbComment[];
-	db.close();
+		FROM comments WHERE issue_id = '${sid}' ORDER BY created_at ASC
+	`, cwd);
 
 	return rows.map(c => ({ id: c.id, author: c.author, text: c.text, created_at: c.created_at }));
 }
 
 export function getAllComments(cwd?: string): Map<string, Comment[]> {
-	const db = openReadonly(cwd);
-	const rows = db.prepare(`
+	const rows = bdSql<DbComment>(`
 		SELECT id, issue_id, author, text, created_at
 		FROM comments ORDER BY created_at ASC
-	`).all() as DbComment[];
-	db.close();
+	`, cwd);
 
 	const result = new Map<string, Comment[]>();
 	for (const c of rows) {

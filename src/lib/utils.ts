@@ -125,20 +125,6 @@ export function sortIssues(issues: Issue[], sortBy: SortBy): Issue[] {
 	});
 }
 
-export function issueMatchesFilters(
-	issue: Issue,
-	searchQuery: string,
-	filterPriority: number | 'all',
-	filterType: string
-): boolean {
-	const matchesSearch = searchQuery === '' ||
-		issue.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-		issue.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-		issue.id.toLowerCase().includes(searchQuery.toLowerCase());
-	const matchesPriority = filterPriority === 'all' || issue.priority === filterPriority;
-	const matchesType = filterType === 'all' || issue.issue_type === filterType;
-	return matchesSearch && matchesPriority && matchesType;
-}
 
 export async function copyToClipboard(text: string): Promise<void> {
 	await navigator.clipboard.writeText(text);

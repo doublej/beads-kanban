@@ -15,7 +15,7 @@ export interface BdResult {
 	warning?: string
 }
 
-const MIN_BD_VERSION = '0.49.0'
+const MIN_BD_VERSION = '0.57.0'
 
 export interface BdVersion {
 	version: string
@@ -90,26 +90,33 @@ export async function updateIssue(
 		assignee?: string
 		appendNotes?: string
 		ephemeral?: boolean
-		pinned?: boolean
 	},
 	cwd?: string
 ): Promise<BdResult> {
 	let cmd = `bd update ${id}`
 	let hasUpdates = false
 
+	type StringField = keyof Pick<typeof updates, 'title' | 'description' | 'design' | 'acceptance_criteria' | 'notes' | 'assignee'>;
+	const stringFields: [StringField, string][] = [
+		['title', '--title'],
+		['description', '--description'],
+		['design', '--design'],
+		['acceptance_criteria', '--acceptance'],
+		['notes', '--notes'],
+		['assignee', '--assignee'],
+	];
+	for (const [field, flag] of stringFields) {
+		if (updates[field] !== undefined) {
+			cmd += ` ${flag} "${escapeArg(String(updates[field] ?? ''))}"`;
+			hasUpdates = true;
+		}
+	}
+
 	if (updates.status) { cmd += ` --status ${updates.status}`; hasUpdates = true }
-	if (updates.title !== undefined) { cmd += ` --title "${escapeArg(updates.title)}"`; hasUpdates = true }
-	if (updates.description !== undefined) { cmd += ` --description "${escapeArg(updates.description)}"`; hasUpdates = true }
 	if (updates.priority !== undefined) { cmd += ` --priority ${updates.priority}`; hasUpdates = true }
-	if (updates.design !== undefined) { cmd += ` --design "${escapeArg(updates.design || '')}"`; hasUpdates = true }
-	if (updates.acceptance_criteria !== undefined) { cmd += ` --acceptance "${escapeArg(updates.acceptance_criteria || '')}"`; hasUpdates = true }
-	if (updates.notes !== undefined) { cmd += ` --notes "${escapeArg(updates.notes || '')}"`; hasUpdates = true }
-	if (updates.assignee !== undefined) { cmd += ` --assignee "${escapeArg(updates.assignee || '')}"`; hasUpdates = true }
 	if (updates.appendNotes) { cmd += ` --append-notes "${escapeArg(updates.appendNotes)}"`; hasUpdates = true }
 	if (updates.ephemeral === true) { cmd += ' --ephemeral'; hasUpdates = true }
 	if (updates.ephemeral === false) { cmd += ' --persistent'; hasUpdates = true }
-	if (updates.pinned === true) { cmd += ' --pinned'; hasUpdates = true }
-	if (updates.pinned === false) { cmd += ' --unpinned'; hasUpdates = true }
 
 	if (!hasUpdates) return { success: true }
 	return run(cmd, cwd)
@@ -132,7 +139,7 @@ export async function removeDependency(issueId: string, dependsOn: string, cwd?:
 }
 
 export async function addComment(issueId: string, text: string, cwd?: string): Promise<BdResult> {
-	return run(`bd comment ${issueId} "${escapeArg(text)}"`, cwd)
+	return run(`bd comments add ${issueId} "${escapeArg(text)}"`, cwd)
 }
 
 export async function addLabel(issueId: string, label: string, cwd?: string): Promise<BdResult> {

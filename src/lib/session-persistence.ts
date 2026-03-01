@@ -4,29 +4,39 @@ import type { AgentSession, ChatMessage } from './stores/ws-types';
 const STORAGE_KEY = 'beads-kanban-sessions';
 const SDK_SESSION_KEY = 'beads-kanban-sdk-sessions';
 
+function getSdkMap(): Record<string, string> {
+	return JSON.parse(localStorage.getItem(SDK_SESSION_KEY) ?? '{}');
+}
+
+async function fetchFromAgent<T>(path: string, empty: T): Promise<T> {
+	if (typeof window === 'undefined') return empty;
+	try {
+		const host = window.location.hostname;
+		const res = await fetch(`http://${host}:9347${path}`);
+		if (!res.ok) return empty;
+		return await res.json();
+	} catch {
+		return empty;
+	}
+}
+
 export function persistSdkSessionId(sessionName: string, sdkSessionId: string) {
 	if (typeof window === 'undefined') return;
-	const stored = localStorage.getItem(SDK_SESSION_KEY);
-	const map: Record<string, string> = stored ? JSON.parse(stored) : {};
+	const map = getSdkMap();
 	map[sessionName] = sdkSessionId;
 	localStorage.setItem(SDK_SESSION_KEY, JSON.stringify(map));
 }
 
 export function clearPersistedSdkSessionId(sessionName: string) {
 	if (typeof window === 'undefined') return;
-	const stored = localStorage.getItem(SDK_SESSION_KEY);
-	if (!stored) return;
-	const map: Record<string, string> = JSON.parse(stored);
+	const map = getSdkMap();
 	delete map[sessionName];
 	localStorage.setItem(SDK_SESSION_KEY, JSON.stringify(map));
 }
 
 export function getPersistedSdkSessionId(sessionName: string): string | undefined {
 	if (typeof window === 'undefined') return undefined;
-	const stored = localStorage.getItem(SDK_SESSION_KEY);
-	if (!stored) return undefined;
-	const map: Record<string, string> = JSON.parse(stored);
-	return map[sessionName];
+	return getSdkMap()[sessionName];
 }
 
 export function loadSessions(): Map<string, AgentSession> {
@@ -52,11 +62,8 @@ export function saveSessions(sessions: Map<string, AgentSession>) {
 
 export function getAllPersistedSessions(): { name: string; sdkSessionId: string }[] {
 	if (typeof window === 'undefined') return [];
-	const stored = localStorage.getItem(SDK_SESSION_KEY);
-	if (!stored) return [];
 	try {
-		const map: Record<string, string> = JSON.parse(stored);
-		return Object.entries(map).map(([name, sdkSessionId]) => ({ name, sdkSessionId }));
+		return Object.entries(getSdkMap()).map(([name, sdkSessionId]) => ({ name, sdkSessionId }));
 	} catch {
 		return [];
 	}
@@ -75,27 +82,17 @@ export interface SdkSessionInfo {
 }
 
 export async function fetchSessionHistory(cwd: string, sessionId: string): Promise<ChatMessage[]> {
-	if (typeof window === 'undefined') return [];
-	try {
-		const host = window.location.hostname;
-		const res = await fetch(`http://${host}:9347/sessions/${sessionId}/history?cwd=${encodeURIComponent(cwd)}`);
-		if (!res.ok) return [];
-		const data = await res.json();
-		return data.messages || [];
-	} catch {
-		return [];
-	}
+	const data = await fetchFromAgent<{ messages?: ChatMessage[] }>(
+		`/sessions/${sessionId}/history?cwd=${encodeURIComponent(cwd)}`,
+		{}
+	);
+	return data.messages ?? [];
 }
 
 export async function fetchSdkSessions(cwd: string): Promise<SdkSessionInfo[]> {
-	if (typeof window === 'undefined') return [];
-	try {
-		const host = window.location.hostname;
-		const res = await fetch(`http://${host}:9347/sessions?cwd=${encodeURIComponent(cwd)}`);
-		if (!res.ok) return [];
-		const data = await res.json();
-		return data.sessions || [];
-	} catch {
-		return [];
-	}
+	const data = await fetchFromAgent<{ sessions?: SdkSessionInfo[] }>(
+		`/sessions?cwd=${encodeURIComponent(cwd)}`,
+		{}
+	);
+	return data.sessions ?? [];
 }
