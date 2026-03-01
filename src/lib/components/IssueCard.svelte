@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Issue } from '$lib/types';
-	import { getPriorityConfig } from '$lib/utils';
+	import { getPriorityConfig, isAgentAssignee as checkAgentAssignee } from '$lib/utils';
 	import IssueCardBadges from './IssueCardBadges.svelte';
 	import IssueCardMeta from './IssueCardMeta.svelte';
 
@@ -10,7 +10,6 @@
 		dragging: boolean;
 		animating: boolean;
 		hasOpenBlockers: boolean;
-		copiedId: string | null;
 		editing?: boolean;
 		filterDimmed?: boolean;
 		flyingHidden?: boolean;
@@ -30,7 +29,6 @@
 		dragging,
 		animating,
 		hasOpenBlockers,
-		copiedId,
 		editing = false,
 		filterDimmed = false,
 		flyingHidden = false,
@@ -46,11 +44,7 @@
 
 	const priorityConfig = $derived(getPriorityConfig(issue.priority));
 
-	const isAgentAssignee = $derived(issue.assignee != null && (
-		issue.assignee.toLowerCase().includes('agent') ||
-		issue.assignee.toLowerCase() === 'claude' ||
-		issue.assignee.startsWith('@')
-	));
+	const isAgentAssignee = $derived(checkAgentAssignee(issue.assignee));
 </script>
 
 <article
@@ -73,7 +67,7 @@
 	data-card-id={issue.id}
 >
 	<div class="card-content">
-		<IssueCardBadges {issue} {copiedId} {hasOpenBlockers} {showImpact} {isAgentAssignee} {oncopyid} />
+		<IssueCardBadges {issue} {hasOpenBlockers} {showImpact} {isAgentAssignee} {oncopyid} />
 		<h3 class="card-title">{issue.title}</h3>
 		{#if issue.description}
 			<p class="card-description">{issue.description}</p>

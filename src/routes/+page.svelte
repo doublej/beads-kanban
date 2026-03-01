@@ -268,9 +268,7 @@
 		searchQuery, filterPriority, filterType, filterTime, filterStatus, filterLabel, filterActionable
 	});
 
-	function issueMatchesFilters(issue: Issue): boolean {
-		return matchesFilters(issue, filterState);
-	}
+	const issueMatchesFilters = (issue: Issue) => matchesFilters(issue, filterState);
 	const hasActiveFilters = $derived(checkActiveFilters(filterState));
 	const availableLabels = $derived([...new Set(issues.flatMap(i => i.labels || []))].sort());
 	const filteredIssues = $derived(issues.filter((issue) => issueMatchesFilters(issue)));
@@ -426,53 +424,52 @@
 		if (issueId) ops.openIssueById(issueId, false);
 	});
 
+	async function initProject(urlProject: string | null) {
+		let cwd: string;
+		let name: string;
+
+		if (urlProject) {
+			// URL specifies the project — switch server default to match
+			const res = await fetch('/api/cwd', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ path: urlProject })
+			});
+			const data = await res.json();
+			cwd = data.cwd || urlProject;
+			name = data.name || cwd.split('/').pop() || 'project';
+		} else {
+			// No URL param — get current from server
+			const res = await fetch('/api/cwd');
+			const data = await res.json();
+			cwd = data.cwd;
+			name = data.name || cwd.split('/').pop() || 'project';
+			setCurrentProject(cwd);
+		}
+
+		projectName = name;
+		currentProjectPath = cwd;
+
+		const projRes = await fetch('/api/projects', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ path: cwd, name })
+		});
+		const projData = await projRes.json();
+		if (projData.projects) {
+			projects = projData.projects;
+			const current = projects.find((p: Project) => p.path === cwd);
+			if (current) {
+				projectColor = current.color;
+				projectName = current.name || name;
+			}
+		}
+	}
+
 	$effect(() => {
 		if (!browser) return;
 		const urlProject = new URL(window.location.href).searchParams.get('project');
-
-		const initProject = async () => {
-			let cwd: string;
-			let name: string;
-
-			if (urlProject) {
-				// URL specifies the project — switch server default to match
-				const res = await fetch('/api/cwd', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ path: urlProject })
-				});
-				const data = await res.json();
-				cwd = data.cwd || urlProject;
-				name = data.name || cwd.split('/').pop() || 'project';
-			} else {
-				// No URL param — get current from server
-				const res = await fetch('/api/cwd');
-				const data = await res.json();
-				cwd = data.cwd;
-				name = data.name || cwd.split('/').pop() || 'project';
-				setCurrentProject(cwd);
-			}
-
-			projectName = name;
-			currentProjectPath = cwd;
-
-			const projRes = await fetch('/api/projects', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ path: cwd, name })
-			});
-			const projData = await projRes.json();
-			if (projData.projects) {
-				projects = projData.projects;
-				const current = projects.find((p: Project) => p.path === cwd);
-				if (current) {
-					projectColor = current.color;
-					projectName = current.name || name;
-				}
-			}
-		};
-
-		initProject();
+		initProject(urlProject);
 	});
 
 	async function switchProject(project: Project) {
@@ -745,7 +742,6 @@
 					{dropTargetColumn}
 					{dropIndicatorIndex}
 					{animatingIds}
-					copiedId={ops.copiedId}
 					{hasActiveFilters}
 					{isFilterPreviewing}
 					{flyingCards}
@@ -870,7 +866,6 @@
 		activeAgents={activeAgentNames}
 		agentEnabled={settings.agentEnabled}
 		comments={ops.comments}
-		copiedId={ops.copiedId}
 		bind:newLabelInput={ops.newLabelInput}
 		bind:newComment={ops.newComment}
 		loadingComments={ops.loadingComments}

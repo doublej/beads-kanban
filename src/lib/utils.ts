@@ -169,3 +169,9 @@ export function getImpactLevel(score: number): { level: 'critical' | 'high' | 'm
 	if (score >= 20) return { level: 'medium', color: '#6366f1', label: 'Medium Impact' };
 	return { level: 'low', color: '#6b7280', label: 'Low Impact' };
 }
+
+export function isAgentAssignee(assignee: string | null | undefined): boolean {
+	if (!assignee) return false;
+	const a = assignee.toLowerCase();
+	return a.includes('agent') || a === 'claude' || assignee.startsWith('@');
+}

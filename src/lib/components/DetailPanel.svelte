@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { Issue, Comment, Attachment } from '$lib/types';
-	import { getPriorityConfig, getTypeIcon, formatTimestamp, getIssueColumn } from '$lib/utils';
+	import { getPriorityConfig, getTypeIcon, formatTimestamp, getIssueColumn, isAgentAssignee as checkAgentAssignee } from '$lib/utils';
 	import Icon from './Icon.svelte';
+	import { copyState } from '$lib/stores/copy-state.svelte';
 	import IssueFormFields from './IssueFormFields.svelte';
 	import IssueLabelsEditor from './IssueLabelsEditor.svelte';
 	import IssueDependencies from './IssueDependencies.svelte';
@@ -24,7 +25,6 @@
 		loadingAttachments: boolean;
 		onuploadattachment: (file: File) => void;
 		ondeleteattachment: (filename: string) => void;
-		copiedId: string | null;
 		newLabelInput: string;
 		newComment: string;
 		loadingComments: boolean;
@@ -66,7 +66,6 @@
 		loadingAttachments,
 		onuploadattachment,
 		ondeleteattachment,
-		copiedId,
 		newLabelInput = $bindable(),
 		newComment = $bindable(),
 		loadingComments,
@@ -109,11 +108,7 @@
 		}
 	}
 
-	const isAgentAssignee = $derived(editingIssue?.assignee && (
-		editingIssue.assignee.toLowerCase().includes('agent') ||
-		editingIssue.assignee.toLowerCase() === 'claude' ||
-		editingIssue.assignee.startsWith('@')
-	));
+	const isAgentAssignee = $derived(checkAgentAssignee(editingIssue?.assignee));
 
 	const activeAgentPane = $derived(() => {
 		if (!editingIssue) return null;
@@ -153,9 +148,9 @@
 
 		<header class="header">
 			<div class="header-left">
-				<button class="id-badge" class:copied={copiedId === `panel-${editingIssue.id}`} onclick={() => oncopyid(editingIssue!.id, `panel-${editingIssue!.id}`)}>
+				<button class="id-badge" class:copied={copyState.copiedId === `panel-${editingIssue.id}`} onclick={() => oncopyid(editingIssue!.id, `panel-${editingIssue!.id}`)}>
 					{editingIssue.id}
-					<Icon name={copiedId === `panel-${editingIssue.id}` ? 'check' : 'copy'} size={10} />
+					<Icon name={copyState.copiedId === `panel-${editingIssue.id}` ? 'check' : 'copy'} size={10} />
 				</button>
 			</div>
 			<div class="header-right">

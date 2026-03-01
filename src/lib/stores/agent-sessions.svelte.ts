@@ -8,6 +8,7 @@ import {
 } from '../session-persistence';
 import type {
 	AgentSession,
+	ChatMessage,
 	ServerMessage,
 	StreamEvent,
 	AssistantMessage,
@@ -78,12 +79,7 @@ export function addSystemMessage(
 	if (!session) return;
 
 	updateSession(sessionName, {
-		messages: [...session.messages, {
-			role: 'system',
-			content,
-			systemSubtype: subtype,
-			timestamp: new Date().toISOString()
-		}]
+		messages: [...session.messages, makeMsg('system', content, { systemSubtype: subtype })]
 	});
 }
 
@@ -99,13 +95,13 @@ export function setSessionError(sessionName: string, errorMessage: string) {
 		streaming: false,
 		error: true,
 		errorMessage,
-		messages: [...session.messages, {
-			role: 'system',
-			content: `Error: ${errorMessage}`,
-			systemSubtype: 'error',
-			timestamp: new Date().toISOString()
-		}]
+		messages: [...session.messages, makeMsg('system', `Error: ${errorMessage}`, { systemSubtype: 'error' })]
 	});
+}
+
+// --- Message helpers ---
+function makeMsg(role: ChatMessage['role'], content: string, extra: Partial<ChatMessage> = {}): ChatMessage {
+	return { role, content, timestamp: new Date().toISOString(), ...extra };
 }
 
 // --- Message handler factory ---
@@ -151,12 +147,7 @@ export function createMessageHandler(sessionName: string) {
 
 			case 'system_message':
 				updateSession(sessionName, {
-					messages: [...session.messages, {
-						role: 'system',
-						content: msg.content,
-						systemSubtype: msg.subtype,
-						timestamp: new Date().toISOString()
-					}]
+					messages: [...session.messages, makeMsg('system', msg.content, { systemSubtype: msg.subtype })]
 				});
 				break;
 
@@ -192,11 +183,7 @@ export function createMessageHandler(sessionName: string) {
 			case 'done': {
 				let messages = session.messages;
 				if (session.currentDelta) {
-					messages = [...messages, {
-						role: 'assistant' as const,
-						content: session.currentDelta,
-						timestamp: new Date().toISOString()
-					}];
+					messages = [...messages, makeMsg('assistant', session.currentDelta)];
 				}
 				updateSession(sessionName, {
 					streaming: false,
@@ -211,22 +198,14 @@ export function createMessageHandler(sessionName: string) {
 			case 'error':
 				updateSession(sessionName, {
 					streaming: false,
-					messages: [...session.messages, {
-						role: 'assistant',
-						content: `Error: ${msg.error}`,
-						timestamp: new Date().toISOString()
-					}]
+					messages: [...session.messages, makeMsg('assistant', `Error: ${msg.error}`)]
 				});
 				break;
 
 			case 'interrupted':
 				updateSession(sessionName, {
 					streaming: false,
-					messages: [...session.messages, {
-						role: 'assistant',
-						content: '[Interrupted]',
-						timestamp: new Date().toISOString()
-					}]
+					messages: [...session.messages, makeMsg('assistant', '[Interrupted]')]
 				});
 				break;
 		}
@@ -247,13 +226,7 @@ function handleStream(
 	} else if (data.type === 'tool_call') {
 		const toolCall = data as ToolCallEvent;
 		updateSession(name, {
-			messages: [...session.messages, {
-				role: 'tool',
-				content: `Using ${toolCall.tool_name}`,
-				toolName: toolCall.tool_name,
-				toolInput: toolCall.input,
-				timestamp: new Date().toISOString()
-			}],
+			messages: [...session.messages, makeMsg('tool', `Using ${toolCall.tool_name}`, { toolName: toolCall.tool_name, toolInput: toolCall.input })],
 			currentDelta: ''
 		});
 	} else if (data.type === 'tool_result') {
@@ -277,22 +250,12 @@ function handleStream(
 			for (const block of content) {
 				if (block.type === 'text' && block.text) {
 					updateSession(name, {
-						messages: [...session.messages, {
-							role: 'assistant',
-							content: block.text,
-							timestamp: new Date().toISOString()
-						}],
+						messages: [...session.messages, makeMsg('assistant', block.text)],
 						currentDelta: ''
 					});
 				} else if (block.type === 'tool_use' && block.name) {
 					updateSession(name, {
-						messages: [...session.messages, {
-							role: 'tool',
-							content: `Using ${block.name}`,
-							toolName: block.name,
-							toolInput: block.input,
-							timestamp: new Date().toISOString()
-						}],
+						messages: [...session.messages, makeMsg('tool', `Using ${block.name}`, { toolName: block.name, toolInput: block.input })],
 						currentDelta: ''
 					});
 				}
@@ -331,11 +294,7 @@ function handleStream(
 			const alreadyHas = session.messages.some(m => m.role === 'user' && m.content === content);
 			if (!alreadyHas) {
 				updateSession(name, {
-					messages: [...session.messages, {
-						role: 'user',
-						content,
-						timestamp: new Date().toISOString()
-					}]
+					messages: [...session.messages, makeMsg('user', content)]
 				});
 			}
 		}
