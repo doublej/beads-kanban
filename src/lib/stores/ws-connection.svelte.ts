@@ -240,6 +240,16 @@ export const internalActions = {
 
 // --- Public functions (forward to leader if not leader) ---
 
+function leaderOrForward<A extends unknown[]>(
+	action: string,
+	internal: (name: string, ...args: A) => void
+): (name: string, ...args: A) => void {
+	return (name, ...args) => {
+		if (getIsTabLeader()) internal(name, ...args);
+		else tabCoordinator.requestAction({ action, sessionName: name, args: args as unknown[] });
+	};
+}
+
 async function checkServerHealth() {
 	try {
 		const res = await fetch('/api/agent/health');
@@ -301,21 +311,8 @@ export function startSession(name: string, cwd: string, briefing: string, system
 	}
 }
 
-export function sendMessage(name: string, text: string) {
-	if (getIsTabLeader()) {
-		sendMessageInternal(name, text);
-	} else {
-		tabCoordinator.requestAction({ action: 'sendMessage', sessionName: name, args: [text] });
-	}
-}
-
-export function interrupt(name: string) {
-	if (getIsTabLeader()) {
-		interruptInternal(name);
-	} else {
-		tabCoordinator.requestAction({ action: 'interrupt', sessionName: name, args: [] });
-	}
-}
+export const sendMessage = leaderOrForward('sendMessage', sendMessageInternal);
+export const interrupt = leaderOrForward('interrupt', interruptInternal);
 
 export function addPane(name: string, cwd: string, firstMessage?: string, systemPrompt?: string, resumeSessionId?: string, ticketId?: string, model?: string) {
 	const briefing = firstMessage ? firstMessage.replace('{name}', name) : `You are an agent named "${name}". Await further instructions.`;
@@ -323,13 +320,7 @@ export function addPane(name: string, cwd: string, firstMessage?: string, system
 	startSession(name, cwd, briefing, prompt, resumeSessionId, ticketId, model);
 }
 
-export function killSession(name: string) {
-	if (getIsTabLeader()) {
-		killSessionInternal(name);
-	} else {
-		tabCoordinator.requestAction({ action: 'killSession', sessionName: name, args: [] });
-	}
-}
+export const killSession = leaderOrForward('killSession', killSessionInternal);
 
 export function removePane(name: string) {
 	killSession(name);
@@ -367,37 +358,10 @@ export async function sendToPane(name: string, message: string, cwd: string) {
 	}
 }
 
-export function endSession(name: string) {
-	if (getIsTabLeader()) {
-		endSessionInternal(name);
-	} else {
-		tabCoordinator.requestAction({ action: 'endSession', sessionName: name, args: [] });
-	}
-}
-
-export function clearSession(name: string) {
-	if (getIsTabLeader()) {
-		clearSessionInternal(name);
-	} else {
-		tabCoordinator.requestAction({ action: 'clearSession', sessionName: name, args: [] });
-	}
-}
-
-export function continueSession(name: string) {
-	if (getIsTabLeader()) {
-		continueSessionInternal(name);
-	} else {
-		tabCoordinator.requestAction({ action: 'continueSession', sessionName: name, args: [] });
-	}
-}
-
-export function compactSession(name: string) {
-	if (getIsTabLeader()) {
-		compactSessionInternal(name);
-	} else {
-		tabCoordinator.requestAction({ action: 'compactSession', sessionName: name, args: [] });
-	}
-}
+export const endSession = leaderOrForward('endSession', endSessionInternal);
+export const clearSession = leaderOrForward('clearSession', clearSessionInternal);
+export const continueSession = leaderOrForward('continueSession', continueSessionInternal);
+export const compactSession = leaderOrForward('compactSession', compactSessionInternal);
 
 export function getRunningSessionsForCwd(cwd: string): string[] {
 	const results: string[] = [];
@@ -409,10 +373,4 @@ export function getRunningSessionsForCwd(cwd: string): string[] {
 	return results;
 }
 
-export function injectNotification(name: string, content: string, notificationType: NotificationType) {
-	if (getIsTabLeader()) {
-		injectNotificationInternal(name, content, notificationType);
-	} else {
-		tabCoordinator.requestAction({ action: 'injectNotification', sessionName: name, args: [content, notificationType] });
-	}
-}
+export const injectNotification = leaderOrForward('injectNotification', injectNotificationInternal);

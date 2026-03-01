@@ -231,36 +231,7 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 		return true;
 	}
 
-	async function createIssue(form: { title: string; description: string; priority: number; issue_type: string }): Promise<void> {
-		if (!form.title.trim()) return;
-
-		const tempId = `temp-${Date.now()}`;
-		const tempIssue: Issue = {
-			id: tempId,
-			title: form.title,
-			description: form.description,
-			status: 'open',
-			priority: form.priority as Issue['priority'],
-			issue_type: form.issue_type,
-			labels: [],
-			dependencies: [],
-			dependents: [],
-			created_at: new Date().toISOString(),
-			updated_at: new Date().toISOString()
-		};
-		issues = [tempIssue, ...issues];
-		addAnimatingId(tempId);
-
-		const res = await fetch(appendProjectParam('/api/issues'), {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(form)
-		});
-		await res.json();
-		fetchMutations();
-	}
-
-	async function createIssueAndGetId(form: { title: string; description: string; priority: number; issue_type: string }): Promise<string | null> {
+	async function createIssue(form: { title: string; description: string; priority: number; issue_type: string }): Promise<string | null> {
 		if (!form.title.trim()) return null;
 
 		const tempId = `temp-${Date.now()}`;
@@ -313,8 +284,7 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 		setIssues,
 		updateIssue,
 		deleteIssue,
-		createIssue,
-		createIssueAndGetId
+		createIssue
 	};
 }
 

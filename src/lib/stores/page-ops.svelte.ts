@@ -14,6 +14,7 @@ import { formatTicketDelivery as formatTicketDeliveryFn } from '$lib/agent/ticke
 import type { TicketDeliveryData } from '$lib/agent/ticket-delivery';
 import { toastQueue } from '$lib/notifications/toast-queue.svelte';
 import { settings } from '$lib/stores/settings.svelte';
+import { copyState } from '$lib/stores/copy-state.svelte';
 import type { IssueStore } from '$lib/stores/issue-store.svelte';
 import { notifyAgentOfTicketUpdate, addPane, getRunningSessionsForCwd, startSession, type Pane, type AgentSession } from '$lib/wsStore.svelte';
 import { updateSession, addSystemMessage, setSessionError, getSessions, setSessions } from '$lib/stores/agent-sessions.svelte';
@@ -50,7 +51,7 @@ export function createPageOps(ctx: PageOpsContext) {
 	let attachments = $state<Attachment[]>([]);
 	let loadingAttachments = $state(false);
 	let newLabelInput = $state('');
-	let copiedId = $state<string | null>(null);
+
 	let issueClosedExternally = $state(false);
 	let ropeDrag = $state<{ fromId: string; startX: number; startY: number; currentX: number; currentY: number; targetId: string | null } | null>(null);
 	let pendingDep = $state<{ fromId: string; toId: string } | null>(null);
@@ -385,7 +386,7 @@ export function createPageOps(ctx: PageOpsContext) {
 		createForm = { title: '', description: '', priority: 2, issue_type: 'task', deps: [] };
 		isCreating = false;
 
-		const newId = await ctx.issueStore.createIssueAndGetId(savedForm);
+		const newId = await ctx.issueStore.createIssue(savedForm);
 		if (newId) {
 			const agentName = `${newId}-agent`;
 			const cwd = ctx.getCurrentProjectPath();
@@ -398,23 +399,7 @@ export function createPageOps(ctx: PageOpsContext) {
 				issue_type: savedForm.issue_type || 'task'
 			};
 			const briefing = formatTicketDelivery(agentName, { issue: newIssue });
-
-			const conflicts = getRunningSessionsForCwd(cwd);
-			if (conflicts.length > 0) {
-				// Check if user wants to always skip modal
-				if (settings.conflictStrategy === 'ask') {
-					cwdConflict = { ticketId: newId, agentName, conflicts, cwd, issue: newIssue, briefing };
-					return;
-				} else {
-					// Auto-resolve with configured strategy
-					cwdConflict = { ticketId: newId, agentName, conflicts, cwd, issue: newIssue, briefing };
-					setTimeout(() => resolveConflict(settings.conflictStrategy), 50);
-					return;
-				}
-			}
-
-			addPane(agentName, cwd, briefing, settings.combinedSystemPrompt, undefined, newId, settings.agentModel || undefined);
-			expandPane(agentName);
+			launchOrConflict(newId, agentName, cwd, newIssue, briefing);
 		}
 	}
 
@@ -429,6 +414,21 @@ export function createPageOps(ctx: PageOpsContext) {
 
 	// --- Agent operations ---
 
+	function launchOrConflict(ticketId: string, agentName: string, cwd: string, issue: Issue, briefing: string): boolean {
+		const conflicts = getRunningSessionsForCwd(cwd);
+		if (conflicts.length > 0) {
+			cwdConflict = { ticketId, agentName, conflicts, cwd, issue, briefing };
+			const strategy = settings.conflictStrategy;
+			if (strategy !== 'ask') {
+				setTimeout(() => resolveConflict(strategy), 50);
+			}
+			return false;
+		}
+		addPane(agentName, cwd, briefing, settings.combinedSystemPrompt, undefined, ticketId, settings.agentModel || undefined);
+		expandPane(agentName);
+		return true;
+	}
+
 	async function startAgentForIssue(issue: Issue) {
 		const agentName = `${issue.id}-agent`;
 		const cwd = ctx.getCurrentProjectPath();
@@ -438,24 +438,10 @@ export function createPageOps(ctx: PageOpsContext) {
 		]);
 		const briefing = formatTicketDelivery(agentName, { issue, comments: issueComments, attachments: issueAttachments });
 
-		const conflicts = getRunningSessionsForCwd(cwd);
-		if (conflicts.length > 0) {
-			// Check if user wants to always skip modal
-			if (settings.conflictStrategy === 'ask') {
-				cwdConflict = { ticketId: issue.id, agentName, conflicts, cwd, issue, briefing };
-				return;
-			} else {
-				// Auto-resolve with configured strategy
-				cwdConflict = { ticketId: issue.id, agentName, conflicts, cwd, issue, briefing };
-				setTimeout(() => resolveConflict(settings.conflictStrategy), 50);
-				return;
-			}
+		if (launchOrConflict(issue.id, agentName, cwd, issue, briefing)) {
+			editingIssue = null;
+			isCreating = false;
 		}
-
-		addPane(agentName, cwd, briefing, settings.combinedSystemPrompt, undefined, issue.id, settings.agentModel || undefined);
-		expandPane(agentName);
-		editingIssue = null;
-		isCreating = false;
 	}
 
 	async function resolveConflict(action: 'worktree' | 'queue' | 'same') {
@@ -552,8 +538,7 @@ export function createPageOps(ctx: PageOpsContext) {
 
 	async function copyToClipboard(text: string, id?: string) {
 		await navigator.clipboard.writeText(text);
-		copiedId = id ?? text;
-		setTimeout(() => copiedId = null, 1500);
+		copyState.set(id ?? text);
 	}
 
 	// --- Rope drag (dependency drawing) ---
@@ -668,7 +653,7 @@ export function createPageOps(ctx: PageOpsContext) {
 		get loadingAttachments() { return loadingAttachments; },
 		get newLabelInput() { return newLabelInput; },
 		set newLabelInput(v) { newLabelInput = v; },
-		get copiedId() { return copiedId; },
+		get copiedId() { return copyState.copiedId; },
 		get issueClosedExternally() { return issueClosedExternally; },
 		set issueClosedExternally(v) { issueClosedExternally = v; },
 		get ropeDrag() { return ropeDrag; },
