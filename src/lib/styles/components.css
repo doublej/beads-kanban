@@ -63,6 +63,16 @@
 	--font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
 	--font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', monospace;
 	--font-display: 'Plus Jakarta Sans', var(--font-sans);
+
+	/* ─── CTA Button Palette ─── */
+	--cta-primary: #6366f1;
+	--cta-primary-hover: #4f46e5;
+	--cta-secondary: #3b82f6;
+	--cta-secondary-hover: #2563eb;
+	--cta-danger: #ef4444;
+	--cta-danger-hover: #dc2626;
+	--cta-muted: rgba(255, 255, 255, 0.08);
+	--cta-muted-hover: rgba(255, 255, 255, 0.14);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -128,13 +138,13 @@
 }
 
 /* ===== GLOBAL STYLES ===== */
-:global(*) {
+* {
 	box-sizing: border-box;
 	margin: 0;
 	padding: 0;
 }
 
-:global(body) {
+body {
 	font-family: var(--font-sans);
 	background: var(--surface-app);
 	color: var(--text-primary);

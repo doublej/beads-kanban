@@ -5,6 +5,7 @@
 	interface Props {
 		show?: boolean;
 		embedded?: boolean;
+		forcedTab?: TabId;
 		onback?: () => void;
 		agentFirstMessage: string;
 		agentSystemPrompt: string;
@@ -13,9 +14,12 @@
 		agentTicketNotification: string;
 	}
 
+	type TabId = 'first' | 'system' | 'workflow' | 'ticket' | 'notification';
+
 	let {
 		show = $bindable(false),
 		embedded = false,
+		forcedTab,
 		onback,
 		agentFirstMessage = $bindable(),
 		agentSystemPrompt = $bindable(),
@@ -24,8 +28,8 @@
 		agentTicketNotification = $bindable()
 	}: Props = $props();
 
-	type TabId = 'first' | 'system' | 'workflow' | 'ticket' | 'notification';
-	let activeTab = $state<TabId>('workflow');
+	let internalTab = $state<TabId>('workflow');
+	const activeTab = $derived(forcedTab ?? internalTab);
 	let showPreview = $state(false);
 
 	const tabs: { id: TabId; label: string; icon: 'message' | 'file' | 'zap' | 'send' | 'bell' }[] = [
@@ -86,6 +90,7 @@
 {#if embedded || show}
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
 <aside class={embedded ? 'editor-embedded' : 'editor-window'} role="dialog" aria-label="Prompts Editor" tabindex="-1" onclick={(e) => e.stopPropagation()}>
+		{#if !forcedTab}
 		<header class="editor-header">
 			<div class="header-left">
 				{#if embedded && onback}
@@ -112,20 +117,23 @@
 				{/if}
 			</div>
 		</header>
+		{/if}
 
-		<div class="editor-body">
+		<div class="editor-body" class:no-tabs={!!forcedTab}>
+			{#if !forcedTab}
 			<nav class="editor-tabs">
 				{#each tabs as tab}
 					<button
 						class="tab"
 						class:active={activeTab === tab.id}
-						onclick={() => activeTab = tab.id}
+						onclick={() => internalTab = tab.id}
 					>
 						<Icon name={tab.icon} size={14} />
 						<span class="tab-label">{tab.label}</span>
 					</button>
 				{/each}
 			</nav>
+			{/if}
 
 			<PromptTemplateForm
 				{activeContent}
@@ -291,6 +299,10 @@
 		flex: 1;
 		min-height: 0;
 		overflow: hidden;
+	}
+
+	.editor-body.no-tabs {
+		flex-direction: column;
 	}
 
 	.editor-tabs {

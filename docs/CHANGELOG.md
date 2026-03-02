@@ -93,6 +93,8 @@ and commits are listed in chronological order.
 - Visual feedback, issue search component, and animation fixes (4ce79ce)
 
 ### Refactored
+- Merge ColumnDropzone into KanbanColumn, eliminating 11 pass-through props
+- Lift copiedId into module-level store, eliminating 4-level prop chain
 - Move theme control to body element (cfe5c97)
 - Extract helper functions to reduce duplication (d9b0360)
 - Slim zshrc to one-liner, add free-port and bd doctor to CLI entry (caa661f)

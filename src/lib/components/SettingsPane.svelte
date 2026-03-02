@@ -59,11 +59,22 @@
 		e.stopPropagation();
 	}
 
-	type SettingsSection = 'project' | 'board' | 'agent' | 'agent-prompts' | 'appearance' | 'notifications' | 'keyboard';
+	type SettingsSection = 'project' | 'board' | 'agent' | 'prompt-first' | 'prompt-system' | 'prompt-workflow' | 'prompt-ticket' | 'prompt-notification' | 'appearance' | 'notifications' | 'keyboard';
 	let activeSection = $state<SettingsSection>('project');
 
+	type PromptTab = 'first' | 'system' | 'workflow' | 'ticket' | 'notification';
+	const promptSectionToTab: Record<string, PromptTab> = {
+		'prompt-first': 'first',
+		'prompt-system': 'system',
+		'prompt-workflow': 'workflow',
+		'prompt-ticket': 'ticket',
+		'prompt-notification': 'notification'
+	};
+	const isPromptSection = $derived(activeSection in promptSectionToTab);
+	const activePromptTab = $derived(promptSectionToTab[activeSection] as PromptTab | undefined);
+
 	function openAgentPrompts() {
-		activeSection = 'agent-prompts';
+		activeSection = 'prompt-workflow';
 	}
 </script>
 
@@ -97,9 +108,26 @@
 					<Icon name="agent" size={16} />
 					<span>Agent</span>
 				</button>
-				<button class:active={activeSection === 'agent-prompts'} onclick={() => { activeSection = 'agent-prompts'; }}>
-					<Icon name="sliders" size={16} />
-					<span>Agent Prompts</span>
+				<span class="nav-group-label">Agent Prompts</span>
+				<button class="nav-sub" class:active={activeSection === 'prompt-first'} onclick={() => { activeSection = 'prompt-first'; }}>
+					<Icon name="message" size={14} />
+					<span>First Message</span>
+				</button>
+				<button class="nav-sub" class:active={activeSection === 'prompt-system'} onclick={() => { activeSection = 'prompt-system'; }}>
+					<Icon name="file" size={14} />
+					<span>System Prompt</span>
+				</button>
+				<button class="nav-sub" class:active={activeSection === 'prompt-workflow'} onclick={() => { activeSection = 'prompt-workflow'; }}>
+					<Icon name="zap" size={14} />
+					<span>Workflow</span>
+				</button>
+				<button class="nav-sub" class:active={activeSection === 'prompt-ticket'} onclick={() => { activeSection = 'prompt-ticket'; }}>
+					<Icon name="send" size={14} />
+					<span>Ticket Delivery</span>
+				</button>
+				<button class="nav-sub" class:active={activeSection === 'prompt-notification'} onclick={() => { activeSection = 'prompt-notification'; }}>
+					<Icon name="bell" size={14} />
+					<span>Notifications</span>
 				</button>
 				<button class:active={activeSection === 'appearance'} onclick={() => { activeSection = 'appearance'; }}>
 					<Icon name="sun" size={16} />
@@ -116,9 +144,10 @@
 			</nav>
 
 			<div class="settings-content">
-				{#if activeSection === 'agent-prompts'}
+				{#if isPromptSection}
 					<PromptsEditor
 						embedded
+						forcedTab={activePromptTab}
 						bind:agentFirstMessage
 						bind:agentSystemPrompt
 						bind:agentWorkflow
@@ -322,6 +351,24 @@
 		background: rgba(99, 102, 241, 0.12);
 	}
 
+	/* Nav group label + sub-items */
+	.nav-group-label {
+		display: block;
+		padding: 0.625rem 0.75rem 0.25rem;
+		font-size: 0.6875rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-tertiary);
+		opacity: 0.6;
+	}
+
+	.settings-nav button.nav-sub {
+		padding-left: 1.25rem;
+		font-size: 0.75rem;
+		font-weight: 500;
+	}
+
 	.settings-content {
 		flex: 1;
 		overflow-y: auto;
@@ -353,6 +400,14 @@
 
 		.settings-nav button {
 			white-space: nowrap;
+		}
+
+		.nav-group-label {
+			display: none;
+		}
+
+		.settings-nav button.nav-sub {
+			padding-left: 0.75rem;
 		}
 	}
 

@@ -2,17 +2,17 @@
 	import type { Issue } from '$lib/types';
 	import { getPriorityConfig, calculateImpactScore, getImpactLevel } from '$lib/utils';
 	import Icon from './Icon.svelte';
+	import { copyState } from '$lib/stores/copy-state.svelte';
 
 	interface Props {
 		issue: Issue;
-		copiedId: string | null;
 		hasOpenBlockers: boolean;
 		showImpact: boolean;
 		isAgentAssignee: boolean;
 		oncopyid: (id: string) => void;
 	}
 
-	let { issue, copiedId, hasOpenBlockers, showImpact, isAgentAssignee, oncopyid }: Props = $props();
+	let { issue, hasOpenBlockers, showImpact, isAgentAssignee, oncopyid }: Props = $props();
 
 	const priorityConfig = $derived(getPriorityConfig(issue.priority));
 	const impactScore = $derived(calculateImpactScore(issue));
@@ -26,11 +26,11 @@
 		<span class="card-id">{issue.id}</span>
 		<button
 			class="btn-copy"
-			class:copied={copiedId === issue.id}
+			class:copied={copyState.copiedId === issue.id}
 			onclick={(e) => { e.stopPropagation(); oncopyid(issue.id); }}
 			aria-label="Copy ID"
 		>
-			{#if copiedId === issue.id}
+			{#if copyState.copiedId === issue.id}
 				<Icon name="check" size={10} />
 			{:else}
 				<Icon name="copy" size={10} />

@@ -5,61 +5,6 @@
 
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap');
 
-:root {
-	--bg-primary: #3f3f46;
-	--bg-secondary: #27272a;
-	--bg-tertiary: #18181b;
-	--bg-elevated: #3a3a3c;
-	--border-subtle: rgba(255, 255, 255, 0.08);
-	--border-default: rgba(255, 255, 255, 0.12);
-	--border-strong: rgba(255, 255, 255, 0.18);
-	--text-primary: #ffffff;
-	--text-secondary: #98989d;
-	--text-tertiary: #636366;
-	--accent-primary: #0a84ff;
-	--accent-glow: rgba(10, 132, 255, 0.15);
-	--radius-sm: 8px;
-	--radius-md: 12px;
-	--radius-lg: 20px;
-	--radius-xl: 28px;
-	--transition-fast: 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
-	--transition-smooth: 350ms cubic-bezier(0.25, 0.1, 0.25, 1);
-	--transition-bounce: 500ms cubic-bezier(0.34, 1.56, 0.64, 1);
-	--shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
-	--shadow-md: 0 4px 24px rgba(0, 0, 0, 0.2);
-	--shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.3);
-	/* CTA Button Palette */
-	--cta-primary: #6366f1;
-	--cta-primary-hover: #4f46e5;
-	--cta-secondary: #3b82f6;
-	--cta-secondary-hover: #2563eb;
-	--cta-danger: #ef4444;
-	--cta-danger-hover: #dc2626;
-	--cta-muted: rgba(255, 255, 255, 0.08);
-	--cta-muted-hover: rgba(255, 255, 255, 0.14);
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Global Resets
-   ═══════════════════════════════════════════════════════════════ */
-
-* {
-	box-sizing: border-box;
-	margin: 0;
-	padding: 0;
-}
-
-body {
-	font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-	background: var(--bg-primary);
-	color: var(--text-primary);
-	line-height: 1.5;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
-	text-rendering: optimizeLegibility;
-	overflow: hidden;
-}
-
 /* ═══════════════════════════════════════════════════════════════
    CTA Button System - 5 variants
    ═══════════════════════════════════════════════════════════════ */

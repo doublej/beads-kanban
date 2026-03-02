@@ -31,7 +31,7 @@
 		}
 	});
 
-	const themeColor = $derived(isDarkMode ? '#3f3f46' : '#f5f5f5');
+	const themeColor = $derived(isDarkMode ? '#18181b' : '#f5f5f5');
 </script>
 
 <svelte:head>

@@ -29,7 +29,9 @@ bun run check    # Type-check with svelte-check
 - `src/lib/wsStore.svelte.ts` - WebSocket store for embedded agent server (ws://localhost:9347)
 - `src/lib/types.ts` - TypeScript interfaces (Issue, Dependency, Column, etc.)
 - `src/lib/api.ts` - Client-side API calls
-- `src/lib/utils.ts` - Kanban helpers (columns config, sorting, filtering)
+- `src/lib/utils.ts` - Kanban helpers (columns config, sorting, priority/type helpers)
+- `src/lib/filters.ts` - Issue filter logic (text, priority, type, label, time, actionable)
+- `src/lib/stores/` - Application state: `issue-store`, `page-ops`, `settings`, `card-drag`, `pane-drag`, `ws-connection` and others
 - `src/lib/vapid.ts` - VAPID key generation and persistence for web push
 - `src/lib/push-db.ts` - Push subscription storage (SQLite in `.beads/beads-app.db`)
 - `src/lib/notifications/` - Notification system (event emitter, toast queue, push service, MCP notifier)
