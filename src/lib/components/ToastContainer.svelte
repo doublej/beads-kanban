@@ -3,21 +3,23 @@
 	import ToastNotification from './ToastNotification.svelte';
 </script>
 
-<div class="toast-container">
-	{#each toastQueue.all as toast (toast.id)}
-		<ToastNotification {toast} onDismiss={() => toastQueue.dismiss(toast.id)} />
-	{/each}
-</div>
+{#if toastQueue.all.length > 0}
+	<div class="toast-container">
+		{#each toastQueue.all as toast (toast.id)}
+			<ToastNotification {toast} onDismiss={() => toastQueue.dismiss(toast.id)} />
+		{/each}
+	</div>
+{/if}
 
 <style>
 	.toast-container {
 		position: fixed;
-		bottom: 1rem;
-		right: 1rem;
-		z-index: 9999;
+		bottom: 64px;
+		right: 12px;
+		z-index: 9998;
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.5rem;
 		pointer-events: none;
 	}
 
@@ -27,8 +29,9 @@
 
 	@media (max-width: 640px) {
 		.toast-container {
-			left: 1rem;
-			right: 1rem;
+			left: 12px;
+			right: 12px;
+			bottom: 72px;
 		}
 	}
 </style>
