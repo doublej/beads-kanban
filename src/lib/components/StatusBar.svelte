@@ -95,7 +95,7 @@
 		font-size: 11px;
 		background: var(--bg-secondary, #27272a);
 		border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-		border-radius: 6px;
+		border-radius: 5px;
 		overflow: hidden;
 	}
 
@@ -173,10 +173,11 @@
 		display: flex;
 		align-items: center;
 		gap: 4px;
-		padding: 3px 10px 3px 8px;
-		margin-left: 8px;
+		height: 20px;
+		padding: 0 8px;
+		margin-left: 6px;
 		border: none;
-		border-radius: 4px;
+		border-radius: 5px;
 		font-family: 'IBM Plex Mono', ui-monospace, monospace;
 		font-size: 9px;
 		font-weight: 600;
@@ -238,14 +239,14 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		min-width: 16px;
-		height: 16px;
-		padding: 0 5px;
+		min-width: 14px;
+		height: 14px;
+		padding: 0 4px;
 		margin-left: 4px;
 		background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-		border-radius: 8px;
+		border-radius: 7px;
 		font-family: 'IBM Plex Mono', ui-monospace, monospace;
-		font-size: 9px;
+		font-size: 8px;
 		font-weight: 700;
 		color: #fff;
 		letter-spacing: -0.02em;

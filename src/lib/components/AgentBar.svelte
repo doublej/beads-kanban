@@ -521,12 +521,13 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		padding: 8px 12px 8px 10px;
+		height: 26px;
+		padding: 0 10px;
 		background: rgba(255, 255, 255, 0.04);
 		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 6px;
+		border-radius: 5px;
 		color: var(--text-secondary);
-		font: 500 12px/1 system-ui, -apple-system, sans-serif;
+		font: 500 11px/1 system-ui, -apple-system, sans-serif;
 		cursor: pointer;
 		transition: all 100ms ease;
 	}
@@ -542,8 +543,6 @@
 		border-color: rgba(99, 102, 241, 0.25);
 		color: var(--text-primary);
 	}
-
-	.launcher-label { letter-spacing: -0.01em; }
 
 	.launcher-caret {
 		color: var(--text-tertiary);
@@ -562,11 +561,11 @@
 		position: absolute;
 		bottom: calc(100% + 4px);
 		left: 0;
-		padding: 3px;
+		padding: 4px;
 		background: rgba(28, 28, 32, 0.98);
 		backdrop-filter: blur(20px) saturate(1.5);
 		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 8px;
+		border-radius: 6px;
 		box-shadow:
 			0 0 0 0.5px rgba(0, 0, 0, 0.3),
 			0 4px 16px rgba(0, 0, 0, 0.35),
@@ -584,12 +583,13 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 7px 10px;
+		height: 26px;
+		padding: 0 10px;
 		background: transparent;
 		border: none;
 		border-radius: 5px;
 		color: var(--text-primary);
-		font: 500 12px/1 system-ui, -apple-system, sans-serif;
+		font: 500 11px/1 system-ui, -apple-system, sans-serif;
 		text-align: left;
 		cursor: pointer;
 		transition: background 60ms ease;
@@ -611,11 +611,11 @@
 
 	.option-badge {
 		margin-left: auto;
-		padding: 2px 5px;
+		padding: 2px 6px;
 		font: 500 9px/1 'IBM Plex Mono', ui-monospace, monospace;
 		color: var(--text-tertiary);
 		background: rgba(255, 255, 255, 0.06);
-		border-radius: 3px;
+		border-radius: 4px;
 	}
 
 	:global(.app.light) .launcher-btn {
@@ -661,11 +661,12 @@
 
 	.agent-name-input {
 		width: 140px;
-		padding: 8px 12px;
-		font: 12px/1 'IBM Plex Mono', ui-monospace, monospace;
+		height: 26px;
+		padding: 0 10px;
+		font: 11px/1 'IBM Plex Mono', ui-monospace, monospace;
 		background: rgba(255, 255, 255, 0.06);
 		border: 1px solid rgba(99, 102, 241, 0.3);
-		border-radius: 6px;
+		border-radius: 5px;
 		color: var(--text-primary);
 		transition: all 100ms ease;
 	}
@@ -719,10 +720,11 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		padding: 6px 12px;
+		height: 26px;
+		padding: 0 10px;
 		background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.08) 100%);
 		border: 1px solid rgba(99, 102, 241, 0.2);
-		border-radius: 6px;
+		border-radius: 5px;
 		animation: slideIn 150ms ease-out;
 	}
 
@@ -778,13 +780,14 @@
 	.agent-tab {
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
-		padding: 0.375rem 0.625rem;
+		gap: 6px;
+		height: 26px;
+		padding: 0 10px;
 		background: transparent;
 		border: none;
 		border-radius: 5px;
 		color: var(--text-tertiary);
-		font: 12px/1 'IBM Plex Mono', ui-monospace, monospace;
+		font: 500 11px/1 'IBM Plex Mono', ui-monospace, monospace;
 		cursor: pointer;
 		transition: all 80ms ease;
 		white-space: nowrap;
@@ -797,7 +800,7 @@
 
 	.agent-tab.active {
 		color: var(--text-primary);
-		padding-right: 0.25rem;
+		padding-right: 4px;
 	}
 
 	.agent-tab.streaming { color: var(--text-primary); }
@@ -813,7 +816,7 @@
 		margin-right: 4px;
 		background: transparent;
 		border: none;
-		border-radius: 4px;
+		border-radius: 5px;
 		color: var(--text-tertiary);
 		cursor: pointer;
 		opacity: 0.6;
@@ -875,8 +878,7 @@
 		padding: 0 4px;
 		background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
 		border-radius: 7px;
-		font-size: 8px;
-		font-weight: 700;
+		font: 700 8px/1 'IBM Plex Mono', ui-monospace, monospace;
 		color: #fff;
 		letter-spacing: -0.02em;
 		box-shadow: 0 1px 2px rgba(239, 68, 68, 0.3);
@@ -891,13 +893,14 @@
 	.queue-btn {
 		display: flex;
 		align-items: center;
-		gap: 0.375rem;
-		padding: 0.375rem 0.625rem;
+		gap: 6px;
+		height: 26px;
+		padding: 0 10px;
 		background: rgba(245, 158, 11, 0.08);
 		border: none;
 		border-radius: 5px;
 		color: #f59e0b;
-		font: 500 12px/1 'IBM Plex Mono', ui-monospace, monospace;
+		font: 500 11px/1 'IBM Plex Mono', ui-monospace, monospace;
 		cursor: pointer;
 		transition: all 80ms ease;
 		flex-shrink: 0;
