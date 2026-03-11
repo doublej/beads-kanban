@@ -10,7 +10,7 @@ const execAsync = promisify(exec);
 const VALID_STATUSES = ['open', 'in_progress', 'hooked', 'blocked', 'closed'];
 
 export const PATCH: RequestHandler = async ({ params, request, url }) => {
-	const { status, title, description, priority, issue_type, design, acceptance_criteria, notes, assignee, addLabels, removeLabels } = await request.json();
+	const { status, title, description, priority, issue_type, design, acceptance_criteria, notes, assignee, addLabels, removeLabels, agent_model, agent_effort } = await request.json();
 
 	if (status && !VALID_STATUSES.includes(status)) {
 		return json({ error: 'Invalid status' }, { status: 400 });
@@ -42,6 +42,25 @@ export const PATCH: RequestHandler = async ({ params, request, url }) => {
 			hasUpdates = true;
 		}
 	}
+
+	// Handle agent metadata fields
+	if (agent_model !== undefined) {
+		if (agent_model) {
+			updateCmd += ` --set-metadata agent_model=${agent_model}`;
+		} else {
+			updateCmd += ` --unset-metadata agent_model`;
+		}
+		hasUpdates = true;
+	}
+	if (agent_effort !== undefined) {
+		if (agent_effort) {
+			updateCmd += ` --set-metadata agent_effort=${agent_effort}`;
+		} else {
+			updateCmd += ` --unset-metadata agent_effort`;
+		}
+		hasUpdates = true;
+	}
+
 	if (hasUpdates) commands.push(updateCmd);
 
 	// Add label commands

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Issue } from '$lib/types';
+	import type { Issue, AgentModel, AgentEffort } from '$lib/types';
 	import { getPriorityConfig, getTypeIcon, columns } from '$lib/utils';
 	import Icon from './Icon.svelte';
 	import IssueSearch from './IssueSearch.svelte';
@@ -42,6 +42,20 @@
 	function getIssueById(id: string): Issue | undefined {
 		return allIssues.find(i => i.id === id);
 	}
+
+	const modelOptions: { value: AgentModel; label: string; hint: string }[] = [
+		{ value: '', label: 'Default', hint: 'Use global setting' },
+		{ value: 'haiku', label: 'Haiku', hint: 'Fast & lightweight' },
+		{ value: 'sonnet', label: 'Sonnet', hint: 'Balanced' },
+		{ value: 'opus', label: 'Opus', hint: 'Most capable' }
+	];
+
+	const effortOptions: { value: AgentEffort; label: string; hint: string }[] = [
+		{ value: '', label: 'Default', hint: 'Use global setting' },
+		{ value: 'low', label: 'Low', hint: 'Quick tasks' },
+		{ value: 'medium', label: 'Medium', hint: 'Standard work' },
+		{ value: 'high', label: 'High', hint: 'Complex tasks' }
+	];
 </script>
 
 {#if mode === 'create' && createForm && updatecreateform}
@@ -178,6 +192,40 @@
 				<option value={agent}></option>
 			{/each}
 		</datalist>
+	</div>
+
+	<!-- Agent overrides -->
+	<div class="field-row agent-overrides">
+		<div class="field field-half">
+			<label class="field-label">Agent Model</label>
+			<div class="pill-group compact">
+				{#each modelOptions as opt}
+					<button
+						class="pill pill-model"
+						class:active={editingIssue.agent_model === opt.value || (!editingIssue.agent_model && opt.value === '')}
+						onclick={() => editingIssue.agent_model = opt.value}
+						title={opt.hint}
+					>
+						<span class="pill-text">{opt.label}</span>
+					</button>
+				{/each}
+			</div>
+		</div>
+		<div class="field field-half">
+			<label class="field-label">Agent Effort</label>
+			<div class="pill-group compact">
+				{#each effortOptions as opt}
+					<button
+						class="pill pill-effort"
+						class:active={editingIssue.agent_effort === opt.value || (!editingIssue.agent_effort && opt.value === '')}
+						onclick={() => editingIssue.agent_effort = opt.value}
+						title={opt.hint}
+					>
+						<span class="pill-text">{opt.label}</span>
+					</button>
+				{/each}
+			</div>
+		</div>
 	</div>
 {/if}
 
@@ -378,6 +426,19 @@
 	:global(.app.light) .dep-chip { background: rgba(0, 0, 0, 0.04); }
 
 	.agent-hint { font-weight: 400; color: var(--text-tertiary); font-size: 0.5625rem; }
+
+	/* Agent overrides */
+	.agent-overrides {
+		margin-top: 0.5rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid var(--border-subtle);
+	}
+
+	.pill-model, .pill-effort {
+		width: auto;
+		min-width: 4rem;
+		padding: 0 0.5rem;
+	}
 
 	@media (max-width: 768px) {
 		.field { margin-bottom: 0; }
