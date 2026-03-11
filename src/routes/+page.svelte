@@ -32,7 +32,7 @@
 	import GraphView from '$lib/components/GraphView.svelte';
 	import MutationLog from '$lib/components/MutationLog.svelte';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
-	import AgentQueueDrawer from '$lib/components/AgentQueueDrawer.svelte';
+	import AgentQueueColumn from '$lib/components/AgentQueueColumn.svelte';
 	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
 	import SetupWizard from '$lib/components/SetupWizard.svelte';
@@ -121,8 +121,8 @@
 		}
 	}
 
-	// Agent queue drawer state
-	let queueDrawerOpen = $state(false);
+	// Agent queue column state
+	let queueColumnCollapsed = $state(false);
 	let runningAgents = $derived.by(() => {
 		const sessions = Array.from(getSessions().values());
 		return sessions.filter(s => s.ticketId && !s.ended);
@@ -770,6 +770,18 @@
 				{#if ops.editingIssue && ops.panelColumnIndex === i}
 					{@render detailPanel()}
 				{/if}
+				{#if i === 0}
+					<AgentQueueColumn
+						queue={ops.agentQueue}
+						runningSessions={runningAgents}
+						isCollapsed={queueColumnCollapsed}
+						{activeColumnIndex}
+						columnIndex={-1}
+						onCancel={(ticketId) => ops.cancelQueueItem(ticketId)}
+						onReorder={(from, to) => ops.reorderQueue(from, to)}
+						onToggleCollapse={() => queueColumnCollapsed = !queueColumnCollapsed}
+					/>
+				{/if}
 			{/each}
 		</main>
 		</div>
@@ -825,8 +837,6 @@
 	agentFirstMessage={settings.agentFirstMessage}
 	combinedSystemPrompt={settings.combinedSystemPrompt}
 	agentSystemPrompt={settings.agentSystemPrompt}
-	queueCount={totalQueueCount}
-	bind:queueOpen={queueDrawerOpen}
 	{getPersistedSdkSessionId}
 	{getUnreadCount}
 	{getTotalUnreadCount}
@@ -849,7 +859,6 @@
 	oncyclePaneSize={cyclePaneSize}
 	onhandleMouseMove={ops.handleMouseMove}
 	onhandleMouseUp={ops.handleMouseUp}
-	ontogglequeue={() => queueDrawerOpen = !queueDrawerOpen}
 />
 
 <FlyingCardComponent {teleports} />
@@ -903,14 +912,6 @@
 
 <ToastContainer />
 
-<AgentQueueDrawer
-	show={queueDrawerOpen && totalQueueCount > 0}
-	queue={ops.agentQueue}
-	runningSessions={runningAgents}
-	onCancel={(ticketId) => ops.cancelQueueItem(ticketId)}
-	onReorder={(from, to) => ops.reorderQueue(from, to)}
-	onclose={() => queueDrawerOpen = false}
-/>
 
 <PwaInstallPrompt />
 
