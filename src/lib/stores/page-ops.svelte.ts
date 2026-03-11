@@ -74,6 +74,10 @@ export function createPageOps(ctx: PageOpsContext) {
 		return ctx.getIssues().find(i => i.id === id)?.title ?? id;
 	}
 
+	function getEffectiveModel(issue: Issue): string | undefined {
+		return issue.agent_model || settings.agentModel || undefined;
+	}
+
 	function formatTicketDelivery(agentName: string, data: TicketDeliveryData): string {
 		return formatTicketDeliveryFn(agentName, data, settings.agentTicketDelivery);
 	}
@@ -170,7 +174,7 @@ export function createPageOps(ctx: PageOpsContext) {
 			}
 		}
 
-		addPane(entry.agentName, effectiveCwd, briefing, settings.combinedSystemPrompt, undefined, entry.ticketId, settings.agentModel || undefined);
+		addPane(entry.agentName, effectiveCwd, briefing, settings.combinedSystemPrompt, undefined, entry.ticketId, getEffectiveModel(currentIssue));
 		if (entry.useWorktree) updateSession(entry.agentName, { worktreePath: effectiveCwd });
 		expandPane(entry.agentName);
 		return true;
@@ -390,8 +394,11 @@ export function createPageOps(ctx: PageOpsContext) {
 		if (newId) {
 			const agentName = `${newId}-agent`;
 			const cwd = ctx.getCurrentProjectPath();
+			// Estimate seq as max + 1 (will be corrected by SSE)
+			const maxSeq = ctx.getIssues().reduce((max, i) => Math.max(max, i.seq ?? 0), 0);
 			const newIssue: Issue = {
 				id: newId,
+				seq: maxSeq + 1,
 				title: savedForm.title,
 				description: savedForm.description || '',
 				status: 'open',
@@ -424,7 +431,7 @@ export function createPageOps(ctx: PageOpsContext) {
 			}
 			return false;
 		}
-		addPane(agentName, cwd, briefing, settings.combinedSystemPrompt, undefined, ticketId, settings.agentModel || undefined);
+		addPane(agentName, cwd, briefing, settings.combinedSystemPrompt, undefined, ticketId, getEffectiveModel(issue));
 		expandPane(agentName);
 		return true;
 	}
@@ -479,7 +486,7 @@ export function createPageOps(ctx: PageOpsContext) {
 			updateSession(agentName, { cwd: effectiveCwd });
 
 			setTimeout(() => {
-				startSession(agentName, effectiveCwd, briefing, settings.combinedSystemPrompt, undefined, ticketId);
+				startSession(agentName, effectiveCwd, briefing, settings.combinedSystemPrompt, undefined, ticketId, getEffectiveModel(issue));
 				if (action === 'worktree') updateSession(agentName, { worktreePath: effectiveCwd });
 			}, 100);
 

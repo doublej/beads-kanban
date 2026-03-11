@@ -232,8 +232,11 @@ async function deleteIssue(id: string) {
 async function createIssue() {
 	if (!createForm.title.trim()) return;
 	const tempId = `temp-${Date.now()}`;
+	// Estimate next seq as current max + 1 (will be corrected by SSE)
+	const maxSeq = issues.reduce((max, i) => Math.max(max, i.seq ?? 0), 0);
 	const tempIssue: Issue = {
 		id: tempId,
+		seq: maxSeq + 1,
 		title: createForm.title,
 		description: createForm.description,
 		status: 'open',

@@ -148,8 +148,8 @@
 
 		<header class="header">
 			<div class="header-left">
-				<button class="id-badge" class:copied={copyState.copiedId === `panel-${editingIssue.id}`} onclick={() => oncopyid(editingIssue!.id, `panel-${editingIssue!.id}`)}>
-					{editingIssue.id}
+				<button class="id-badge" class:copied={copyState.copiedId === `panel-${editingIssue.id}`} onclick={() => oncopyid(editingIssue!.id, `panel-${editingIssue!.id}`)} title={editingIssue.id}>
+					#{editingIssue.seq}
 					<Icon name={copyState.copiedId === `panel-${editingIssue.id}` ? 'check' : 'copy'} size={10} />
 				</button>
 			</div>

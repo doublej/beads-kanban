@@ -93,7 +93,7 @@
 			<span class="priority-dot" style="background: {p.color}"></span>
 			<span class="status-icon">{statusIcons[n.issue.status]}</span>
 			<span class="type-icon">{getTypeIcon(n.issue.issue_type)}</span>
-			<span class="issue-id">#{n.issue.id}</span>
+			<span class="issue-id" title={n.issue.id}>#{n.issue.seq}</span>
 			<span class="issue-title">{n.issue.title}</span>
 			<span class="issue-time" title="{ts.absolute} {ts.time}">{ts.relative}</span>
 		</div>

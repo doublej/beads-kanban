@@ -5,8 +5,12 @@ export interface Dependency {
 	dependency_type: string;
 }
 
+export type AgentModel = '' | 'haiku' | 'sonnet' | 'opus';
+export type AgentEffort = '' | 'low' | 'medium' | 'high';
+
 export interface Issue {
 	id: string;
+	seq: number;
 	title: string;
 	description: string;
 	design?: string;
@@ -26,6 +30,9 @@ export interface Issue {
 	dependent_count?: number;
 	attachments?: Attachment[];
 	comments?: Comment[];
+	// Agent overrides
+	agent_model?: AgentModel;
+	agent_effort?: AgentEffort;
 	// UI state
 	_showDesign?: boolean;
 	_showAcceptance?: boolean;

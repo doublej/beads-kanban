@@ -5,7 +5,7 @@
 import { spawnSync } from 'child_process';
 import { join, resolve } from 'path';
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
-import type { Issue, Dependency, MutationEntry, Attachment, Comment } from './types';
+import type { Issue, Dependency, MutationEntry, Attachment, Comment, AgentModel, AgentEffort } from './types';
 import { getMimetype } from './attachments';
 
 const CONFIG_FILE = join(process.cwd(), '.beads-cwd');
@@ -65,6 +65,7 @@ function bdSql<T>(query: string, cwd?: string): T[] {
 
 interface DbIssue {
 	id: string;
+	seq: number;
 	title: string;
 	description: string;
 	design: string;
@@ -77,6 +78,21 @@ interface DbIssue {
 	created_at: string;
 	updated_at: string;
 	closed_at: string | null;
+	metadata: string | null;
+}
+
+interface IssueMetadata {
+	agent_model?: AgentModel;
+	agent_effort?: AgentEffort;
+}
+
+function parseMetadata(raw: string | null): IssueMetadata {
+	if (!raw) return {};
+	try {
+		return JSON.parse(raw) as IssueMetadata;
+	} catch {
+		return {};
+	}
 }
 
 interface DbDependency {
@@ -94,8 +110,9 @@ interface DbLabel {
 
 export function getAllIssues(cwd?: string): Issue[] {
 	const issues = bdSql<DbIssue>(`
-		SELECT id, title, description, design, acceptance_criteria, notes,
-		       status, priority, issue_type, assignee, created_at, updated_at, closed_at
+		SELECT id, ROW_NUMBER() OVER (ORDER BY created_at) as seq,
+		       title, description, design, acceptance_criteria, notes,
+		       status, priority, issue_type, assignee, created_at, updated_at, closed_at, metadata
 		FROM issues
 		WHERE status <> 'tombstone'
 		ORDER BY priority DESC, created_at DESC
@@ -123,37 +140,46 @@ export function getAllIssues(cwd?: string): Issue[] {
 	const attachmentsMap = getAllAttachments(cwd);
 	const commentsMap = getAllComments(cwd);
 
-	return issues.map((row) => ({
-		id: row.id,
-		title: row.title,
-		description: row.description,
-		design: row.design || undefined,
-		acceptance_criteria: row.acceptance_criteria || undefined,
-		notes: row.notes || undefined,
-		status: row.status as Issue['status'],
-		priority: row.priority as Issue['priority'],
-		issue_type: row.issue_type,
-		assignee: row.assignee ?? undefined,
-		created_at: row.created_at,
-		updated_at: row.updated_at,
-		closed_at: row.closed_at ?? undefined,
-		labels: labelsMap.get(row.id) ?? [],
-		dependencies: depsMap.get(row.id) ?? [],
-		dependents: dependentsMap.get(row.id) ?? [],
-		dependency_count: depsMap.get(row.id)?.length ?? 0,
-		dependent_count: dependentsMap.get(row.id)?.length ?? 0,
-		attachments: attachmentsMap.get(row.id) ?? [],
-		comments: commentsMap.get(row.id) ?? []
-	}));
+	return issues.map((row) => {
+		const meta = parseMetadata(row.metadata);
+		return {
+			id: row.id,
+			seq: row.seq,
+			title: row.title,
+			description: row.description,
+			design: row.design || undefined,
+			acceptance_criteria: row.acceptance_criteria || undefined,
+			notes: row.notes || undefined,
+			status: row.status as Issue['status'],
+			priority: row.priority as Issue['priority'],
+			issue_type: row.issue_type,
+			assignee: row.assignee ?? undefined,
+			created_at: row.created_at,
+			updated_at: row.updated_at,
+			closed_at: row.closed_at ?? undefined,
+			labels: labelsMap.get(row.id) ?? [],
+			dependencies: depsMap.get(row.id) ?? [],
+			dependents: dependentsMap.get(row.id) ?? [],
+			dependency_count: depsMap.get(row.id)?.length ?? 0,
+			dependent_count: dependentsMap.get(row.id)?.length ?? 0,
+			attachments: attachmentsMap.get(row.id) ?? [],
+			comments: commentsMap.get(row.id) ?? [],
+			agent_model: meta.agent_model,
+			agent_effort: meta.agent_effort
+		};
+	});
 }
 
 export function getIssueById(id: string, cwd?: string): Issue | null {
 	const sid = safeId(id);
 	const issues = bdSql<DbIssue>(`
-		SELECT id, title, description, design, acceptance_criteria, notes,
-		       status, priority, issue_type, assignee, created_at, updated_at, closed_at
-		FROM issues
-		WHERE id = '${sid}' AND status <> 'tombstone'
+		SELECT id, seq, title, description, design, acceptance_criteria, notes,
+		       status, priority, issue_type, assignee, created_at, updated_at, closed_at, metadata
+		FROM (
+			SELECT *, ROW_NUMBER() OVER (ORDER BY created_at) as seq
+			FROM issues
+			WHERE status <> 'tombstone'
+		) WHERE id = '${sid}'
 	`, cwd);
 
 	const issue = issues[0];
@@ -179,9 +205,11 @@ export function getIssueById(id: string, cwd?: string): Issue | null {
 
 	const attachmentsMap = getAllAttachments(cwd);
 	const commentsMap = getAllComments(cwd);
+	const meta = parseMetadata(issue.metadata);
 
 	return {
 		id: issue.id,
+		seq: issue.seq,
 		title: issue.title,
 		description: issue.description,
 		design: issue.design || undefined,
@@ -210,7 +238,9 @@ export function getIssueById(id: string, cwd?: string): Issue | null {
 		dependency_count: deps.length,
 		dependent_count: dependents.length,
 		attachments: attachmentsMap.get(id) ?? [],
-		comments: commentsMap.get(id) ?? []
+		comments: commentsMap.get(id) ?? [],
+		agent_model: meta.agent_model,
+		agent_effort: meta.agent_effort
 	};
 }
 

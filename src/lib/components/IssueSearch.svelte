@@ -105,7 +105,7 @@
 						<Icon name={column.icon} size={10} />
 					</span>
 					<span class="item-priority" style="background: {priority.color}"></span>
-					<span class="item-id">{issue.id}</span>
+					<span class="item-id" title={issue.id}>#{issue.seq}</span>
 					<span class="item-title">{issue.title}</span>
 				</button>
 			{/each}

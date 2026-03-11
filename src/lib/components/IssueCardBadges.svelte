@@ -23,7 +23,7 @@
 	<span class="card-id-wrap">
 		{#if issue.pinned}<span class="pinned-icon" title="Pinned"><Icon name="pin" size={10} /></span>{/if}
 		<span class="priority-dot" style="background: {priorityConfig.color}"></span>
-		<span class="card-id">{issue.id}</span>
+		<span class="card-id" title={issue.id}>#{issue.seq}</span>
 		<button
 			class="btn-copy"
 			class:copied={copyState.copiedId === issue.id}
