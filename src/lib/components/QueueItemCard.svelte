@@ -14,18 +14,22 @@
 		ondragstart?: (e: DragEvent) => void;
 		ondragover?: (e: DragEvent) => void;
 		ondrop?: (e: DragEvent) => void;
+		ondragend?: () => void;
 		onCancel: () => void;
 	}
 
-	let { item, position, draggable = true, ondragstart, ondragover, ondrop, onCancel }: Props = $props();
+	let { item, position, draggable = true, ondragstart, ondragover, ondrop, ondragend, onCancel }: Props = $props();
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="queue-item"
+	role="listitem"
 	draggable={draggable}
 	ondragstart={ondragstart}
 	ondragover={ondragover}
 	ondrop={ondrop}
+	ondragend={ondragend}
 >
 	<div class="position-badge">{position}</div>
 	<div class="queue-item-content">
@@ -40,37 +44,51 @@
 
 <style>
 	.queue-item {
+		position: relative;
 		display: flex;
-		gap: 0.75rem;
-		padding: 0.75rem;
-		background: var(--surface-elevated);
-		border: 1px solid var(--border-default);
-		border-radius: var(--radius-md);
+		gap: 0.625rem;
+		padding: 0.5rem 0.625rem;
+		background: var(--surface-card);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-sm);
 		cursor: grab;
-		transition: all var(--transition-smooth);
+		transition: all var(--transition-fast);
+	}
+
+	.queue-item::before {
+		content: '';
+		position: absolute;
+		top: 0.5rem;
+		left: 0;
+		width: 2px;
+		height: calc(100% - 1rem);
+		border-radius: 0 1px 1px 0;
+		background: #f59e0b;
+		opacity: 0.6;
 	}
 
 	.queue-item:hover {
-		background: var(--surface-hover);
-		border-color: var(--border-hover);
+		background: var(--surface-elevated);
+		border-color: var(--border-default);
+		transform: translateY(-1px);
 	}
 
 	.queue-item:active {
 		cursor: grabbing;
+		transform: scale(0.99);
 	}
 
 	.position-badge {
 		flex-shrink: 0;
-		width: 1.5rem;
-		height: 1.5rem;
+		width: 1.25rem;
+		height: 1.25rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: var(--accent-primary);
-		color: white;
-		border-radius: 50%;
-		font-size: 0.75rem;
-		font-weight: 600;
+		background: rgba(245, 158, 11, 0.15);
+		color: #f59e0b;
+		border-radius: var(--radius-xs);
+		font: 600 10px/1 var(--font-mono);
 	}
 
 	.queue-item-content {
@@ -78,7 +96,7 @@
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		gap: 0.125rem;
 	}
 
 	.queue-item-header {
@@ -89,44 +107,56 @@
 	}
 
 	.ticket-id {
-		font-weight: 600;
+		font: 550 12px/1.2 var(--font-sans);
 		color: var(--text-primary);
-		font-size: 0.875rem;
 	}
 
 	.cancel-btn {
 		flex-shrink: 0;
-		width: 1.25rem;
-		height: 1.25rem;
+		width: 1.125rem;
+		height: 1.125rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		background: transparent;
 		border: none;
-		color: var(--text-secondary);
+		color: var(--text-tertiary);
 		cursor: pointer;
-		font-size: 1.25rem;
+		font-size: 1rem;
 		line-height: 1;
-		border-radius: var(--radius-sm);
-		transition: all var(--transition-smooth);
+		border-radius: var(--radius-xs);
+		opacity: 0;
+		transition: all var(--transition-fast);
+	}
+
+	.queue-item:hover .cancel-btn {
+		opacity: 1;
 	}
 
 	.cancel-btn:hover {
-		background: var(--danger-bg);
-		color: var(--danger-text);
+		background: rgba(239, 68, 68, 0.12);
+		color: #ef4444;
 	}
 
 	.agent-name {
-		font-size: 0.75rem;
-		color: var(--text-secondary);
+		font: 500 10px/1.2 var(--font-mono);
+		color: var(--text-tertiary);
 	}
 
 	.cwd {
-		font-size: 0.6875rem;
-		color: var(--text-tertiary);
-		font-family: var(--font-mono);
+		font: 400 9px/1.3 var(--font-mono);
+		color: var(--text-muted);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	/* Light theme adjustments */
+	:global(.app.light) .queue-item {
+		box-shadow: var(--shadow-sm);
+	}
+
+	:global(.app.light) .queue-item:hover {
+		box-shadow: var(--shadow-md);
 	}
 </style>

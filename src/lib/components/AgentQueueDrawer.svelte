@@ -102,28 +102,16 @@
 		bottom: 56px;
 		left: 8px;
 		z-index: 9998;
-		width: 360px;
+		width: 340px;
 		max-height: 70vh;
-		background: var(--bg-primary);
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		border-radius: 8px;
-		box-shadow:
-			0 0 0 0.5px rgba(0, 0, 0, 0.4),
-			0 4px 16px rgba(0, 0, 0, 0.35),
-			0 8px 32px rgba(0, 0, 0, 0.2);
+		background: var(--surface-panel);
+		border: 1px solid var(--border-default);
+		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-lg);
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
 		animation: drawerSlideUp 150ms ease-out;
-	}
-
-	:global(.app.light) .drawer {
-		background: var(--bg-primary);
-		border-color: rgba(0, 0, 0, 0.08);
-		box-shadow:
-			0 0 0 0.5px rgba(0, 0, 0, 0.06),
-			0 4px 16px rgba(0, 0, 0, 0.1),
-			0 8px 32px rgba(0, 0, 0, 0.08);
 	}
 
 	@keyframes drawerSlideUp {
@@ -136,18 +124,29 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-	}
-
-	:global(.app.light) .drawer-header {
-		border-bottom-color: rgba(0, 0, 0, 0.06);
+		padding: 0.625rem 0.75rem;
+		border-bottom: 1px solid var(--border-subtle);
+		background: var(--surface-card);
 	}
 
 	.drawer-header h3 {
-		font: 600 12px/1 system-ui, -apple-system, sans-serif;
-		color: var(--text-primary);
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font: 600 11px/1 var(--font-sans);
+		color: var(--text-secondary);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
 		margin: 0;
+	}
+
+	.drawer-header h3::before {
+		content: '';
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #f59e0b;
+		box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
 	}
 
 	.minimize-btn {
@@ -162,59 +161,59 @@
 		cursor: pointer;
 		font-size: 1rem;
 		line-height: 1;
-		border-radius: 3px;
-		transition: all 100ms ease;
+		border-radius: var(--radius-xs);
+		transition: all var(--transition-fast);
 	}
 
 	.minimize-btn:hover {
-		background: rgba(255, 255, 255, 0.08);
+		background: var(--surface-elevated);
 		color: var(--text-primary);
-	}
-
-	:global(.app.light) .minimize-btn:hover {
-		background: rgba(0, 0, 0, 0.05);
 	}
 
 	.drawer-body {
 		flex: 1;
 		overflow-y: auto;
-		padding: 0.75rem;
+		padding: 0.5rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.625rem;
 	}
 
 	.section {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.375rem;
 	}
 
 	.section-title {
-		font: 600 10px/1 system-ui, -apple-system, sans-serif;
+		font: 500 9px/1 var(--font-sans);
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: var(--text-tertiary);
+		letter-spacing: 0.06em;
+		color: var(--text-muted);
 		margin: 0;
-		padding: 0 0.25rem;
+		padding: 0.25rem 0.5rem;
 	}
 
 	.section-content {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.375rem;
 	}
 
 	.empty-state {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		padding: 1.5rem;
+		padding: 2rem 1rem;
+		color: var(--text-tertiary);
+		border: 1px dashed var(--border-subtle);
+		border-radius: var(--radius-sm);
+		margin: 0.25rem;
 	}
 
 	.empty-state p {
-		color: var(--text-tertiary);
-		font-size: 0.75rem;
+		font: 500 11px/1 var(--font-sans);
 		margin: 0;
 	}
 
