@@ -221,8 +221,6 @@
 		agentName: item.agentName,
 		cwd: item.cwd
 	})));
-	let managerSession = $derived(wsPanes.get(MANAGER_SESSION_NAME) ?? null);
-
 	// --- Card Drag/Drop & Touch ---
 	const cardDrag = createCardDrag({
 		getIssues: () => issues,
@@ -252,6 +250,7 @@
 	// --- WS Polling ---
 	let wsConnected = $state(false);
 	let wsPanes = $state<Map<string, Pane>>(new Map());
+	let managerSession = $derived(wsPanes.get(MANAGER_SESSION_NAME) ?? null);
 	let lastPanesJson = '';
 
 	$effect(() => {
