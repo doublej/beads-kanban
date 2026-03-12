@@ -25,6 +25,8 @@
 		agentToolsExpanded: boolean;
 		showAgentBar: boolean;
 		conflictStrategy: 'ask' | 'worktree' | 'queue' | 'same';
+		managerEnabled: boolean;
+		managerModel: string;
 		colorScheme: string;
 		ontoggleTheme: () => void;
 		onsetColorScheme: (scheme: string) => void;
@@ -46,6 +48,8 @@
 		agentToolsExpanded = $bindable(),
 		showAgentBar = $bindable(),
 		conflictStrategy = $bindable(),
+		managerEnabled = $bindable(),
+		managerModel = $bindable(),
 		colorScheme,
 		ontoggleTheme,
 		onsetColorScheme
@@ -167,6 +171,8 @@
 						bind:agentToolsExpanded
 						bind:showAgentBar
 						bind:conflictStrategy
+						bind:managerEnabled
+						bind:managerModel
 						onopenPromptsEditor={openAgentPrompts}
 					/>
 				{:else if activeSection === 'appearance'}
@@ -201,7 +207,7 @@
 		background: rgba(0, 0, 0, 0.5);
 		backdrop-filter: blur(4px);
 		z-index: 10000;
-		--settings-pane-width: min(720px, 90vw);
+		--settings-pane-width: min(900px, 90vw);
 		animation: overlayFadeIn 200ms ease-out;
 	}
 

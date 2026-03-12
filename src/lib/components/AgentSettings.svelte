@@ -9,6 +9,8 @@
 		agentToolsExpanded: boolean;
 		showAgentBar: boolean;
 		conflictStrategy: 'ask' | 'worktree' | 'queue' | 'same';
+		managerEnabled: boolean;
+		managerModel: string;
 		onopenPromptsEditor: () => void;
 	}
 
@@ -20,6 +22,8 @@
 		agentToolsExpanded = $bindable(),
 		showAgentBar = $bindable(),
 		conflictStrategy = $bindable(),
+		managerEnabled = $bindable(),
+		managerModel = $bindable(),
 		onopenPromptsEditor
 	}: Props = $props();
 
@@ -176,6 +180,40 @@
 				<span class="strategy-hint">Shared directory (risk)</span>
 			</button>
 		</div>
+
+		<!-- Manager Agent -->
+		<div class="setting-row" style="margin-top: 1rem;">
+			<div class="setting-info">
+				<span class="setting-name" style="color: #f59e0b;">Manager Agent</span>
+				<span class="setting-desc">Orchestrator that manages tickets and agents</span>
+			</div>
+			<button class="toggle-switch" onclick={() => managerEnabled = !managerEnabled}>
+				<span class="toggle-track" class:active={managerEnabled}>
+					<span class="toggle-thumb"></span>
+				</span>
+			</button>
+		</div>
+
+		{#if managerEnabled}
+			<div class="setting-row" style="margin-top: 0.5rem;">
+				<div class="setting-info">
+					<span class="setting-name">Manager Model</span>
+					<span class="setting-desc">Model for the manager agent</span>
+				</div>
+			</div>
+			<div class="strategy-selector">
+				{#each modelOptions as opt}
+					<button
+						class="strategy-option"
+						class:active={managerModel === opt.value}
+						onclick={() => managerModel = opt.value}
+					>
+						<span class="strategy-label">{opt.label}</span>
+						<span class="strategy-hint">{opt.hint}</span>
+					</button>
+				{/each}
+			</div>
+		{/if}
 	{/if}
 </section>
 

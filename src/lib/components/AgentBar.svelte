@@ -4,6 +4,7 @@
 	import PaneActivity from './PaneActivity.svelte';
 	import StatusBar from './StatusBar.svelte';
 	import AgentBarSessionPicker from './AgentBarSessionPicker.svelte';
+	import { getManagerVisible, toggleManagerVisibility, MANAGER_SESSION_NAME } from '$lib/stores/manager.svelte';
 
 	interface Props {
 		wsConnected: boolean;
@@ -50,6 +51,9 @@
 		onmarkPaneAsRead: (name: string) => void;
 		onopenTicketFromPane: (ticketId: string) => void;
 		oninterrupt?: (name: string) => void;
+		managerEnabled: boolean;
+		managerSession: Pane | null;
+		onstartmanager?: () => void;
 		onstartDrag: (e: MouseEvent, name: string) => void;
 		onstartResize: (e: MouseEvent, name: string, edge: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw') => void;
 		oncyclePaneSize: (name: string) => void;
@@ -101,6 +105,9 @@
 		onmarkPaneAsRead,
 		onopenTicketFromPane,
 		oninterrupt,
+		managerEnabled,
+		managerSession,
+		onstartmanager,
 		onstartDrag,
 		onstartResize,
 		oncyclePaneSize,
@@ -335,6 +342,24 @@
 				</div>
 			{/each}
 		</div>
+		{#if managerEnabled}
+			<button
+				class="manager-toggle"
+				class:active={getManagerVisible()}
+				class:streaming={managerSession?.streaming}
+				onclick={() => {
+					if (managerSession) {
+						toggleManagerVisibility();
+					} else {
+						onstartmanager?.();
+					}
+				}}
+				title={getManagerVisible() ? 'Hide manager' : 'Show manager'}
+			>
+				<span class="manager-dot" class:live={managerSession?.streaming}></span>
+				<span class="manager-toggle-label">Manager</span>
+			</button>
+		{/if}
 		<div class="agent-bar-spacer"></div>
 		<div class="agent-bar-status">
 			<StatusBar
@@ -868,5 +893,75 @@
 	@keyframes pulse {
 		0%, 100% { opacity: 1; }
 		50% { opacity: 0.5; }
+	}
+
+	/* ===== Manager Toggle ===== */
+	.manager-toggle {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		height: 26px;
+		padding: 0 10px;
+		background: rgba(245, 158, 11, 0.06);
+		border: 1px solid rgba(245, 158, 11, 0.15);
+		border-radius: 5px;
+		color: var(--text-tertiary);
+		font: 500 11px/1 system-ui, -apple-system, sans-serif;
+		cursor: pointer;
+		transition: all 100ms ease;
+		flex-shrink: 0;
+	}
+
+	.manager-toggle:hover {
+		background: rgba(245, 158, 11, 0.12);
+		border-color: rgba(245, 158, 11, 0.25);
+		color: #f59e0b;
+	}
+
+	.manager-toggle.active {
+		background: rgba(245, 158, 11, 0.15);
+		border-color: rgba(245, 158, 11, 0.3);
+		color: #f59e0b;
+	}
+
+	.manager-toggle.streaming {
+		border-color: rgba(245, 158, 11, 0.4);
+	}
+
+	.manager-toggle .manager-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: currentColor;
+		opacity: 0.4;
+		flex-shrink: 0;
+	}
+
+	.manager-toggle .manager-dot.live {
+		background: #f59e0b;
+		opacity: 1;
+		box-shadow: 0 0 4px rgba(245, 158, 11, 0.5);
+		animation: pulse 1.2s ease-in-out infinite;
+	}
+
+	.manager-toggle-label {
+		font: 500 11px/1 system-ui, -apple-system, sans-serif;
+	}
+
+	:global(.app.light) .manager-toggle {
+		background: rgba(217, 119, 6, 0.05);
+		border-color: rgba(217, 119, 6, 0.12);
+	}
+
+	:global(.app.light) .manager-toggle:hover {
+		background: rgba(217, 119, 6, 0.1);
+		border-color: rgba(217, 119, 6, 0.2);
+		color: #d97706;
+	}
+
+	:global(.app.light) .manager-toggle.active {
+		background: rgba(217, 119, 6, 0.12);
+		border-color: rgba(217, 119, 6, 0.25);
+		color: #d97706;
 	}
 </style>

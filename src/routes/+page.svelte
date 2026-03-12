@@ -33,6 +33,7 @@
 	import MutationLog from '$lib/components/MutationLog.svelte';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import AgentQueueColumn from '$lib/components/AgentQueueColumn.svelte';
+	import ManagerPane from '$lib/components/ManagerPane.svelte';
 	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
 	import SetupWizard from '$lib/components/SetupWizard.svelte';
@@ -50,6 +51,9 @@
 	import { createCardDrag } from '$lib/drag-drop/card-drag.svelte';
 	import { createPageOps } from '$lib/stores/page-ops.svelte';
 	import { issueMatchesFilters as matchesFilters, hasActiveFilters as checkActiveFilters, type FilterState } from '$lib/filters';
+	import { getManagerVisible, MANAGER_SESSION_NAME } from '$lib/stores/manager.svelte';
+	import { startManager } from '$lib/stores/ws-connection.svelte';
+	import { getQueueItems } from '$lib/stores/queue.svelte';
 
 	// --- UI State (page-only) ---
 	let bdVersion = $state<{ version: string; compatible: boolean } | null>(null);
@@ -208,14 +212,16 @@
 		setExpandedPanes: (v) => { expandedPanes = v; },
 	});
 
-	let totalQueueCount = $derived(ops.agentQueue.length + runningAgents.length);
-	let mappedAgentQueue = $derived(ops.agentQueue.map(item => ({
+	let serverQueue = $derived(getQueueItems());
+	let totalQueueCount = $derived(serverQueue.length + runningAgents.length);
+	let mappedAgentQueue = $derived(serverQueue.map(item => ({
 		ticketId: item.ticketId,
-		title: item.issueSnapshot.title,
-		description: item.issueSnapshot.description,
+		title: item.title,
+		description: item.description,
 		agentName: item.agentName,
 		cwd: item.cwd
 	})));
+	let managerSession = $derived(wsPanes.get(MANAGER_SESSION_NAME) ?? null);
 
 	// --- Card Drag/Drop & Touch ---
 	const cardDrag = createCardDrag({
@@ -261,11 +267,6 @@
 		poll();
 		const id = setInterval(poll, 100);
 		return () => clearInterval(id);
-	});
-
-	$effect(() => {
-		wsPanes;
-		ops.maybeStartQueuedAgent();
 	});
 
 	const activeAgentNames = $derived([...wsPanes.keys()]);
@@ -670,6 +671,8 @@
 	bind:agentToolsExpanded={settings.agentToolsExpanded}
 	bind:showAgentBar={settings.showAgentBar}
 	bind:conflictStrategy={settings.conflictStrategy}
+	bind:managerEnabled={settings.managerEnabled}
+	bind:managerModel={settings.managerModel}
 	{isDarkMode}
 	{colorScheme}
 	ontoggleTheme={toggleTheme}
@@ -784,8 +787,8 @@
 						isCollapsed={queueColumnCollapsed}
 						{activeColumnIndex}
 						columnIndex={-1}
-						onCancel={(ticketId) => ops.cancelQueueItem(ticketId)}
-						onReorder={(from, to) => ops.reorderQueue(from, to)}
+						onCancel={ops.cancelQueueItem}
+						onReorder={ops.reorderQueue}
 						onToggleCollapse={() => queueColumnCollapsed = !queueColumnCollapsed}
 					/>
 				{/if}
@@ -861,12 +864,24 @@
 	onmarkPaneAsRead={markPaneAsRead}
 	onopenTicketFromPane={ops.openTicketFromPane}
 	oninterrupt={interrupt}
+	managerEnabled={settings.managerEnabled}
+	{managerSession}
+	onstartmanager={() => startManager(currentProjectPath)}
 	onstartDrag={startDrag}
 	onstartResize={startResize}
 	oncyclePaneSize={cyclePaneSize}
 	onhandleMouseMove={ops.handleMouseMove}
 	onhandleMouseUp={ops.handleMouseUp}
 />
+
+{#if getManagerVisible() && managerSession}
+	<ManagerPane
+		session={managerSession}
+		onSendMessage={(name, msg) => sendToPane(name, msg, currentProjectPath)}
+		onInterrupt={interrupt}
+		disabled={!wsConnected}
+	/>
+{/if}
 
 <FlyingCardComponent {teleports} />
 

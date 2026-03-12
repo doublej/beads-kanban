@@ -146,6 +146,8 @@ function createSettings() {
 	let agentModel = $state('');
 	let conflictStrategy = $state<'ask' | 'worktree' | 'queue' | 'same'>('ask');
 	let showAgentBar = $state(true);
+	let managerEnabled = $state(false);
+	let managerModel = $state('');
 
 	// Layout
 	let collapsedColumns = $state<Set<string>>(new Set());
@@ -180,6 +182,8 @@ function createSettings() {
 		agentModel = loadString('agentModel', agentModel);
 		conflictStrategy = loadString('conflictStrategy', 'ask') as 'ask' | 'worktree' | 'queue' | 'same';
 		showAgentBar = loadBool('showAgentBar', showAgentBar);
+		managerEnabled = loadBool('managerEnabled', managerEnabled);
+		managerModel = loadString('managerModel', managerModel);
 		colorScheme = loadString('colorScheme', colorScheme);
 		notificationsEnabled = loadBool('notificationsEnabled', notificationsEnabled);
 		notificationMode = loadString('notificationMode', notificationMode) as NotificationMode;
@@ -258,6 +262,10 @@ function createSettings() {
 		set conflictStrategy(v: 'ask' | 'worktree' | 'queue' | 'same') { conflictStrategy = v; persist('conflictStrategy', v); },
 		get showAgentBar() { return showAgentBar; },
 		set showAgentBar(v: boolean) { showAgentBar = v; persist('showAgentBar', String(v)); },
+		get managerEnabled() { return managerEnabled; },
+		set managerEnabled(v: boolean) { managerEnabled = v; persist('managerEnabled', String(v)); },
+		get managerModel() { return managerModel; },
+		set managerModel(v: string) { managerModel = v; persist('managerModel', v); },
 		get defaultViewMode() { return defaultViewMode; },
 		set defaultViewMode(v: ViewMode) { defaultViewMode = v; persist('defaultViewMode', v); },
 		get defaultColumnSort() { return defaultColumnSort; },

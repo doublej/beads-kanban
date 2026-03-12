@@ -1,8 +1,11 @@
 import { query, type Options, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentSession } from "./session-types";
 import { BLOCKED_BEADS_TOOLS, createBeadsToolsServer } from "./beads-tools";
+import { createManagerToolsServer } from "./manager-tools";
+import { buildManagerPrompt } from "./manager-prompt";
 import { extractFilePath, snapshotFile, computeDiffs } from "./file-diff";
 import { buildSystemPrompt } from "./system-prompt";
+import type { AgentQueue } from "./queue-manager";
 
 // Intercept fetch to log auth headers
 const originalFetch = globalThis.fetch;
@@ -45,6 +48,8 @@ export type RunAgentOpts = {
   disallowedTools?: string[];
   resumeSdkSession?: string;
   beadsMcpPath?: string | null;
+  queue?: AgentQueue;
+  sessions?: Map<string, AgentSession>;
 };
 
 export async function runAgent(session: AgentSession, briefing: string, opts: RunAgentOpts) {
@@ -63,9 +68,11 @@ export async function runAgent(session: AgentSession, briefing: string, opts: Ru
     ? [...new Set([...opts.allowedTools, "Skill"])]
     : undefined;
 
-  const disallowedTools = session.agentName
-    ? [...(opts.disallowedTools || []), ...BLOCKED_BEADS_TOOLS]
-    : opts.disallowedTools;
+  const disallowedTools = session.isManager
+    ? opts.disallowedTools
+    : session.agentName
+      ? [...(opts.disallowedTools || []), ...BLOCKED_BEADS_TOOLS]
+      : opts.disallowedTools;
 
   const options: Options = {
     cwd: session.cwd,
@@ -91,7 +98,10 @@ export async function runAgent(session: AgentSession, briefing: string, opts: Ru
           },
         },
       }),
-      ...(session.agentName && {
+      ...(session.isManager && opts.queue && opts.sessions && {
+        "beads-manager": createManagerToolsServer(session.cwd, opts.sessions, opts.queue),
+      }),
+      ...(!session.isManager && session.agentName && {
         "beads-agent": createBeadsToolsServer(session.agentName, session.cwd),
       }),
     },
@@ -133,7 +143,9 @@ export async function runAgent(session: AgentSession, briefing: string, opts: Ru
     },
   };
 
-  const systemAppend = buildSystemPrompt(session);
+  const systemAppend = session.isManager
+    ? buildManagerPrompt()
+    : buildSystemPrompt(session);
   if (systemAppend) {
     options.systemPrompt = {
       type: "preset",
