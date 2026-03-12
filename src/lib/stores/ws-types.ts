@@ -49,6 +49,7 @@ export interface AgentSession {
 	worktreePath?: string;
 	error?: boolean;
 	errorMessage?: string;
+	isManager?: boolean;
 }
 
 export interface FileDiff {
@@ -98,7 +99,8 @@ export type ServerMessage =
 	| { type: 'stream'; data: StreamEvent | AssistantMessage | ToolResult | ToolCallEvent | ToolResultEvent | { type: string } }
 	| { type: 'done'; result: { subtype: string; total_cost_usd?: number }; diffs?: FileDiff[] }
 	| { type: 'error'; error: string }
-	| { type: 'interrupted' };
+	| { type: 'interrupted' }
+	| { type: 'queue_state'; items: unknown[] };
 
 export type Pane = AgentSession;
 

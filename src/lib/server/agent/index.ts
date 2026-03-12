@@ -5,6 +5,8 @@ import type { AgentSession } from "./session-types";
 import { createHttpHandler, type WSData } from "./http-server";
 import { createWebSocketHandlers } from "./websocket-handler";
 import { listSdkSessions, getSessionHistory } from "./sdk-sessions";
+import { AgentQueue } from "./queue-manager";
+import { runAgent, sendToClient } from "./agent-runner";
 
 const PORT = parseInt(process.env.AGENT_PORT || "9347", 10);
 
@@ -29,10 +31,42 @@ function findBeadsMcpPath(): string | null {
 const BEADS_MCP_PATH = process.env.BEADS_MCP_PATH || findBeadsMcpPath();
 
 const sessions = new Map<string, AgentSession>();
+const queue = new AgentQueue(sessions);
+
+// Wire up queue dispatch: when queue dequeues an item, start an agent session
+queue.setDispatchFn((item, briefing) => {
+  const sessionId = crypto.randomUUID();
+  const session: AgentSession = {
+    id: sessionId,
+    cwd: item.cwd,
+    agentName: item.agentName,
+    abortController: new AbortController(),
+    inputQueue: [],
+    fileSnapshots: new Map(),
+    touchedFiles: new Set(),
+    ws: null,
+    isRunning: false,
+    usage: { inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheCreation: 0 },
+  };
+  sessions.set(sessionId, session);
+
+  runAgent(session, briefing, {
+    beadsMcpPath: BEADS_MCP_PATH,
+    queue,
+    sessions,
+  }).then(() => {
+    queue.maybeStartNext();
+  }).catch((err) => {
+    console.error(`[queue] Agent ${item.agentName} failed:`, err);
+    sessions.delete(sessionId);
+    queue.maybeStartNext();
+  });
+});
 
 const wsHandlers = createWebSocketHandlers({
   sessions,
   beadsMcpPath: BEADS_MCP_PATH,
+  queue,
 });
 
 const server = Bun.serve<WSData>({
@@ -45,6 +79,7 @@ const server = Bun.serve<WSData>({
     listSdkSessions,
     getSessionHistory,
     handleUpgrade: (req, server) => server.upgrade(req, { data: {} }),
+    queue,
   }),
   websocket: wsHandlers,
 });

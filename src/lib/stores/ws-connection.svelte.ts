@@ -16,6 +16,9 @@ import {
 } from './agent-sessions.svelte';
 import { fetchSessionHistory } from '../session-persistence';
 import { initTabCoordinator } from './tab-coordinator.svelte';
+import { MANAGER_SESSION_NAME, setManagerVisible } from './manager.svelte';
+import { fetchInitialQueue, setQueueWsSender } from './queue.svelte';
+import { settings } from './settings.svelte';
 
 let checkTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -114,8 +117,8 @@ setBroadcastCallback(broadcastSessionsToFollowers);
 
 // --- Internal functions (called by leader tab) ---
 
-async function startSessionInternal(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string, model?: string) {
-	console.log('[agent] startSession:', name, 'cwd:', cwd, resumeSessionId ? `resuming: ${resumeSessionId}` : '', ticketId ? `ticket: ${ticketId}` : '');
+async function startSessionInternal(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string, model?: string, isManager?: boolean) {
+	console.log('[agent] startSession:', name, 'cwd:', cwd, resumeSessionId ? `resuming: ${resumeSessionId}` : '', ticketId ? `ticket: ${ticketId}` : '', isManager ? 'MANAGER' : '');
 
 	const sessions = getSessions();
 	const existing = sessions.get(name);
@@ -129,7 +132,8 @@ async function startSessionInternal(name: string, cwd: string, briefing: string,
 		pane_type: 'agent',
 		backend: 'claude',
 		sdkSessionId: resumeSessionId,
-		ticketId: ticketId ?? existing?.ticketId
+		ticketId: ticketId ?? existing?.ticketId,
+		isManager,
 	};
 	sessions.set(name, session);
 	setSessions(new Map(sessions));
@@ -148,7 +152,7 @@ async function startSessionInternal(name: string, cwd: string, briefing: string,
 	if (!ws) return;
 
 	const sendStart = () => {
-		sendToSocket(name, { type: 'start', cwd, agentName: name, briefing, systemPromptAppend, resumeSessionId, model });
+		sendToSocket(name, { type: 'start', cwd, agentName: name, briefing, systemPromptAppend, resumeSessionId, model, isManager });
 	};
 
 	if (ws.readyState === WebSocket.OPEN) {
@@ -178,6 +182,11 @@ function interruptInternal(name: string) {
 }
 
 function killSessionInternal(name: string) {
+	// Manager session: minimize instead of killing
+	if (name === MANAGER_SESSION_NAME) {
+		setManagerVisible(false);
+		return;
+	}
 	const sessions = getSessions();
 	const session = sessions.get(name);
 	if (session?.streaming) {
@@ -191,6 +200,44 @@ function killSessionInternal(name: string) {
 	}
 	sessions.delete(name);
 	setSessions(new Map(sessions));
+}
+
+export function startManager(cwd: string) {
+	const sessions = getSessions();
+	if (sessions.has(MANAGER_SESSION_NAME)) {
+		// Already running — just show
+		setManagerVisible(true);
+		return;
+	}
+	const model = settings.managerModel || undefined;
+	startSessionInternal(
+		MANAGER_SESSION_NAME,
+		cwd,
+		'You are the Manager Agent. Await instructions from the user.',
+		undefined,
+		undefined,
+		undefined,
+		model,
+		true
+	);
+	setManagerVisible(true);
+}
+
+export function forceKillManager() {
+	const sessions = getSessions();
+	const session = sessions.get(MANAGER_SESSION_NAME);
+	if (session?.streaming) {
+		sendToSocket(MANAGER_SESSION_NAME, { type: 'interrupt' });
+	}
+	const sockets = getSessionSockets();
+	const ws = sockets.get(MANAGER_SESSION_NAME);
+	if (ws) {
+		ws.close();
+		sockets.delete(MANAGER_SESSION_NAME);
+	}
+	sessions.delete(MANAGER_SESSION_NAME);
+	setSessions(new Map(sessions));
+	setManagerVisible(false);
 }
 
 function endSessionInternal(name: string) {
@@ -265,9 +312,21 @@ export function connect() {
 
 	initTabCoordinator();
 
+	// Wire up queue WS sender — uses the first available socket
+	setQueueWsSender((msg) => {
+		const sockets = getSessionSockets();
+		for (const [, ws] of sockets) {
+			if (ws.readyState === WebSocket.OPEN) {
+				ws.send(JSON.stringify(msg));
+				return;
+			}
+		}
+	});
+
 	checkServerHealth().then((ok) => {
 		setServerAvailable(ok);
 		if (ok && getIsTabLeader()) {
+			fetchInitialQueue();
 			for (const [name, session] of getSessions()) {
 				if (session.serverId && !session.streaming) {
 					resumeSession(name);
@@ -303,11 +362,11 @@ export function getConnected() { return getServerAvailable(); }
 export function getPanes() { return getSessions(); }
 export function isLeaderTab() { return getIsTabLeader(); }
 
-export function startSession(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string, model?: string) {
+export function startSession(name: string, cwd: string, briefing: string, systemPromptAppend?: string, resumeSessionId?: string, ticketId?: string, model?: string, isManager?: boolean) {
 	if (getIsTabLeader()) {
-		startSessionInternal(name, cwd, briefing, systemPromptAppend, resumeSessionId, ticketId, model);
+		startSessionInternal(name, cwd, briefing, systemPromptAppend, resumeSessionId, ticketId, model, isManager);
 	} else {
-		tabCoordinator.requestAction({ action: 'startSession', sessionName: name, args: [cwd, briefing, systemPromptAppend, resumeSessionId, ticketId, model] });
+		tabCoordinator.requestAction({ action: 'startSession', sessionName: name, args: [cwd, briefing, systemPromptAppend, resumeSessionId, ticketId, model, isManager] });
 	}
 }
 

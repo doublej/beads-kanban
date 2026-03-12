@@ -1,5 +1,6 @@
 import type { Server, ServerWebSocket } from "bun";
 import { createWorktree, listWorktrees, removeWorktree } from "./worktree";
+import type { AgentQueue } from "./queue-manager";
 
 export type WSData = { sessionId?: string };
 
@@ -10,6 +11,7 @@ export type HttpConfig = {
   listSdkSessions: (cwd: string) => unknown[];
   getSessionHistory: (cwd: string, sessionId: string) => unknown[];
   handleUpgrade: (req: Request, server: Server) => boolean;
+  queue: AgentQueue;
 };
 
 const corsHeaders = {
@@ -72,6 +74,12 @@ export function createHttpHandler(config: HttpConfig) {
           status: 500, headers: corsHeaders,
         });
       }
+    }
+
+    if (url.pathname === "/queue" && req.method === "GET") {
+      return new Response(JSON.stringify({ items: config.queue.getItems() }), {
+        headers: corsHeaders,
+      });
     }
 
     // --- Worktree endpoints ---

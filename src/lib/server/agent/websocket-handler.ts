@@ -5,10 +5,12 @@ import type { AgentSession, ClientMessage } from "./session-types";
 import { SESSION_TIMEOUT_MS } from "./session-types";
 import { runAgent, sendToClient } from "./agent-runner";
 import { calculateSessionUsage } from "./sdk-sessions";
+import type { AgentQueue } from "./queue-manager";
 
 export type WebSocketConfig = {
   sessions: Map<string, AgentSession>;
   beadsMcpPath: string | null;
+  queue: AgentQueue;
 };
 
 function sendToWs(ws: ServerWebSocket<WSData>, msg: object) {
@@ -16,14 +18,16 @@ function sendToWs(ws: ServerWebSocket<WSData>, msg: object) {
 }
 
 export function createWebSocketHandlers(config: WebSocketConfig) {
-  const { sessions, beadsMcpPath } = config;
+  const { sessions, beadsMcpPath, queue } = config;
 
   return {
     open(ws: ServerWebSocket<WSData>) {
       console.log("Client connected");
+      queue.addClient(ws);
     },
 
     close(ws: ServerWebSocket<WSData>) {
+      queue.removeClient(ws);
       const sessionId = ws.data.sessionId;
       if (sessionId) {
         const session = sessions.get(sessionId);
@@ -69,6 +73,7 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
             isRunning: false,
             allowedTools: msg.allowedTools,
             disallowedTools: msg.disallowedTools,
+            isManager: msg.isManager,
             usage: initialUsage,
           };
           sessions.set(sessionId, session);
@@ -84,6 +89,8 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
             disallowedTools: msg.disallowedTools,
             resumeSdkSession: msg.resumeSessionId,
             beadsMcpPath,
+            queue,
+            sessions,
           }).catch((err) => {
             sendToClient(session, { type: "error", error: String(err) });
           });
@@ -173,6 +180,7 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
           sessions.delete(sessionId);
           ws.data.sessionId = undefined;
           sendToWs(ws, { type: "session_ended", sessionId });
+          queue.maybeStartNext();
           return;
 
         case "clear":
@@ -199,6 +207,8 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
             disallowedTools: session.disallowedTools,
             resumeSdkSession: session.sdkSessionId,
             beadsMcpPath,
+            queue,
+            sessions,
           }).catch((err) => {
             sendToClient(session, { type: "error", error: String(err) });
           });
@@ -220,6 +230,22 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
           }
           return;
         }
+
+        case "queue_enqueue":
+          queue.enqueue(msg.item);
+          return;
+
+        case "queue_cancel":
+          queue.cancel(msg.ticketId);
+          return;
+
+        case "queue_reorder":
+          queue.reorder(msg.fromIndex, msg.toIndex);
+          return;
+
+        case "queue_list":
+          sendToWs(ws, { type: "queue_state", items: queue.getItems() });
+          return;
       }
     },
   };

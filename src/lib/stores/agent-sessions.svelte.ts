@@ -17,6 +17,7 @@ import type {
 	ToolResultEvent,
 	SystemMessageSubtype,
 } from './ws-types';
+import { setQueueItems } from './queue.svelte';
 
 // --- Shared state ---
 let sessions = $state<Map<string, AgentSession>>(loadSessions());
@@ -113,6 +114,10 @@ export function createMessageHandler(sessionName: string) {
 		if (!session) return;
 
 		switch (msg.type) {
+			case 'queue_state':
+				setQueueItems(msg.items as any[]);
+				return;
+
 			case 'session_started':
 				updateSession(sessionName, { serverId: msg.sessionId, streaming: true });
 				break;

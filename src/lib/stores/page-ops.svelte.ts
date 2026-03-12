@@ -19,6 +19,12 @@ import type { IssueStore } from '$lib/stores/issue-store.svelte';
 import { notifyAgentOfTicketUpdate, addPane, getRunningSessionsForCwd, startSession, type Pane, type AgentSession } from '$lib/wsStore.svelte';
 import { updateSession, addSystemMessage, setSessionError, getSessions, setSessions } from '$lib/stores/agent-sessions.svelte';
 import { createWorktreeApi } from '$lib/stores/worktree-api';
+import {
+	getQueueItems,
+	enqueueTicket as serverEnqueueTicket,
+	cancelQueueItem as serverCancelQueueItem,
+	reorderQueue as serverReorderQueue,
+} from '$lib/stores/queue.svelte';
 
 export interface PageOpsContext {
 	issueStore: IssueStore;
@@ -65,8 +71,6 @@ export function createPageOps(ctx: PageOpsContext) {
 		issue: Issue;
 		briefing: string;
 	} | null>(null);
-	let agentQueue = $state<AgentQueueItem[]>([]);
-	let isStartingQueuedAgent = $state(false);
 
 	// --- Helpers ---
 
@@ -118,89 +122,27 @@ export function createPageOps(ctx: PageOpsContext) {
 	}
 
 	function enqueueAgentStart(entry: AgentQueueItem) {
-		agentQueue = [...agentQueue, entry];
+		serverEnqueueTicket({
+			ticketId: entry.ticketId,
+			agentName: entry.agentName,
+			cwd: entry.cwd,
+			title: entry.issueSnapshot.title,
+			description: entry.issueSnapshot.description || '',
+			priority: entry.issueSnapshot.priority ?? 2,
+			issueType: entry.issueSnapshot.issue_type || 'task',
+			useWorktree: entry.useWorktree,
+			enqueuedAt: new Date().toISOString(),
+		});
 		toastQueue.show({
 			type: 'info',
 			title: 'Agent queued',
 			message: `${entry.ticketId} will start when active agents finish.`,
 			duration: 4000
 		});
-		void maybeStartQueuedAgent();
-	}
-
-	async function startQueuedAgent(entry: AgentQueueItem): Promise<boolean> {
-		const currentIssue = ctx.getIssues().find(i => i.id === entry.ticketId) ?? entry.issueSnapshot;
-		if (!currentIssue) {
-			toastQueue.show({
-				type: 'warning',
-				title: 'Queue skipped',
-				message: `${entry.ticketId} no longer exists.`,
-				duration: 4000
-			});
-			return false;
-		}
-
-		let issueComments: Comment[] = [];
-		let issueAttachments: Attachment[] = [];
-		try {
-			[issueComments, issueAttachments] = await Promise.all([
-				loadCommentsApi(currentIssue.id),
-				loadAttachmentsApi(currentIssue.id)
-			]);
-		} catch (err: any) {
-			toastQueue.show({
-				type: 'error',
-				title: 'Queue failed',
-				message: err?.message ?? `Failed to load context for ${entry.ticketId}.`,
-				duration: 5000
-			});
-			return false;
-		}
-
-		const briefing = formatTicketDelivery(entry.agentName, { issue: currentIssue, comments: issueComments, attachments: issueAttachments });
-
-		let effectiveCwd = entry.cwd;
-		if (entry.useWorktree) {
-			try {
-				effectiveCwd = await createWorktreeApi(entry.cwd, entry.ticketId);
-			} catch (err: any) {
-				toastQueue.show({
-					type: 'error',
-					title: 'Worktree failed',
-					message: err?.message ?? 'Failed to create worktree for queued agent.',
-					duration: 5000
-				});
-				return false;
-			}
-		}
-
-		addPane(entry.agentName, effectiveCwd, briefing, settings.combinedSystemPrompt, undefined, entry.ticketId, getEffectiveModel(currentIssue));
-		if (entry.useWorktree) updateSession(entry.agentName, { worktreePath: effectiveCwd });
-		expandPane(entry.agentName);
-		return true;
-	}
-
-	async function maybeStartQueuedAgent() {
-		if (isStartingQueuedAgent) return;
-		if (agentQueue.length === 0) return;
-
-		const next = agentQueue[0];
-		if (getRunningSessionsForCwd(next.cwd).length > 0) return;
-
-		isStartingQueuedAgent = true;
-		agentQueue = agentQueue.slice(1);
-		try {
-			const started = await startQueuedAgent(next);
-			if (!started && agentQueue.length > 0) {
-				setTimeout(() => { void maybeStartQueuedAgent(); }, 50);
-			}
-		} finally {
-			isStartingQueuedAgent = false;
-		}
 	}
 
 	function cancelQueueItem(ticketId: string) {
-		agentQueue = agentQueue.filter(item => item.ticketId !== ticketId);
+		serverCancelQueueItem(ticketId);
 		toastQueue.show({
 			type: 'info',
 			title: 'Agent cancelled',
@@ -211,11 +153,7 @@ export function createPageOps(ctx: PageOpsContext) {
 
 	function reorderQueue(fromIndex: number, toIndex: number) {
 		if (fromIndex === toIndex) return;
-		const newQueue = [...agentQueue];
-		const [moved] = newQueue.splice(fromIndex, 1);
-		newQueue.splice(toIndex, 0, moved);
-		agentQueue = newQueue;
-		void maybeStartQueuedAgent();
+		serverReorderQueue(fromIndex, toIndex);
 	}
 
 	// --- Panel operations ---
@@ -672,7 +610,7 @@ export function createPageOps(ctx: PageOpsContext) {
 		get sortMenuOpen() { return sortMenuOpen; },
 		set sortMenuOpen(v) { sortMenuOpen = v; },
 		get cwdConflict() { return cwdConflict; },
-		get agentQueue() { return agentQueue; },
+		get agentQueue() { return getQueueItems(); },
 		get panelOpen() { return editingIssue !== null || isCreating; },
 
 		// Functions
@@ -692,7 +630,6 @@ export function createPageOps(ctx: PageOpsContext) {
 		createIssueAndStartAgent,
 		startAgentForIssue,
 		resolveConflict,
-		maybeStartQueuedAgent,
 		cancelQueueItem,
 		reorderQueue,
 		dismissConflict,

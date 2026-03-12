@@ -19,11 +19,12 @@ export type AgentSession = {
   allowedTools?: string[];
   disallowedTools?: string[];
   model?: string;
+  isManager?: boolean;
   usage: { inputTokens: number; outputTokens: number; cacheRead: number; cacheCreation: number };
 };
 
 export type ClientMessage =
-  | { type: "start"; cwd: string; agentName?: string; systemPromptAppend?: string; briefing: string; allowedTools?: string[]; disallowedTools?: string[]; resumeSessionId?: string; model?: string }
+  | { type: "start"; cwd: string; agentName?: string; systemPromptAppend?: string; briefing: string; allowedTools?: string[]; disallowedTools?: string[]; resumeSessionId?: string; model?: string; isManager?: boolean }
   | { type: "resume"; sessionId: string }
   | { type: "continue"; text: string }
   | { type: "message"; text: string }
@@ -32,7 +33,11 @@ export type ClientMessage =
   | { type: "end" }
   | { type: "clear" }
   | { type: "compact" }
-  | { type: "permission"; allow: boolean; message?: string };
+  | { type: "permission"; allow: boolean; message?: string }
+  | { type: "queue_enqueue"; item: import("./queue-types").QueueItem }
+  | { type: "queue_cancel"; ticketId: string }
+  | { type: "queue_reorder"; fromIndex: number; toIndex: number }
+  | { type: "queue_list" };
 
 export type SdkSessionInfo = {
   sessionId: string;
