@@ -43,12 +43,16 @@
 	}: Props = $props();
 
 	let draggedIndex = $state<number | null>(null);
+	let draggedTicketId = $state<string | null>(null);
 
-	function handleDragStart(e: DragEvent, index: number) {
+	function handleDragStart(e: DragEvent, index: number, ticketId: string) {
 		draggedIndex = index;
+		draggedTicketId = ticketId;
 		if (e.dataTransfer) {
 			e.dataTransfer.effectAllowed = 'move';
-			e.dataTransfer.setData('text/plain', index.toString());
+			// Set both index (for reorder) and ticket ID (for cross-column drops)
+			e.dataTransfer.setData('text/plain', ticketId);
+			e.dataTransfer.setData('application/x-queue-index', index.toString());
 		}
 	}
 
@@ -69,6 +73,7 @@
 
 	function handleDragEnd() {
 		draggedIndex = null;
+		draggedTicketId = null;
 	}
 
 	const totalCount = $derived(queue.length + runningSessions.length);
@@ -130,7 +135,7 @@
 							{item}
 							position={i + 1}
 							draggable={true}
-							ondragstart={(e) => handleDragStart(e, i)}
+							ondragstart={(e) => handleDragStart(e, i, item.ticketId)}
 							ondragover={handleDragOver}
 							ondrop={(e) => handleDrop(e, i)}
 							ondragend={handleDragEnd}

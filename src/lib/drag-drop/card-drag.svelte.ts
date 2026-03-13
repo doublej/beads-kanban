@@ -8,6 +8,8 @@ interface CardDragContext {
 	setActiveColumnIndex: (idx: number) => void;
 	closePanel: () => void;
 	onQueueDrop?: (issueId: string) => void;
+	onQueueItemDropToColumn?: (ticketId: string) => void;
+	isTicketQueued?: (ticketId: string) => boolean;
 }
 
 export function createCardDrag(ctx: CardDragContext) {
@@ -84,6 +86,21 @@ export function createCardDrag(ctx: CardDragContext) {
 
 	function handleDrop(e: DragEvent, columnKey: string) {
 		e.preventDefault();
+
+		// Check if this is a queue item being dropped (has queue index data)
+		const queueIndex = e.dataTransfer?.getData('application/x-queue-index');
+		const droppedId = e.dataTransfer?.getData('text/plain');
+
+		// If dropping a queue item onto a kanban column (not back to queue)
+		if (queueIndex && droppedId && columnKey !== 'queue') {
+			ctx.onQueueItemDropToColumn?.(droppedId);
+			draggedId = null;
+			draggedOverColumn = null;
+			dropIndicatorIndex = null;
+			dropTargetColumn = null;
+			return;
+		}
+
 		if (draggedId) {
 			// Handle queue drop
 			if (columnKey === 'queue') {

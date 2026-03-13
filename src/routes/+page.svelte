@@ -232,6 +232,9 @@
 		onQueueDrop: (issueId) => {
 			const issue = issues.find(i => i.id === issueId);
 			if (issue) ops.startAgentForIssue(issue);
+		},
+		onQueueItemDropToColumn: (ticketId) => {
+			ops.cancelQueueItem(ticketId);
 		}
 	});
 
