@@ -53,7 +53,7 @@
 	import { issueMatchesFilters as matchesFilters, hasActiveFilters as checkActiveFilters, type FilterState } from '$lib/filters';
 	import { getManagerVisible, MANAGER_SESSION_NAME } from '$lib/stores/manager.svelte';
 	import { startManager } from '$lib/stores/ws-connection.svelte';
-	import { getQueueItems } from '$lib/stores/queue.svelte';
+	import { getQueueItems, getQueuedTicketIds } from '$lib/stores/queue.svelte';
 
 	// --- UI State (page-only) ---
 	let bdVersion = $state<{ version: string; compatible: boolean } | null>(null);
@@ -213,6 +213,7 @@
 	});
 
 	let serverQueue = $derived(getQueueItems());
+	let queuedTicketIds = $derived(getQueuedTicketIds());
 	let totalQueueCount = $derived(serverQueue.length + runningAgents.length);
 	let mappedAgentQueue = $derived(serverQueue.map(item => ({
 		ticketId: item.ticketId,
@@ -227,7 +228,11 @@
 		updateIssue: (id, updates) => issueStore.updateIssue(id, updates),
 		getActiveColumnIndex: () => activeColumnIndex,
 		setActiveColumnIndex: (idx) => { activeColumnIndex = idx; },
-		closePanel: ops.closePanel
+		closePanel: ops.closePanel,
+		onQueueDrop: (issueId) => {
+			const issue = issues.find(i => i.id === issueId);
+			if (issue) ops.startAgentForIssue(issue);
+		}
 	});
 
 	let draggedId = $derived(cardDrag.draggedId);
@@ -725,13 +730,14 @@
 		showColumnCounts={settings.showColumnCounts}
 	/>
 
+	<div class="app-body">
 	<div class="main-content" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
 		<main class="board" ontouchstart={cardDrag.handleTouchStart} ontouchend={cardDrag.handleTouchEnd}>
 			{#each columns as column, i}
 				{#if i === 0 && ops.isCreating}
 					{@render detailPanel()}
 				{/if}
-				{@const rawColumnIssues = issues.filter((x) => getIssueColumn(x).key === column.key)}
+				{@const rawColumnIssues = issues.filter((x) => getIssueColumn(x).key === column.key && !queuedTicketIds.has(x.id))}
 				{@const allColumnIssues = sortIssues(rawColumnIssues, columnSortBy[column.key] ?? settings.defaultColumnSort)}
 				{@const matchingCount = allColumnIssues.filter(issueMatchesFilters).length}
 				{@const isCollapsed = collapsedColumns.has(column.key)}
@@ -786,14 +792,27 @@
 						isCollapsed={queueColumnCollapsed}
 						{activeColumnIndex}
 						columnIndex={-1}
+						{draggedOverColumn}
 						onCancel={ops.cancelQueueItem}
 						onReorder={ops.reorderQueue}
 						onToggleCollapse={() => queueColumnCollapsed = !queueColumnCollapsed}
+						ondragover={(e) => cardDrag.handleDragOver(e, 'queue')}
+						ondragleave={(e) => cardDrag.handleDragLeave(e, 'queue')}
+						ondrop={(e) => cardDrag.handleDrop(e, 'queue')}
 					/>
 				{/if}
 			{/each}
 		</main>
 		</div>
+		{#if getManagerVisible() && managerSession}
+			<ManagerPane
+				session={managerSession}
+				onSendMessage={(name, msg) => sendToPane(name, msg, currentProjectPath)}
+				onInterrupt={interrupt}
+				disabled={!wsConnected}
+			/>
+		{/if}
+	</div>
 	{:else if viewMode === 'tree'}
 		<div class="list-view-layout" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
 			<TreeView {issues} {selectedId} onselect={(issue) => ops.openEditPanel(issue)} oncreate={ops.openCreatePanel} />
@@ -872,15 +891,6 @@
 	onhandleMouseMove={ops.handleMouseMove}
 	onhandleMouseUp={ops.handleMouseUp}
 />
-
-{#if getManagerVisible() && managerSession}
-	<ManagerPane
-		session={managerSession}
-		onSendMessage={(name, msg) => sendToPane(name, msg, currentProjectPath)}
-		onInterrupt={interrupt}
-		disabled={!wsConnected}
-	/>
-{/if}
 
 <FlyingCardComponent {teleports} />
 
@@ -967,9 +977,17 @@
 		height: calc(100vh - 48px);
 	}
 
+	.app-body {
+		display: flex;
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
+	}
+
 	.main-content {
 		display: flex;
 		flex: 1;
+		min-width: 0;
 		min-height: 0;
 		overflow: hidden;
 	}

@@ -52,3 +52,11 @@ export function reorderQueue(fromIndex: number, toIndex: number) {
 export function requestQueueList() {
 	sendWsCommand?.({ type: 'queue_list' });
 }
+
+export function isTicketQueued(ticketId: string): boolean {
+	return queueItems.some(item => item.ticketId === ticketId);
+}
+
+export function getQueuedTicketIds(): Set<string> {
+	return new Set(queueItems.map(item => item.ticketId));
+}

@@ -7,6 +7,7 @@ interface CardDragContext {
 	getActiveColumnIndex: () => number;
 	setActiveColumnIndex: (idx: number) => void;
 	closePanel: () => void;
+	onQueueDrop?: (issueId: string) => void;
 }
 
 export function createCardDrag(ctx: CardDragContext) {
@@ -84,6 +85,16 @@ export function createCardDrag(ctx: CardDragContext) {
 	function handleDrop(e: DragEvent, columnKey: string) {
 		e.preventDefault();
 		if (draggedId) {
+			// Handle queue drop
+			if (columnKey === 'queue') {
+				ctx.onQueueDrop?.(draggedId);
+				draggedId = null;
+				draggedOverColumn = null;
+				dropIndicatorIndex = null;
+				dropTargetColumn = null;
+				return;
+			}
+
 			const issue = ctx.getIssues().find(i => i.id === draggedId);
 			if (issue && columnKey === 'closed' && hasOpenBlockers(issue)) {
 				draggedId = null;

@@ -18,9 +18,13 @@
 		isCollapsed: boolean;
 		activeColumnIndex: number;
 		columnIndex: number;
+		draggedOverColumn: string | null;
 		onCancel: (ticketId: string) => void;
 		onReorder: (fromIndex: number, toIndex: number) => void;
 		onToggleCollapse: () => void;
+		ondragover: (e: DragEvent) => void;
+		ondragleave: (e: DragEvent) => void;
+		ondrop: (e: DragEvent) => void;
 	}
 
 	let {
@@ -29,9 +33,13 @@
 		isCollapsed,
 		activeColumnIndex,
 		columnIndex,
+		draggedOverColumn,
 		onCancel,
 		onReorder,
-		onToggleCollapse
+		onToggleCollapse,
+		ondragover,
+		ondragleave,
+		ondrop
 	}: Props = $props();
 
 	let draggedIndex = $state<number | null>(null);
@@ -66,10 +74,16 @@
 	const totalCount = $derived(queue.length + runningSessions.length);
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <section
 	class="column"
 	class:mobile-active={activeColumnIndex === columnIndex}
 	class:collapsed={isCollapsed}
+	class:drag-over={draggedOverColumn === 'queue'}
+	data-column-key="queue"
+	ondragover={ondragover}
+	ondragleave={ondragleave}
+	ondrop={ondrop}
 >
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<header
@@ -150,6 +164,11 @@
 		border-radius: var(--radius-md);
 		overflow: hidden;
 		transition: border-color var(--transition-fast);
+	}
+
+	.column.drag-over {
+		border-color: #f59e0b;
+		background: linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, var(--surface-panel) 100%);
 	}
 
 	.column.collapsed {
