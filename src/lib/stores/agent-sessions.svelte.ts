@@ -200,12 +200,15 @@ export function createMessageHandler(sessionName: string) {
 				break;
 			}
 
-			case 'error':
+			case 'error': {
+				const isSessionGone = msg.error?.includes('Session not found') || msg.error?.includes('No active session');
 				updateSession(sessionName, {
 					streaming: false,
+					serverId: isSessionGone ? undefined : session.serverId,
 					messages: [...session.messages, makeMsg('assistant', `Error: ${msg.error}`)]
 				});
 				break;
+			}
 
 			case 'interrupted':
 				updateSession(sessionName, {
