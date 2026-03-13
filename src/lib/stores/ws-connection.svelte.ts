@@ -10,13 +10,14 @@ import {
 	getIsTabLeader,
 	setIsTabLeader,
 	setBroadcastCallback,
+	setSessionGoneCallback,
 	updateSession,
 	setSessionError,
 	createMessageHandler,
 } from './agent-sessions.svelte';
 import { fetchSessionHistory } from '../session-persistence';
 import { initTabCoordinator } from './tab-coordinator.svelte';
-import { MANAGER_SESSION_NAME, setManagerVisible } from './manager.svelte';
+import { MANAGER_SESSION_NAME, setManagerVisible, getManagerVisible } from './manager.svelte';
 import { fetchInitialQueue, setQueueWsSender } from './queue.svelte';
 import { settings } from './settings.svelte';
 
@@ -204,8 +205,9 @@ function killSessionInternal(name: string) {
 
 export function startManager(cwd: string) {
 	const sessions = getSessions();
-	if (sessions.has(MANAGER_SESSION_NAME)) {
-		// Already running — just show
+	const existing = sessions.get(MANAGER_SESSION_NAME);
+	if (existing?.serverId) {
+		// Already running with valid server session — just show
 		setManagerVisible(true);
 		return;
 	}
@@ -319,6 +321,18 @@ export function connect() {
 			if (ws.readyState === WebSocket.OPEN) {
 				ws.send(JSON.stringify(msg));
 				return;
+			}
+		}
+	});
+
+	// Wire up session-gone callback for auto-restart
+	setSessionGoneCallback((sessionName) => {
+		if (sessionName === MANAGER_SESSION_NAME && getManagerVisible()) {
+			// Manager session expired — auto-restart it
+			console.log('[agent:manager] session expired, auto-restarting');
+			const session = getSessions().get(MANAGER_SESSION_NAME);
+			if (session?.cwd) {
+				setTimeout(() => startManager(session.cwd!), 100);
 			}
 		}
 	});

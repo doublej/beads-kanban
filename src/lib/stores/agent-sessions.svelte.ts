@@ -27,9 +27,15 @@ let isTabLeader = $state(false);
 
 // Callback set by ws-connection to broadcast to followers
 let broadcastCallback: (() => void) | null = null;
+// Callback for when a session is gone (server returned "Session not found")
+let sessionGoneCallback: ((sessionName: string) => void) | null = null;
 
 export function setBroadcastCallback(cb: () => void) {
 	broadcastCallback = cb;
+}
+
+export function setSessionGoneCallback(cb: (sessionName: string) => void) {
+	sessionGoneCallback = cb;
 }
 
 // --- Getters / setters for shared state ---
@@ -207,6 +213,9 @@ export function createMessageHandler(sessionName: string) {
 					serverId: isSessionGone ? undefined : session.serverId,
 					messages: [...session.messages, makeMsg('assistant', `Error: ${msg.error}`)]
 				});
+				if (isSessionGone && sessionGoneCallback) {
+					sessionGoneCallback(sessionName);
+				}
 				break;
 			}
 
