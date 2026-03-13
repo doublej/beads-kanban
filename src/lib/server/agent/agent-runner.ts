@@ -6,6 +6,7 @@ import { buildManagerPrompt } from "./manager-prompt";
 import { extractFilePath, snapshotFile, computeDiffs } from "./file-diff";
 import { buildSystemPrompt } from "./system-prompt";
 import type { AgentQueue } from "./queue-manager";
+import { log } from "../logger";
 
 // Intercept fetch to log auth headers
 const originalFetch = globalThis.fetch;
@@ -13,12 +14,12 @@ globalThis.fetch = async (...args: Parameters<typeof fetch>) => {
   const [url, init] = args;
   if (url.toString().includes('anthropic.com') || url.toString().includes('claude.ai')) {
     const headers = new Headers(init?.headers);
-    console.log('\n[AUTH INTERCEPT]', {
+    log.info('[AUTH INTERCEPT]', JSON.stringify({
       url: url.toString().substring(0, 50) + '...',
       'x-api-key': headers.get('x-api-key')?.substring(0, 20) + '...' || '(not set)',
       'authorization': headers.get('authorization')?.substring(0, 30) + '...' || '(not set)',
       'cookie': headers.get('cookie') ? '(present)' : '(not set)',
-    });
+    }));
   }
   return originalFetch(...args);
 };
@@ -163,7 +164,7 @@ export async function runAgent(session: AgentSession, briefing: string, opts: Ru
 
         // Get rich slash command info from the SDK
         const slashCommands = await agentQuery.supportedCommands();
-        console.log("[agent] supportedCommands:", slashCommands);
+        log.info("[agent] supportedCommands:", slashCommands);
 
         sendToClient(session, {
           type: "sdk_session",
@@ -241,5 +242,30 @@ export async function runAgent(session: AgentSession, briefing: string, opts: Ru
     }
   } finally {
     session.isRunning = false;
+    // Notify manager when a worker completes
+    if (!session.isManager && opts.sessions) {
+      for (const s of opts.sessions.values()) {
+        if (!s.isManager || !s.isRunning) continue;
+        const notification: SDKUserMessage = {
+          type: "user",
+          session_id: s.id,
+          parent_tool_use_id: null,
+          message: {
+            role: "user",
+            content: `[System] Agent "${session.agentName}" has completed its task.`,
+          },
+        };
+        if (s.inputResolver) {
+          s.inputResolver(notification);
+        } else {
+          s.inputQueue.push(notification);
+        }
+        break;
+      }
+    }
+    // Auto-start next queued item when a worker finishes
+    if (!session.isManager && opts.queue) {
+      opts.queue.maybeStartNext();
+    }
   }
 }
