@@ -27,20 +27,20 @@
 	}
 </script>
 
-<aside class="manager-pane" class:streaming={session.streaming}>
-	<header class="manager-header">
-		<div class="manager-title">
-			<span class="manager-dot" class:live={session.streaming}></span>
-			<span class="manager-label">Manager</span>
-		</div>
-		<div class="manager-actions">
+<section class="column" class:streaming={session.streaming}>
+	<header class="column-header">
+		<div class="column-title">
+			<span class="live-dot" class:active={session.streaming}></span>
+			<h2>Manager</h2>
 			{#if session.usage}
-				<span class="manager-usage">
+				<span class="column-count">
 					{((session.usage.inputTokens + session.usage.outputTokens) / 1000).toFixed(0)}k
 				</span>
 			{/if}
+		</div>
+		<div class="column-header-actions">
 			<button
-				class="manager-minimize"
+				class="column-collapse-btn"
 				onclick={toggleManagerVisibility}
 				title="Minimize manager"
 			>
@@ -51,7 +51,7 @@
 		</div>
 	</header>
 
-	<div class="manager-messages">
+	<div class="cards">
 		<AgentMessageList
 			pane={session}
 			size="medium"
@@ -61,7 +61,7 @@
 		/>
 	</div>
 
-	<div class="manager-input">
+	<div class="input-area">
 		<AgentPaneInput
 			pane={session}
 			bind:messageInput
@@ -72,63 +72,69 @@
 			{onInterrupt}
 		/>
 	</div>
-</aside>
+</section>
 
 <style>
-	.manager-pane {
-		position: fixed;
-		right: 0;
-		top: 0;
-		bottom: 48px;
-		width: 400px;
+	.column {
+		flex: 0 0 400px;
+		min-width: 320px;
+		max-width: 480px;
+		min-height: 0;
+		align-self: stretch;
 		display: flex;
 		flex-direction: column;
-		background: var(--bg-primary);
-		border-left: 2px solid rgba(245, 158, 11, 0.35);
-		z-index: 900;
+		background: var(--surface-panel);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+		transition: border-color var(--transition-fast);
 		animation: slideIn 200ms ease-out;
+		/* Match board padding: top/bottom 1.25rem, right 1.25rem; left gap comes from board */
+		margin: 1.25rem 1.25rem 1.25rem 0;
 	}
 
 	@keyframes slideIn {
-		from { transform: translateX(100%); opacity: 0; }
+		from { transform: translateX(20px); opacity: 0; }
 		to { transform: translateX(0); opacity: 1; }
 	}
 
-	.manager-pane.streaming {
-		border-left-color: rgba(245, 158, 11, 0.6);
-		animation: slideIn 200ms ease-out, managerPulse 2s ease-in-out infinite;
+	.column.streaming {
+		border-color: rgba(245, 158, 11, 0.4);
 	}
 
-	@keyframes managerPulse {
-		0%, 100% { border-left-color: rgba(245, 158, 11, 0.6); }
-		50% { border-left-color: rgba(245, 158, 11, 0.3); }
-	}
-
-	.manager-header {
+	.column-header {
+		flex-shrink: 0;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		padding: 0.625rem 0.75rem;
-		border-bottom: 1px solid rgba(245, 158, 11, 0.15);
-		background: rgba(245, 158, 11, 0.04);
-		flex-shrink: 0;
+		border-bottom: 1px solid var(--border-subtle);
+		background: var(--surface-card);
 	}
 
-	.manager-title {
+	.column-title {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
 	}
 
-	.manager-dot {
+	.column-title h2 {
+		font: 600 11px/1 var(--font-sans);
+		color: #f59e0b;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		margin: 0;
+	}
+
+	.live-dot {
 		width: 6px;
 		height: 6px;
 		border-radius: 50%;
-		background: rgba(245, 158, 11, 0.4);
+		background: rgba(245, 158, 11, 0.3);
 		flex-shrink: 0;
 	}
 
-	.manager-dot.live {
+	.live-dot.active {
 		background: #f59e0b;
 		box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
 		animation: pulse 1.2s ease-in-out infinite;
@@ -139,69 +145,81 @@
 		50% { opacity: 0.5; }
 	}
 
-	.manager-label {
-		font: 600 11px/1 system-ui, -apple-system, sans-serif;
+	.column-count {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 1.25rem;
+		height: 1.125rem;
+		padding: 0 0.375rem;
+		background: rgba(245, 158, 11, 0.15);
 		color: #f59e0b;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
+		border-radius: var(--radius-xs);
+		font: 600 10px/1 var(--font-mono);
 	}
 
-	.manager-actions {
+	.column-header-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.25rem;
 	}
 
-	.manager-usage {
-		font: 500 9px/1 'IBM Plex Mono', ui-monospace, monospace;
-		color: var(--text-tertiary);
-		background: rgba(245, 158, 11, 0.08);
-		padding: 2px 6px;
-		border-radius: 4px;
-	}
-
-	.manager-minimize {
+	.column-collapse-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 20px;
-		height: 20px;
+		width: 1.25rem;
+		height: 1.25rem;
 		background: transparent;
 		border: none;
-		border-radius: 4px;
+		border-radius: var(--radius-xs);
 		color: var(--text-tertiary);
 		cursor: pointer;
-		transition: all 80ms ease;
+		transition: all var(--transition-fast);
 	}
 
-	.manager-minimize:hover {
-		background: rgba(245, 158, 11, 0.15);
-		color: #f59e0b;
+	.column-collapse-btn:hover {
+		background: var(--surface-elevated);
+		color: var(--text-primary);
 	}
 
-	.manager-messages {
+	.cards {
+		display: flex;
+		flex-direction: column;
 		flex: 1;
 		overflow-y: auto;
+		overflow-x: hidden;
 		min-height: 0;
 	}
 
-	.manager-input {
+	.cards::-webkit-scrollbar {
+		width: 4px;
+	}
+
+	.cards::-webkit-scrollbar-track {
+		background: transparent;
+	}
+
+	.cards::-webkit-scrollbar-thumb {
+		background: var(--border-subtle);
+		border-radius: 2px;
+	}
+
+	.cards::-webkit-scrollbar-thumb:hover {
+		background: var(--border-default);
+	}
+
+	.input-area {
 		flex-shrink: 0;
-		border-top: 1px solid rgba(245, 158, 11, 0.15);
+		border-top: 1px solid var(--border-subtle);
 		padding: 0.5rem;
 	}
 
-	:global(.app.light) .manager-pane {
-		border-left-color: rgba(217, 119, 6, 0.3);
+	:global(.app.light) .column {
+		box-shadow: var(--shadow-sm);
 	}
 
-	:global(.app.light) .manager-header {
-		background: rgba(245, 158, 11, 0.06);
-		border-bottom-color: rgba(217, 119, 6, 0.12);
-	}
-
-	:global(.app.light) .manager-minimize:hover {
-		background: rgba(217, 119, 6, 0.12);
-		color: #d97706;
+	:global(.app.light) .column.streaming {
+		border-color: rgba(217, 119, 6, 0.35);
 	}
 </style>
