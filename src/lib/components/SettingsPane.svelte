@@ -59,7 +59,7 @@
 		show = false;
 	}
 
-	function handlePanelClick(e: MouseEvent) {
+	function handlePanelClick(e: Event) {
 		e.stopPropagation();
 	}
 
@@ -83,11 +83,14 @@
 </script>
 
 {#if show}
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="settings-overlay" onclick={handleOverlayClick} role="presentation">
+<div
+	class="settings-overlay"
+	onclick={(e) => { if (e.target === e.currentTarget) handleOverlayClick(); }}
+	onkeydown={(e) => e.key === 'Escape' && handleOverlayClick()}
+	role="presentation"
+>
 	<PromptsWindow bind:show={showPrompts} />
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-	<aside class="settings-pane" onclick={handlePanelClick} role="dialog" aria-label="Settings">
+	<div class="settings-pane" onclick={handlePanelClick} onkeydown={handlePanelClick} role="dialog" tabindex="-1" aria-label="Settings">
 		<header class="settings-header">
 			<div class="settings-title-row">
 				<span class="settings-icon"><Icon name="settings" size={18} /></span>
@@ -196,7 +199,7 @@
 				<span class="brand-version">v0.1.0</span>
 			</div>
 		</footer>
-	</aside>
+	</div>
 </div>
 {/if}
 

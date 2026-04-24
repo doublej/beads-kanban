@@ -69,7 +69,7 @@
 	</button>
 
 	{#if showDropdown}
-		<div class="dropdown" onclick={(e) => e.stopPropagation()}>
+		<div class="dropdown" role="presentation" onkeydown={(e) => e.stopPropagation()}>
 			<div class="dropdown-header">
 				<span class="dropdown-title">Saved Views</span>
 				<button
@@ -137,8 +137,15 @@
 	{/if}
 
 	{#if showSaveDialog}
-		<div class="save-dialog-overlay" onclick={() => { showSaveDialog = false; saveDialogName = ''; }}>
-			<div class="save-dialog" onclick={(e) => e.stopPropagation()}>
+		<div
+			class="save-dialog-overlay"
+			onclick={(e) => { if (e.target === e.currentTarget) { showSaveDialog = false; saveDialogName = ''; } }}
+			onkeydown={(e) => { if (e.key === 'Escape') { showSaveDialog = false; saveDialogName = ''; } }}
+			role="button"
+			tabindex="-1"
+			aria-label="Close"
+		>
+			<div class="save-dialog">
 				<h3>Save Current View</h3>
 				<input
 					type="text"

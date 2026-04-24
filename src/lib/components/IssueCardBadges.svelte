@@ -9,10 +9,11 @@
 		hasOpenBlockers: boolean;
 		showImpact: boolean;
 		isAgentAssignee: boolean;
+		inWorktree?: boolean;
 		oncopyid: (id: string) => void;
 	}
 
-	let { issue, hasOpenBlockers, showImpact, isAgentAssignee, oncopyid }: Props = $props();
+	let { issue, hasOpenBlockers, showImpact, isAgentAssignee, inWorktree = false, oncopyid }: Props = $props();
 
 	const priorityConfig = $derived(getPriorityConfig(issue.priority));
 	const impactScore = $derived(calculateImpactScore(issue));
@@ -45,6 +46,9 @@
 	{/if}
 	{#if hasOpenBlockers}
 		<span class="blocked-indicator" title="Blocked by open dependencies"><Icon name="dep-blocks" size={14} /></span>
+	{/if}
+	{#if inWorktree}
+		<span class="worktree-indicator" title="Running in isolated git worktree"><Icon name="view-tree" size={11} /></span>
 	{/if}
 	{#if (issue.dependencies && issue.dependencies.length > 0) || (issue.dependents && issue.dependents.length > 0)}
 		{@const totalDeps = (issue.dependencies?.length || 0) + (issue.dependents?.length || 0)}
@@ -192,6 +196,21 @@
 		color: #ef4444;
 		margin-left: 0.25rem;
 		cursor: help;
+	}
+
+	.worktree-indicator {
+		display: flex;
+		align-items: center;
+		padding: 0.125rem 0.25rem;
+		background: rgba(139, 92, 246, 0.12);
+		border-radius: 3px;
+		color: #8b5cf6;
+		cursor: help;
+	}
+
+	.worktree-indicator :global(svg) {
+		width: 11px;
+		height: 11px;
 	}
 
 	.deps-indicator {

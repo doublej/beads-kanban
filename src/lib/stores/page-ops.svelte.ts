@@ -16,7 +16,7 @@ import { toastQueue } from '$lib/notifications/toast-queue.svelte';
 import { settings } from '$lib/stores/settings.svelte';
 import { copyState } from '$lib/stores/copy-state.svelte';
 import type { IssueStore } from '$lib/stores/issue-store.svelte';
-import { notifyAgentOfTicketUpdate, addPane, getRunningSessionsForCwd, startSession, type Pane, type AgentSession } from '$lib/wsStore.svelte';
+import { notifyAgentOfTicketUpdate, notifyManagerOfTicketUpdate, addPane, getRunningSessionsForCwd, startSession, type Pane, type AgentSession } from '$lib/wsStore.svelte';
 import { updateSession, addSystemMessage, setSessionError, getSessions, setSessions } from '$lib/stores/agent-sessions.svelte';
 import { createWorktreeApi } from '$lib/stores/worktree-api';
 import {
@@ -118,7 +118,11 @@ export function createPageOps(ctx: PageOpsContext) {
 		notificationType: 'comment' | 'dependency' | 'attachment' | 'status' | 'priority' | 'assignee' | 'label',
 		context?: { ticketTitle?: string; sender?: string }
 	) {
-		notifyAgentOfTicketUpdate(ticketId, content, notificationType, context, settings.agentTicketNotification);
+		const deliveredToWorker = notifyAgentOfTicketUpdate(ticketId, content, notificationType, context, settings.agentTicketNotification);
+		const isClose = notificationType === 'status' && content.includes('closed');
+		if (!deliveredToWorker || isClose) {
+			notifyManagerOfTicketUpdate(ctx.getCurrentProjectPath(), ticketId, content, notificationType, context, settings.agentTicketNotification);
+		}
 	}
 
 	function enqueueAgentStart(entry: AgentQueueItem) {

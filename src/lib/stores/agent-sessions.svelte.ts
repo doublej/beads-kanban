@@ -8,6 +8,7 @@ import {
 } from '../session-persistence';
 import type {
 	AgentSession,
+	ActiveRemoteSession,
 	ChatMessage,
 	ServerMessage,
 	StreamEvent,
@@ -29,6 +30,8 @@ let isTabLeader = $state(false);
 let broadcastCallback: (() => void) | null = null;
 // Callback for when a session is gone (server returned "Session not found")
 let sessionGoneCallback: ((sessionName: string) => void) | null = null;
+// Callback for when a backend-only session is discovered and should be resumed by the leader tab
+let discoveredSessionCallback: ((sessionName: string) => void) | null = null;
 
 export function setBroadcastCallback(cb: () => void) {
 	broadcastCallback = cb;
@@ -36,6 +39,10 @@ export function setBroadcastCallback(cb: () => void) {
 
 export function setSessionGoneCallback(cb: (sessionName: string) => void) {
 	sessionGoneCallback = cb;
+}
+
+export function setDiscoveredSessionCallback(cb: (sessionName: string) => void) {
+	discoveredSessionCallback = cb;
 }
 
 // --- Getters / setters for shared state ---
@@ -111,11 +118,84 @@ function makeMsg(role: ChatMessage['role'], content: string, extra: Partial<Chat
 	return { role, content, timestamp: new Date().toISOString(), ...extra };
 }
 
+function applySessions(next: Map<string, AgentSession>) {
+	sessions = next;
+	if (isTabLeader && broadcastCallback) {
+		broadcastCallback();
+	}
+}
+
+function syncActiveSessions(scopeCwd: string | null, activeSessions: ActiveRemoteSession[]) {
+	const next = new Map(sessions);
+	const activeNames = new Set(activeSessions.map((session) => session.name));
+	const discoveredToResume: string[] = [];
+
+	for (const remote of activeSessions) {
+		const existing = next.get(remote.name);
+		if (existing) {
+			next.set(remote.name, {
+				...existing,
+				cwd: remote.cwd,
+				projectCwd: remote.projectCwd ?? existing.projectCwd,
+				serverId: remote.sessionId,
+				streaming: remote.isRunning || existing.streaming,
+				ticketId: remote.ticketId ?? existing.ticketId,
+				worktreePath: remote.worktreePath ?? existing.worktreePath,
+				isManager: remote.isManager,
+			});
+			continue;
+		}
+
+		if (remote.isManager) continue;
+
+		next.set(remote.name, {
+			id: crypto.randomUUID(),
+			name: remote.name,
+			cwd: remote.cwd,
+			projectCwd: remote.projectCwd,
+			streaming: false,
+			messages: [],
+			currentDelta: '',
+			pane_type: 'agent',
+			backend: 'claude',
+			ticketId: remote.ticketId,
+			worktreePath: remote.worktreePath,
+			serverId: remote.sessionId,
+			isManager: remote.isManager,
+			discoveredFromServer: true,
+		});
+		discoveredToResume.push(remote.name);
+	}
+
+	// Only prune discovered sessions within the broadcast scope (same cwd).
+	// Sessions from other projects are filtered out server-side, so their absence
+	// here doesn't mean they stopped streaming.
+	for (const [name, session] of next) {
+		if (!session.discoveredFromServer) continue;
+		if (activeNames.has(name)) continue;
+		const sessionProjectCwd = session.projectCwd ?? session.cwd;
+		if (scopeCwd && sessionProjectCwd !== scopeCwd) continue;
+		next.set(name, { ...session, streaming: false });
+	}
+
+	applySessions(next);
+
+	for (const sessionName of discoveredToResume) {
+		discoveredSessionCallback?.(sessionName);
+	}
+}
+
 // --- Message handler factory ---
 export function createMessageHandler(sessionName: string) {
 	return (event: MessageEvent) => {
 		const msg = JSON.parse(event.data) as ServerMessage;
 		console.log(`[agent:${sessionName}] recv`, msg.type);
+
+		if (msg.type === 'active_sessions') {
+			syncActiveSessions(msg.cwd, msg.sessions);
+			return;
+		}
+
 		const session = sessions.get(sessionName);
 		if (!session) return;
 

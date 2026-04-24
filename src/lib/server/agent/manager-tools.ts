@@ -4,6 +4,7 @@
  */
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import { join } from "path";
 import { runBd } from "./bd-runner";
 import type { AgentSession } from "./session-types";
 import type { AgentQueue } from "./queue-manager";
@@ -156,7 +157,7 @@ export function createManagerToolsServer(
 				{
 					ticket_id: z.string().describe("Issue ID to enqueue"),
 					model: z.string().optional().describe("Model override for the worker"),
-					use_worktree: z.boolean().default(false).describe("Use a git worktree for isolation"),
+					use_worktree: z.boolean().optional().describe("Use a git worktree for isolation. Defaults to automatic: enabled when the repo cwd is already occupied by another worker."),
 				},
 				async ({ ticket_id, model, use_worktree }) => {
 					try {
@@ -164,6 +165,7 @@ export function createManagerToolsServer(
 						const raw = await runBd(cwd, ["show", ticket_id, "--json"]);
 						const issue = JSON.parse(raw);
 						const agentName = `${ticket_id}-agent`;
+						const resolvedUseWorktree = use_worktree ?? queue.hasRunningWorkerInCwd(cwd);
 
 						queue.enqueue({
 							ticketId: ticket_id,
@@ -173,11 +175,17 @@ export function createManagerToolsServer(
 							description: issue.description || "",
 							priority: issue.priority ?? 2,
 							issueType: issue.issue_type || "task",
-							useWorktree: use_worktree,
+							model,
+							useWorktree: resolvedUseWorktree,
 							enqueuedAt: new Date().toISOString(),
 						});
 
-						return { content: [{ type: "text" as const, text: `Enqueued ${ticket_id} (position ${queue.getItems().length})` }] };
+						const mode = resolvedUseWorktree ? "using a worktree" : "in the main repo";
+						const remaining = queue.getItems().length;
+						const suffix = remaining > 0
+							? `(position ${remaining})`
+							: "(dispatching now)";
+						return { content: [{ type: "text" as const, text: `Enqueued ${ticket_id} ${mode} ${suffix}` }] };
 					} catch (err) {
 						return { content: [{ type: "text" as const, text: `Error: ${err}` }], isError: true };
 					}
@@ -259,6 +267,47 @@ export function createManagerToolsServer(
 						}
 					}
 					return { content: [{ type: "text" as const, text: `Agent ${name_or_ticket_id} not found` }], isError: true };
+				}
+			),
+
+			// --- Dispatch tool ---
+			tool(
+				"dispatch_queue",
+				"Start processing the queue. Dispatches the next queued ticket to a worker agent if a CWD slot is free.",
+				{},
+				async () => {
+					await queue.maybeStartNext();
+					const items = queue.getItems();
+					return { content: [{ type: "text" as const, text: items.length > 0
+						? `Queue has ${items.length} remaining items. Dispatching if slot available.`
+						: "Queue is empty — nothing to dispatch." }] };
+				}
+			),
+
+			// --- Memory tools ---
+			tool(
+				"read_memory",
+				"Read the manager's long-term memory file (CLAUDE-MANAGER.md).",
+				{},
+				async () => {
+					const memPath = join(cwd, "CLAUDE-MANAGER.md");
+					try {
+						const content = await Bun.file(memPath).text();
+						return { content: [{ type: "text" as const, text: content || "(empty)" }] };
+					} catch {
+						return { content: [{ type: "text" as const, text: "(no memory file yet)" }] };
+					}
+				}
+			),
+
+			tool(
+				"write_memory",
+				"Write to the manager's long-term memory file (CLAUDE-MANAGER.md). Overwrites the entire file.",
+				{ content: z.string().describe("Full content to write") },
+				async ({ content }) => {
+					const memPath = join(cwd, "CLAUDE-MANAGER.md");
+					await Bun.write(memPath, content);
+					return { content: [{ type: "text" as const, text: "Memory updated." }] };
 				}
 			),
 		],

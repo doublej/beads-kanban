@@ -179,7 +179,7 @@ export function getIssueById(id: string, cwd?: string): Issue | null {
 			SELECT *, ROW_NUMBER() OVER (ORDER BY created_at) as seq
 			FROM issues
 			WHERE status <> 'tombstone'
-		) WHERE id = '${sid}'
+		) t WHERE id = '${sid}'
 	`, cwd);
 
 	const issue = issues[0];

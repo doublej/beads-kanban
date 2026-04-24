@@ -74,10 +74,15 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if show}
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="switcher-overlay" onclick={onclose}>
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="switcher-modal" onclick={(e) => e.stopPropagation()}>
+<div
+	class="switcher-overlay"
+	onclick={(e) => { if (e.target === e.currentTarget) onclose(); }}
+	onkeydown={(e) => e.key === 'Escape' && onclose()}
+	role="button"
+	tabindex="-1"
+	aria-label="Close"
+>
+	<div class="switcher-modal">
 		<div class="switcher-header">
 			<span class="header-text">Switch Project</span>
 			<kbd class="header-hint">Tab</kbd>
@@ -87,14 +92,15 @@
 			{#each sortedProjects() as project, i}
 				{@const isCurrent = project.path === currentPath}
 				{@const isSelected = i === selectedIndex}
-				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
 				<div
 					class="project-item"
 					class:current={isCurrent}
 					class:selected={isSelected}
 					style="--project-color: {project.color};"
 					onclick={() => selectProject(project, i)}
+					onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && selectProject(project, i)}
 					role="option"
+					tabindex="0"
 					aria-selected={isSelected}
 				>
 					<div class="project-dot"></div>

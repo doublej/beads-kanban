@@ -9,7 +9,7 @@
 			<span class="setting-name">Always show key hints</span>
 			<span class="setting-desc">Keep shortcut hints visible</span>
 		</div>
-		<button class="toggle-switch" onclick={() => settings.alwaysShowHotkeys = !settings.alwaysShowHotkeys}>
+		<button class="toggle-switch" onclick={() => settings.alwaysShowHotkeys = !settings.alwaysShowHotkeys} aria-label="Toggle always show key hints">
 			<span class="toggle-track" class:active={settings.alwaysShowHotkeys}>
 				<span class="toggle-thumb"></span>
 			</span>

@@ -25,6 +25,19 @@
 	function handleInputChange(value: string) {
 		messageInput = value;
 	}
+
+	let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+	$effect(() => {
+		void session.messages.length;
+		void session.currentDelta;
+		if (scrollTimeout) clearTimeout(scrollTimeout);
+		scrollTimeout = setTimeout(() => {
+			const ref = messagesRef;
+			if (ref && (session.messages.length > 0 || session.currentDelta)) {
+				ref.scrollTop = ref.scrollHeight;
+			}
+		}, 50);
+	});
 </script>
 
 <section class="column" class:streaming={session.streaming}>

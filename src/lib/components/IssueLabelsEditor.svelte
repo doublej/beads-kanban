@@ -19,7 +19,7 @@
 </script>
 
 <div class="field">
-	<label class="field-label">Labels</label>
+	<span class="field-label">Labels</span>
 	<div class="label-editor">
 		{#if editingIssue.labels && editingIssue.labels.length > 0}
 			<div class="label-chips">

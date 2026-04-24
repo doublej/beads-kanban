@@ -4,6 +4,7 @@ import { promisify } from 'util';
 import type { RequestHandler } from './$types';
 import { resolveProjectCwd, getIssueById } from '$lib/db';
 import { notificationStore } from '$lib/notifications/notification-store.svelte';
+import { hookExecutor } from '$lib/server/agent/hook-executor';
 import { extractErrorMessage } from '$lib/server-utils';
 
 const execAsync = promisify(exec);
@@ -84,32 +85,55 @@ export const PATCH: RequestHandler = async ({ params, request, url }) => {
 
 		// Emit notification events based on changes
 		if (beforeIssue && afterIssue) {
+			const baseCtx = {
+				id: afterIssue.id,
+				title: afterIssue.title,
+				status: afterIssue.status,
+				priority: afterIssue.priority,
+				assignee: afterIssue.assignee,
+				cwd,
+			};
+
 			// Status changes
 			if (beforeIssue.status !== afterIssue.status) {
 				notificationStore.emit('status_changed', afterIssue);
+				await hookExecutor.executeHooks('StatusChanged', {
+					...baseCtx,
+					oldStatus: beforeIssue.status,
+					newStatus: afterIssue.status,
+				});
+
+				if (afterIssue.status === 'closed') {
+					await hookExecutor.executeHooks('TicketClosed', baseCtx);
+				}
 
 				// Special handling for blocked/unblocked
 				if (afterIssue.status === 'blocked') {
 					notificationStore.emit('blocked', afterIssue);
+					await hookExecutor.executeHooks('TicketBlocked', baseCtx);
 				}
 				if (beforeIssue.status === 'blocked' && afterIssue.status !== 'blocked') {
 					notificationStore.emit('unblocked', afterIssue);
+					await hookExecutor.executeHooks('TicketUnblocked', baseCtx);
 				}
 			}
 
 			// Priority changes
 			if (beforeIssue.priority !== afterIssue.priority) {
 				notificationStore.emit('priority_changed', afterIssue);
+				await hookExecutor.executeHooks('PriorityChanged', baseCtx);
 			}
 
 			// Assignee changes
 			if (beforeIssue.assignee !== afterIssue.assignee) {
 				notificationStore.emit('assignee_changed', afterIssue);
+				await hookExecutor.executeHooks('AssigneeChanged', baseCtx);
 			}
 
 			// Label changes
 			if (addLabels?.length || removeLabels?.length) {
 				notificationStore.emit('label_modified', afterIssue);
+				await hookExecutor.executeHooks('LabelModified', baseCtx);
 			}
 		}
 
@@ -130,6 +154,14 @@ export const DELETE: RequestHandler = async ({ params, url }) => {
 		// Emit notification event
 		if (issue) {
 			notificationStore.emit('issue_closed', issue);
+			await hookExecutor.executeHooks('TicketClosed', {
+				id: issue.id,
+				title: issue.title,
+				status: issue.status,
+				priority: issue.priority,
+				assignee: issue.assignee,
+				cwd,
+			});
 		}
 
 		return json({ success: true });

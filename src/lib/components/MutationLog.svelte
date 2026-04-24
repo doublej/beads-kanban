@@ -83,8 +83,14 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if show}
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="log-backdrop" onclick={onclose}></div>
+<div
+	class="log-backdrop"
+	onclick={onclose}
+	onkeydown={(e) => e.key === 'Escape' && onclose()}
+	role="button"
+	tabindex="-1"
+	aria-label="Close"
+></div>
 <div class="log-panel" role="dialog" aria-label="Activity Log">
 	<div class="log-header">
 		<h3>Activity Log</h3>

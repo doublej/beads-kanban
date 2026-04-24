@@ -115,6 +115,62 @@
 		const expectedPaneName = `${editingIssue.id}-agent`;
 		return activeAgents.includes(expectedPaneName) ? expectedPaneName : null;
 	});
+
+	type RelatedSession = { sessionId: string; agentName?: string; timestamp: string; summary?: string; preview: string[] };
+	type RelatedMessage = { role: 'user' | 'assistant' | 'tool'; content: string; toolName?: string; timestamp?: string };
+
+	let relatedSessions = $state<RelatedSession[]>([]);
+	let loadingRelated = $state(false);
+	let expandedSessionId = $state<string | null>(null);
+	let expandedMessages = $state<RelatedMessage[]>([]);
+	let loadingExpanded = $state(false);
+
+	$effect(() => {
+		const id = editingIssue?.id;
+		if (!id || isCreating) {
+			relatedSessions = [];
+			expandedSessionId = null;
+			expandedMessages = [];
+			return;
+		}
+		loadingRelated = true;
+		fetch(`/api/issues/${encodeURIComponent(id)}/agent-sessions`)
+			.then((r) => (r.ok ? r.json() : { sessions: [] }))
+			.then((d) => { relatedSessions = d.sessions ?? []; })
+			.catch(() => { relatedSessions = []; })
+			.finally(() => { loadingRelated = false; });
+	});
+
+	async function toggleRelatedChat(sessionId: string) {
+		if (expandedSessionId === sessionId) {
+			expandedSessionId = null;
+			expandedMessages = [];
+			return;
+		}
+		expandedSessionId = sessionId;
+		expandedMessages = [];
+		loadingExpanded = true;
+		try {
+			const r = await fetch(`/api/agent-sessions/${encodeURIComponent(sessionId)}/history`);
+			if (r.ok) {
+				const d = await r.json();
+				expandedMessages = d.messages ?? [];
+			}
+		} catch {
+			expandedMessages = [];
+		} finally {
+			loadingExpanded = false;
+		}
+	}
+
+	function formatRelTime(ts: string): string {
+		if (!ts) return '';
+		try {
+			return formatTimestamp(ts).relative;
+		} catch {
+			return ts;
+		}
+	}
 </script>
 
 <aside
@@ -175,7 +231,7 @@
 				<div class="specs-bar">
 					<div class="specs-primary">
 						<span class="spec-status" style="--status-color: {column.accent}">
-							<Icon name={column.icon} size={9} />
+							<Icon name={column.icon} size={11} />
 							<span>{column.label}</span>
 						</span>
 						<span class="spec-priority" style="--c: {priority.color}">
@@ -183,7 +239,7 @@
 							<span>{priority.label}</span>
 						</span>
 						<span class="spec-type">
-							<Icon name={getTypeIcon(editingIssue.issue_type)} size={9} />
+							<Icon name={getTypeIcon(editingIssue.issue_type)} size={11} />
 							<span>{editingIssue.issue_type}</span>
 						</span>
 					</div>
@@ -195,7 +251,7 @@
 						{#if editingIssue.assignee}
 							{#if isAgentAssignee}
 								<span class="spec-agent" class:working={editingIssue.status === 'in_progress'}>
-									<Icon name="agent" size={10} />
+									<Icon name="agent" size={12} />
 									<span>{editingIssue.assignee}</span>
 									{#if editingIssue.status === 'in_progress'}
 										<span class="working-dot"></span>
@@ -203,7 +259,7 @@
 								</span>
 								{#if activeAgentPane() && onviewchat}
 									<button class="chat-link" onclick={() => onviewchat(activeAgentPane()!)} title="View chat session">
-										<Icon name="message" size={9} />
+										<Icon name="message" size={11} />
 										<span>Chat</span>
 									</button>
 								{/if}
@@ -266,6 +322,55 @@
 			<IssueDependencies {editingIssue} {onremovedep} />
 			<IssueComments {comments} bind:newComment {loadingComments} {onaddcomment} {updatenewcomment} />
 			<IssueAttachments issueId={editingIssue.id} {attachments} {loadingAttachments} {onuploadattachment} {ondeleteattachment} />
+
+			{#if relatedSessions.length > 0 || loadingRelated}
+				<section class="section">
+					<span class="section-label">Related Chats</span>
+					{#if loadingRelated && relatedSessions.length === 0}
+						<div class="related-empty">Loading…</div>
+					{:else}
+						<ul class="related-list">
+							{#each relatedSessions as session (session.sessionId)}
+								{@const isOpen = expandedSessionId === session.sessionId}
+								<li class="related-item" class:expanded={isOpen}>
+									<button class="related-row" onclick={() => toggleRelatedChat(session.sessionId)}>
+										<Icon name={isOpen ? 'chevron-down' : 'chevron-right'} size={11} />
+										<div class="related-meta">
+											<div class="related-title">
+												{session.summary || session.agentName || session.sessionId.slice(0, 8)}
+											</div>
+											{#if session.preview.length > 0}
+												<div class="related-preview">{session.preview[0]}</div>
+											{/if}
+										</div>
+										<span class="related-time">{formatRelTime(session.timestamp)}</span>
+									</button>
+									{#if isOpen}
+										<div class="related-history">
+											{#if loadingExpanded}
+												<div class="related-empty">Loading history…</div>
+											{:else if expandedMessages.length === 0}
+												<div class="related-empty">No messages.</div>
+											{:else}
+												{#each expandedMessages as msg, i (i)}
+													<div class="chat-msg chat-{msg.role}">
+														<span class="chat-role">{msg.role === 'tool' ? (msg.toolName ?? 'tool') : msg.role}</span>
+														{#if msg.role === 'assistant'}
+															<div class="chat-body"><MarkdownContent content={msg.content} /></div>
+														{:else}
+															<div class="chat-body chat-plain">{msg.content}</div>
+														{/if}
+													</div>
+												{/each}
+											{/if}
+										</div>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</section>
+			{/if}
 		</div>
 
 		<DetailPanelFooter mode="edit" {agentEnabled} {onclose} {editingIssue} {originalLabels} {onstartagent} {onsave} {ondelete} />
@@ -368,30 +473,34 @@
 	/* View mode - specs bar */
 	.specs-bar {
 		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 0.625rem 0;
-		margin-bottom: 1rem;
+		flex-direction: column;
+		align-items: stretch;
+		gap: 8px;
+		padding: 0.875rem 0;
+		margin-bottom: 1.25rem;
 		border-bottom: 1px solid var(--border-subtle);
-		overflow-x: auto;
-		white-space: nowrap;
-		scrollbar-width: none;
 	}
-	.specs-bar::-webkit-scrollbar { display: none; }
 
-	.specs-primary { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-	.specs-secondary { display: flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
+	.specs-primary,
+	.specs-secondary {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+		min-width: 0;
+	}
+	.specs-secondary:empty { display: none; }
 
 	/* Unified chip base */
 	.spec-status, .spec-priority, .spec-type, .spec-agent, .spec-human, .chat-link {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
-		height: 22px;
-		padding: 0 8px;
+		gap: 6px;
+		height: 26px;
+		padding: 0 10px;
 		border-radius: 4px;
 		font-family: 'IBM Plex Mono', ui-monospace, monospace;
-		font-size: 9px;
+		font-size: 10px;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
@@ -408,7 +517,7 @@
 
 	.spec-time {
 		font-family: 'IBM Plex Mono', ui-monospace, monospace;
-		font-size: 9px;
+		font-size: 10px;
 		font-weight: 500;
 		color: var(--text-tertiary);
 		flex-shrink: 0;
@@ -541,6 +650,101 @@
 		gap: 0.375rem;
 		margin-top: 1rem;
 	}
+
+	/* Related Chats */
+	.related-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.related-item {
+		border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+		border-radius: 6px;
+		background: var(--bg-elevated, rgba(255,255,255,0.02));
+		overflow: hidden;
+	}
+	.related-item.expanded {
+		border-color: var(--border-strong, rgba(255,255,255,0.12));
+	}
+	.related-row {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+		width: 100%;
+		padding: 0.5rem 0.625rem;
+		background: transparent;
+		border: none;
+		text-align: left;
+		cursor: pointer;
+		color: var(--text-primary);
+	}
+	.related-row:hover { background: rgba(255,255,255,0.03); }
+	.related-meta {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+	}
+	.related-title {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--text-primary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.related-preview {
+		font-size: 0.6875rem;
+		color: var(--text-tertiary);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.related-time {
+		font-size: 0.625rem;
+		color: var(--text-tertiary);
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+	.related-empty {
+		font-size: 0.75rem;
+		color: var(--text-tertiary);
+		padding: 0.5rem 0.625rem;
+	}
+	.related-history {
+		border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+		padding: 0.5rem 0.625rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		max-height: 320px;
+		overflow-y: auto;
+	}
+	.chat-msg {
+		display: flex;
+		flex-direction: column;
+		gap: 0.125rem;
+	}
+	.chat-role {
+		font-size: 0.5625rem;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		font-weight: 700;
+		color: var(--text-tertiary);
+	}
+	.chat-user .chat-role { color: var(--accent, #9ca3af); }
+	.chat-assistant .chat-role { color: var(--success, #86efac); }
+	.chat-body {
+		font-size: 0.75rem;
+		line-height: 1.5;
+		color: var(--text-primary);
+		word-break: break-word;
+	}
+	.chat-plain { white-space: pre-wrap; }
 
 	.label-chip {
 		padding: 0.1875rem 0.5rem;

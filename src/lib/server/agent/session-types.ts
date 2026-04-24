@@ -5,6 +5,9 @@ import type { WSData } from "./http-server";
 export type AgentSession = {
   id: string;
   cwd: string;
+  projectCwd?: string;
+  ticketId?: string;
+  worktreePath?: string;
   agentName?: string;
   systemPromptAppend?: string;
   sdkSessionId?: string;
@@ -37,7 +40,8 @@ export type ClientMessage =
   | { type: "queue_enqueue"; item: import("./queue-types").QueueItem }
   | { type: "queue_cancel"; ticketId: string }
   | { type: "queue_reorder"; fromIndex: number; toIndex: number }
-  | { type: "queue_list" };
+  | { type: "queue_list" }
+  | { type: "set_project"; cwd: string };
 
 export type SdkSessionInfo = {
   sessionId: string;

@@ -11,7 +11,8 @@
 
 	let { issueId, attachments, initialIndex, onclose }: Props = $props();
 
-	let currentIndex = $state(initialIndex);
+	let currentIndex = $state(0);
+	$effect(() => { currentIndex = initialIndex; });
 	let isAnimating = $state(true);
 	let isExpanded = $state(false);
 	let stageEl: HTMLDivElement | null = $state(null);
@@ -64,11 +65,18 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="theatre-overlay" onclick={handleOverlayClick}>
+<div
+	class="theatre-overlay"
+	onclick={handleOverlayClick}
+	onkeydown={(e) => e.key === 'Escape' && closeTheatre()}
+	role="button"
+	tabindex="-1"
+	aria-label="Close"
+>
 	<div class="theatre-stage" class:open={!isAnimating} class:expanded={isExpanded} bind:this={stageEl}>
 		<div class="theatre-content">
 			<button class="theatre-close" onclick={closeTheatre}>
-				<Icon name="x" size={20} />
+				<Icon name="close" size={20} />
 			</button>
 
 			<div class="theatre-hero">

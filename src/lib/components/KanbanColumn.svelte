@@ -25,6 +25,7 @@
 		flyingCards: Map<string, any>;
 		placeholders: Array<{id: string; targetColumn: string; height: number}>;
 		shrinkingSourceIds: Set<string>;
+		worktreeTicketIds?: Set<string>;
 		activeColumnIndex: number;
 		showAddButton?: boolean;
 		showColumnCounts?: boolean;
@@ -66,6 +67,7 @@
 		flyingCards,
 		placeholders,
 		shrinkingSourceIds,
+		worktreeTicketIds,
 		activeColumnIndex,
 		showAddButton = false,
 		showColumnCounts = true,
@@ -95,6 +97,7 @@
 	class:collapsed={isCollapsed}
 	style="--accent: {column.accent}"
 	data-column-key={column.key}
+	aria-label={column.label}
 	ondragover={(e) => ondragover(e, column.key)}
 	ondragleave={(e) => ondragleave(e, column.key)}
 	ondrop={(e) => ondrop(e, column.key)}
@@ -146,6 +149,7 @@
 						filterDimmed={hasActiveFilters && isFilterPreviewing && !matchesFilter}
 						flyingHidden={isFlying}
 						shrinkingSource={isShrinking}
+						inWorktree={worktreeTicketIds?.has(issue.id) ?? false}
 						{registerCard}
 						onclick={() => oncardclick(issue)}
 						ondragstart={(e) => oncarddragstart(e, issue.id)}

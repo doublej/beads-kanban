@@ -2,6 +2,7 @@
 import type { AgentSession, NotificationType, TicketNotificationContext } from './ws-types';
 import { getSessions, updateSession } from './agent-sessions.svelte';
 import { injectNotification } from './ws-connection.svelte';
+import { getManagerSessionName } from './manager.svelte';
 
 // Mark pane as read - update lastReadCount to current message count
 export function markPaneAsRead(name: string) {
@@ -30,13 +31,13 @@ export function getUnreadCount(name: string): number {
 }
 
 // Find session by ticketId field or fallback to name pattern
-function findSessionByTicketId(ticketId: string): [string, AgentSession] | null {
+function findSessionByTicketId(ticketId: string, requireStreaming = false): [string, AgentSession] | null {
 	for (const [name, session] of getSessions()) {
-		if (session.ticketId === ticketId) return [name, session];
+		if (session.ticketId === ticketId && (!requireStreaming || session.streaming)) return [name, session];
 	}
 	const agentName = `${ticketId}-agent`;
 	const session = getSessions().get(agentName);
-	if (session) return [agentName, session];
+	if (session && (!requireStreaming || session.streaming)) return [agentName, session];
 	return null;
 }
 
@@ -48,7 +49,7 @@ export function notifyAgentOfTicketUpdate(
 	context?: Omit<TicketNotificationContext, 'ticketId'>,
 	formatTemplate?: string
 ): boolean {
-	const found = findSessionByTicketId(ticketId);
+	const found = findSessionByTicketId(ticketId, true);
 	if (!found) return false;
 	const [agentName] = found;
 
@@ -69,5 +70,40 @@ export function notifyAgentOfTicketUpdate(
 	}
 
 	injectNotification(agentName, richContent, notificationType);
+	return true;
+}
+
+export function notifyManagerOfTicketUpdate(
+	cwd: string,
+	ticketId: string,
+	content: string,
+	notificationType: NotificationType,
+	context?: Omit<TicketNotificationContext, 'ticketId'>,
+	formatTemplate?: string
+): boolean {
+	const managerName = getManagerSessionName(cwd);
+	const manager = getSessions().get(managerName);
+	if (!manager?.serverId && !manager?.streaming) return false;
+
+	let richContent: string;
+	if (formatTemplate) {
+		richContent = formatTemplate
+			.replace(/{id}/g, ticketId)
+			.replace(/{title}/g, context?.ticketTitle || '')
+			.replace(/{sender}/g, context?.sender || '')
+			.replace(/{content}/g, content);
+		richContent += '\n\n<manager_followup>No active worker session is attached to this ticket. Inspect it and re-dispatch follow-up work if needed.</manager_followup>';
+	} else {
+		const parts: string[] = [];
+		parts.push(`[Ticket: ${ticketId}]`);
+		if (context?.ticketTitle) parts.push(`"${context.ticketTitle}"`);
+		if (context?.sender) parts.push(`(from: ${context.sender})`);
+		parts.push('No active worker session is attached to this ticket.');
+		parts.push(content);
+		parts.push('Inspect the ticket and re-dispatch follow-up work if needed.');
+		richContent = parts.join(' ');
+	}
+
+	injectNotification(managerName, richContent, notificationType);
 	return true;
 }

@@ -3,14 +3,26 @@ import type { AgentSession } from "./session-types";
 import type { ServerWebSocket } from "bun";
 import type { WSData } from "./http-server";
 import { runBd } from "./bd-runner";
+import { log } from "../logger";
 
-type DispatchFn = (item: QueueItem, briefing: string) => void;
+type DispatchFn = (item: QueueItem, briefing: string) => Promise<void> | void;
+
+type ActiveSessionSummary = {
+	sessionId: string;
+	name: string;
+	cwd: string;
+	projectCwd: string;
+	isManager: boolean;
+	isRunning: boolean;
+	ticketId?: string;
+	worktreePath?: string;
+};
 
 export class AgentQueue {
 	private items: QueueItem[] = [];
 	private sessions: Map<string, AgentSession>;
 	private dispatchFn: DispatchFn | null = null;
-	private clients: Set<ServerWebSocket<WSData>> = new Set();
+	private clients: Map<ServerWebSocket<WSData>, string | null> = new Map();
 
 	constructor(sessions: Map<string, AgentSession>) {
 		this.sessions = sessions;
@@ -21,11 +33,36 @@ export class AgentQueue {
 	}
 
 	addClient(ws: ServerWebSocket<WSData>) {
-		this.clients.add(ws);
+		this.clients.set(ws, null);
+		// No initial state — wait for set_project to avoid leaking all items.
+		try {
+			ws.send(JSON.stringify({ type: "queue_state", items: [] }));
+			ws.send(JSON.stringify({ type: "active_sessions", cwd: null, sessions: [] }));
+		} catch {}
 	}
 
 	removeClient(ws: ServerWebSocket<WSData>) {
 		this.clients.delete(ws);
+	}
+
+	setClientCwd(ws: ServerWebSocket<WSData>, cwd: string) {
+		if (!this.clients.has(ws)) return;
+		this.clients.set(ws, cwd);
+		try {
+			ws.send(JSON.stringify({
+				type: "queue_state",
+				items: this.items.filter(i => i.cwd === cwd),
+			}));
+			ws.send(JSON.stringify({
+				type: "active_sessions",
+				cwd,
+				sessions: this.buildActiveSessions().filter(s => s.projectCwd === cwd),
+			}));
+		} catch {}
+	}
+
+	getItemsForCwd(cwd: string): QueueItem[] {
+		return this.items.filter(i => i.cwd === cwd);
 	}
 
 	enqueue(item: QueueItem) {
@@ -70,12 +107,28 @@ export class AgentQueue {
 	}
 
 	broadcastState() {
-		const msg = JSON.stringify({
-			type: "queue_state",
-			items: this.items,
-		});
-		for (const ws of this.clients) {
-			try { ws.send(msg); } catch {}
+		for (const [ws, cwd] of this.clients) {
+			if (!cwd) continue;
+			try {
+				ws.send(JSON.stringify({
+					type: "queue_state",
+					items: this.items.filter(i => i.cwd === cwd),
+				}));
+			} catch {}
+		}
+	}
+
+	broadcastActiveSessions() {
+		const all = this.buildActiveSessions();
+		for (const [ws, cwd] of this.clients) {
+			if (!cwd) continue;
+			try {
+				ws.send(JSON.stringify({
+					type: "active_sessions",
+					cwd,
+					sessions: all.filter(s => s.projectCwd === cwd),
+				}));
+			} catch {}
 		}
 	}
 
@@ -84,10 +137,7 @@ export class AgentQueue {
 		if (this.items.length === 0) return;
 
 		const next = this.items[0];
-		// Check if a session is already running in this cwd
-		for (const session of this.sessions.values()) {
-			if (session.isRunning && session.cwd === next.cwd) return;
-		}
+		if (!next.useWorktree && this.hasRunningWorkerInCwd(next.cwd)) return;
 
 		// Dequeue and dispatch
 		this.items.shift();
@@ -95,10 +145,43 @@ export class AgentQueue {
 
 		try {
 			const briefing = await this.buildBriefing(next);
-			this.dispatchFn(next, briefing);
+			await this.dispatchFn(next, briefing);
 		} catch (err) {
-			console.error(`[queue] Failed to dispatch ${next.ticketId}:`, err);
+			this.items.unshift(next);
+			this.broadcastState();
+			log.error(`[queue] Failed to dispatch ${next.ticketId}:`, err);
 		}
+	}
+
+	hasRunningWorkerInCwd(cwd: string): boolean {
+		for (const session of this.sessions.values()) {
+			if (!session.isRunning) continue;
+			if (session.isManager) continue;
+			if (session.cwd === cwd) return true;
+		}
+		return false;
+	}
+
+	private buildActiveSessions(): ActiveSessionSummary[] {
+		const sessions: ActiveSessionSummary[] = [];
+		for (const session of this.sessions.values()) {
+			if (!session.isRunning) continue;
+			if (!session.agentName) continue;
+
+			sessions.push({
+				sessionId: session.id,
+				name: session.agentName,
+				cwd: session.cwd,
+				projectCwd: session.projectCwd ?? session.cwd,
+				isManager: !!session.isManager,
+				isRunning: session.isRunning,
+				ticketId: session.ticketId ?? (session.agentName.endsWith("-agent")
+					? session.agentName.slice(0, -6)
+					: undefined),
+				worktreePath: session.worktreePath,
+			});
+		}
+		return sessions;
 	}
 
 	private async buildBriefing(item: QueueItem): Promise<string> {

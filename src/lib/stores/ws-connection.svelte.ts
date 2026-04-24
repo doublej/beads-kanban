@@ -10,6 +10,7 @@ import {
 	getIsTabLeader,
 	setIsTabLeader,
 	setBroadcastCallback,
+	setDiscoveredSessionCallback,
 	setSessionGoneCallback,
 	updateSession,
 	setSessionError,
@@ -25,10 +26,27 @@ import {
 	getCurrentManagerProject,
 	setCurrentManagerProject,
 } from './manager.svelte';
-import { fetchInitialQueue, setQueueWsSender } from './queue.svelte';
+import { fetchInitialQueue, setQueueWsSender, sendSetProject } from './queue.svelte';
 import { settings } from './settings.svelte';
 
 let checkTimer: ReturnType<typeof setTimeout> | null = null;
+let currentServerProject: string | null = null;
+
+export function setServerProject(cwd: string) {
+	currentServerProject = cwd;
+	// Send via queue sender (picks first open socket); re-sent on any new socket via onopen.
+	sendSetProject(cwd);
+	// Also directly broadcast on all open sockets so every tab-local socket filters correctly.
+	for (const [, ws] of getSessionSockets()) {
+		if (ws.readyState === WebSocket.OPEN) {
+			ws.send(JSON.stringify({ type: 'set_project', cwd }));
+		}
+	}
+}
+
+export function getServerProject(): string | null {
+	return currentServerProject;
+}
 
 function getWsUrl(): string {
 	const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
@@ -58,27 +76,33 @@ async function getOrCreateSocket(sessionName: string): Promise<WebSocket | null>
 		return null;
 	}
 
-	ws = new WebSocket(getWsUrl());
-	sockets.set(sessionName, ws);
+	const socket = new WebSocket(getWsUrl());
+	ws = socket;
+	sockets.set(sessionName, socket);
 
-	ws.onopen = () => {
+	socket.onopen = () => {
 		console.log(`[agent:${sessionName}] connected`);
 		setServerAvailable(true);
+		if (currentServerProject) {
+			try {
+				socket.send(JSON.stringify({ type: 'set_project', cwd: currentServerProject }));
+			} catch {}
+		}
 	};
 
-	ws.onclose = () => {
+	socket.onclose = () => {
 		console.log(`[agent:${sessionName}] disconnected`);
 		sockets.delete(sessionName);
 		updateSession(sessionName, { streaming: false });
 	};
 
-	ws.onerror = () => {
-		ws?.close();
+	socket.onerror = () => {
+		socket.close();
 	};
 
-	ws.onmessage = createMessageHandler(sessionName);
+	socket.onmessage = createMessageHandler(sessionName);
 
-	return ws;
+	return socket;
 }
 
 function sendToSocket(sessionName: string, payload: Record<string, unknown>) {
@@ -382,10 +406,17 @@ export function connect() {
 		}
 	});
 
+	setDiscoveredSessionCallback((sessionName) => {
+		if (!getIsTabLeader()) return;
+		setTimeout(() => resumeSession(sessionName), 0);
+	});
+
 	checkServerHealth().then((ok) => {
 		setServerAvailable(ok);
 		if (ok && getIsTabLeader()) {
-			fetchInitialQueue();
+			if (currentServerProject) {
+				fetchInitialQueue(9347, currentServerProject);
+			}
 			for (const [name, session] of getSessions()) {
 				if (session.serverId && !session.streaming) {
 					resumeSession(name);
@@ -484,7 +515,7 @@ export const compactSession = leaderOrForward('compactSession', compactSessionIn
 export function getRunningSessionsForCwd(cwd: string): string[] {
 	const results: string[] = [];
 	for (const [name, session] of getSessions()) {
-		if (session.streaming && session.cwd === cwd) {
+		if (session.streaming && session.cwd === cwd && !session.isManager && !isManagerSession(name)) {
 			results.push(name);
 		}
 	}

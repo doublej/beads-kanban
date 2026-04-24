@@ -86,6 +86,8 @@
 	class="filters-wrapper"
 	onmouseenter={() => onhoverchange?.(true)}
 	onmouseleave={() => onhoverchange?.(false)}
+	role="region"
+	aria-label="Filters"
 >
 	<button
 		class="toolbar-btn"
@@ -101,7 +103,7 @@
 	{#if showFilters}
 		<div class="filters-popover">
 			<div class="filter-section">
-				<label class="filter-label">Status</label>
+				<span class="filter-label">Status</span>
 				<div class="filter-chips">
 					{#each statusOptions as opt}
 						<button
@@ -115,7 +117,7 @@
 				</div>
 			</div>
 			<div class="filter-section">
-				<label class="filter-label">Priority</label>
+				<span class="filter-label">Priority</span>
 				<div class="filter-chips">
 					{#each priorityOptions as opt}
 						<button
@@ -129,7 +131,7 @@
 				</div>
 			</div>
 			<div class="filter-section">
-				<label class="filter-label">Type</label>
+				<span class="filter-label">Type</span>
 				<div class="filter-chips">
 					{#each typeOptions as opt}
 						<button
@@ -144,7 +146,7 @@
 			</div>
 			{#if availableLabels.length > 0}
 			<div class="filter-section">
-				<label class="filter-label">Label</label>
+				<span class="filter-label">Label</span>
 				<div class="filter-chips">
 					<button
 						class="filter-chip"
@@ -166,7 +168,7 @@
 			</div>
 			{/if}
 			<div class="filter-section">
-				<label class="filter-label">Time</label>
+				<span class="filter-label">Time</span>
 				<div class="filter-chips">
 					{#each timeOptions as opt}
 						<button
@@ -180,7 +182,7 @@
 				</div>
 			</div>
 			<div class="filter-section">
-				<label class="filter-label">Quick Filters</label>
+				<span class="filter-label">Quick Filters</span>
 				<div class="filter-chips">
 					<button
 						class="filter-chip"

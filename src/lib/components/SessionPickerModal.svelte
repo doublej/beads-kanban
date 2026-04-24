@@ -23,10 +23,15 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="session-picker-overlay" onclick={onClose}>
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="session-picker-modal" onclick={(e) => e.stopPropagation()}>
+<div
+	class="session-picker-overlay"
+	onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+	onkeydown={(e) => e.key === 'Escape' && onClose()}
+	role="button"
+	tabindex="-1"
+	aria-label="Close"
+>
+	<div class="session-picker-modal">
 		<header class="picker-header">
 			<div class="picker-title-row">
 				<svg class="picker-icon" viewBox="0 0 16 16" width="16" height="16">
@@ -36,7 +41,7 @@
 				<h3>Resume Session</h3>
 			</div>
 			<span class="picker-agent-name">{paneName}</span>
-			<button class="picker-close" onclick={onClose}>
+			<button class="picker-close" onclick={onClose} aria-label="Close">
 				<svg viewBox="0 0 14 14" width="14" height="14">
 					<path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 				</svg>

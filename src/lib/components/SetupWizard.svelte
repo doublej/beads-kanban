@@ -44,16 +44,19 @@
 		skip();
 	}
 
-	function handleContentClick(e: MouseEvent) {
-		e.stopPropagation();
-	}
+
 </script>
 
 {#if show}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="wizard-overlay" onclick={handleOverlayClick}>
-		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-		<div class="wizard" onclick={handleContentClick}>
+	<div
+		class="wizard-overlay"
+		onclick={(e) => { if (e.target === e.currentTarget) handleOverlayClick(); }}
+		onkeydown={(e) => e.key === 'Escape' && handleOverlayClick()}
+		role="button"
+		tabindex="-1"
+		aria-label="Close"
+	>
+		<div class="wizard">
 			<div class="progress">
 				{#each Array(totalSteps) as _, i}
 					<div class="dot" class:active={i === step} class:done={i < step}></div>

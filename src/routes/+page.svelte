@@ -52,8 +52,8 @@
 	import { createPageOps } from '$lib/stores/page-ops.svelte';
 	import { issueMatchesFilters as matchesFilters, hasActiveFilters as checkActiveFilters, type FilterState } from '$lib/filters';
 	import { getManagerVisible, getManagerSessionName, isManagerSession } from '$lib/stores/manager.svelte';
-	import { startManager, switchManagerProject } from '$lib/stores/ws-connection.svelte';
-	import { getQueueItems, getQueuedTicketIds } from '$lib/stores/queue.svelte';
+	import { startManager, switchManagerProject, setServerProject } from '$lib/stores/ws-connection.svelte';
+	import { getQueueItems, getQueuedTicketIds, fetchInitialQueue } from '$lib/stores/queue.svelte';
 
 	// --- UI State (page-only) ---
 	let bdVersion = $state<{ version: string; compatible: boolean } | null>(null);
@@ -129,7 +129,14 @@
 	let queueColumnCollapsed = $state(false);
 	let runningAgents = $derived.by(() => {
 		const sessions = Array.from(getSessions().values());
-		return sessions.filter(s => s.ticketId && !s.ended);
+		return sessions.filter(s => s.ticketId && !s.ended && (s.projectCwd ?? s.cwd) === currentProjectPath);
+	});
+	let worktreeTicketIds = $derived.by(() => {
+		const ids = new Set<string>();
+		for (const s of runningAgents) {
+			if (s.worktreePath && s.ticketId) ids.add(s.ticketId);
+		}
+		return ids;
 	});
 	// --- Issue Store ---
 	const issueStore = createIssueStore({
@@ -214,8 +221,9 @@
 
 	let serverQueue = $derived(getQueueItems());
 	let queuedTicketIds = $derived(getQueuedTicketIds());
-	let totalQueueCount = $derived(serverQueue.length + runningAgents.length);
-	let mappedAgentQueue = $derived(serverQueue.map(item => ({
+	let scopedServerQueue = $derived(serverQueue.filter(item => item.cwd === currentProjectPath));
+	let totalQueueCount = $derived(scopedServerQueue.length + runningAgents.length);
+	let mappedAgentQueue = $derived(scopedServerQueue.map(item => ({
 		ticketId: item.ticketId,
 		title: item.title,
 		description: item.description,
@@ -435,6 +443,16 @@
 		return () => disconnect();
 	});
 
+	// Keep backend fenced to the current project: re-send set_project whenever
+	// connection comes up or the current project changes. Also seed the queue.
+	$effect(() => {
+		if (!browser) return;
+		if (!wsConnected) return;
+		if (!currentProjectPath) return;
+		setServerProject(currentProjectPath);
+		fetchInitialQueue(9347, currentProjectPath);
+	});
+
 	let initialUrlChecked = false;
 	$effect(() => {
 		if (!browser || initialUrlChecked || issues.length === 0) return;
@@ -503,6 +521,10 @@
 
 		// Switch manager to new project (if visible, it will auto-resume or start new session)
 		switchManagerProject(project.path);
+
+		// Flip backend fence to new project immediately so broadcasts filter correctly.
+		setServerProject(project.path);
+		fetchInitialQueue(9347, project.path);
 
 		const [cwdRes] = await Promise.all([
 			fetch('/api/cwd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: project.path }) }),
@@ -747,6 +769,9 @@
 				{#if i === 0 && ops.isCreating}
 					{@render detailPanel()}
 				{/if}
+				{#if i === columns.length - 1 && ops.editingIssue && ops.panelColumnIndex === i}
+					{@render detailPanel()}
+				{/if}
 				{@const rawColumnIssues = issues.filter((x) => getIssueColumn(x).key === column.key && !queuedTicketIds.has(x.id))}
 				{@const allColumnIssues = sortIssues(rawColumnIssues, columnSortBy[column.key] ?? settings.defaultColumnSort)}
 				{@const matchingCount = allColumnIssues.filter(issueMatchesFilters).length}
@@ -772,6 +797,7 @@
 					{flyingCards}
 					{placeholders}
 					{shrinkingSourceIds}
+					{worktreeTicketIds}
 					{activeColumnIndex}
 					showColumnCounts={settings.showColumnCounts}
 					{registerCard}
@@ -792,7 +818,7 @@
 					showAddButton={i === 0}
 					onaddclick={ops.openCreatePanel}
 				/>
-				{#if ops.editingIssue && ops.panelColumnIndex === i}
+				{#if ops.editingIssue && ops.panelColumnIndex === i && i !== columns.length - 1}
 					{@render detailPanel()}
 				{/if}
 				{#if i === 0}
@@ -815,12 +841,14 @@
 		</main>
 		</div>
 		{#if getManagerVisible() && managerSession}
-			<ManagerPane
-				session={managerSession}
-				onSendMessage={(name, msg) => sendToPane(name, msg, currentProjectPath)}
-				onInterrupt={interrupt}
-				disabled={!wsConnected}
-			/>
+			{#key currentProjectPath}
+				<ManagerPane
+					session={managerSession}
+					onSendMessage={(name, msg) => sendToPane(name, msg, currentProjectPath)}
+					onInterrupt={interrupt}
+					disabled={!wsConnected}
+				/>
+			{/key}
 		{/if}
 	</div>
 	{:else if viewMode === 'tree'}

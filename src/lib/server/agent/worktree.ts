@@ -65,6 +65,12 @@ export async function listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
 
 export async function removeWorktree(repoPath: string, ticketId: string): Promise<void> {
   const wt = worktreePath(repoPath, ticketId);
-  if (!existsSync(wt)) return;
+  if (!existsSync(wt)) {
+    const { markWorktreeRemoved } = await import("./worktree-registry");
+    markWorktreeRemoved(repoPath, ticketId);
+    return;
+  }
   await run(["git", "worktree", "remove", "--force", wt], repoPath);
+  const { markWorktreeRemoved } = await import("./worktree-registry");
+  markWorktreeRemoved(repoPath, ticketId);
 }

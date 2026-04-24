@@ -104,58 +104,6 @@
 		color: var(--text-tertiary);
 	}
 
-	/* Toggle Switch */
-	.toggle-switch {
-		background: none;
-		border: none;
-		padding: 0;
-		cursor: pointer;
-	}
-
-	.toggle-track {
-		display: flex;
-		align-items: center;
-		width: 36px;
-		height: 20px;
-		padding: 2px;
-		background: rgba(255, 255, 255, 0.08);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 10px;
-		transition: all 200ms ease;
-	}
-
-	.toggle-track.active {
-		background: rgba(34, 211, 238, 0.2);
-		border-color: rgba(34, 211, 238, 0.3);
-	}
-
-	:global(.app.light) .toggle-track {
-		background: rgba(0, 0, 0, 0.06);
-		border-color: rgba(0, 0, 0, 0.1);
-	}
-
-	:global(.app.light) .toggle-track.active {
-		background: rgba(6, 182, 212, 0.15);
-		border-color: rgba(6, 182, 212, 0.25);
-	}
-
-	.toggle-thumb {
-		width: 14px;
-		height: 14px;
-		background: var(--text-tertiary);
-		border-radius: 50%;
-		transition: all 200ms ease;
-	}
-
-	.toggle-track.active .toggle-thumb {
-		transform: translateX(16px);
-		background: #22d3ee;
-	}
-
-	:global(.app.light) .toggle-track.active .toggle-thumb {
-		background: #0891b2;
-	}
-
 	/* Theme Toggle */
 	.theme-toggle {
 		background: none;

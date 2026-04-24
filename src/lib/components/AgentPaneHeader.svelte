@@ -45,8 +45,7 @@
 	}: Props = $props();
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="window-header" onmousedown={onStartDrag}>
+<div class="window-header" onmousedown={onStartDrag} role="toolbar" tabindex="0" aria-label="Window controls">
 	<!-- Traffic light controls (left) -->
 	<div class="traffic-lights">
 		<button class="traffic-btn close" onclick={(e) => { e.stopPropagation(); onRemovePane(pane.name); }} title="Close"></button>
@@ -111,6 +110,7 @@
 				class="menu-trigger"
 				class:active={isMenuOpen}
 				onclick={(e) => { e.stopPropagation(); onToggleMenu(); }}
+				aria-label="More options"
 			>
 				<svg viewBox="0 0 16 16" width="12" height="12">
 					<circle cx="8" cy="3" r="1.2" fill="currentColor"/>

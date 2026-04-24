@@ -36,10 +36,15 @@
 </script>
 
 {#if show}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="session-picker-overlay" onclick={onclose}>
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="session-picker-modal" onclick={(e) => e.stopPropagation()}>
+	<div
+		class="session-picker-overlay"
+		onclick={(e) => { if (e.target === e.currentTarget) onclose(); }}
+		onkeydown={(e) => e.key === 'Escape' && onclose()}
+		role="button"
+		tabindex="-1"
+		aria-label="Close"
+	>
+		<div class="session-picker-modal">
 			<header class="picker-header">
 				<div class="picker-title-row">
 					<svg viewBox="0 0 16 16" width="16" height="16" class="picker-icon">
@@ -62,7 +67,7 @@
 					/>
 					<span class="picker-count">{searchedSessions().length}</span>
 				</div>
-				<button class="cta cta-icon danger picker-close-override" onclick={onclose}>
+				<button class="cta cta-icon danger picker-close-override" onclick={onclose} aria-label="Close">
 					<svg viewBox="0 0 14 14" width="14" height="14">
 						<path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 					</svg>

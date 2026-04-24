@@ -1,21 +1,24 @@
 import { json } from '@sveltejs/kit';
 import { spawn } from 'child_process';
 import { join } from 'path';
+import { openSync } from 'fs';
 import type { RequestHandler } from './$types';
+import { log, LOG_FILE } from '$lib/server/logger';
 
 // Use process.cwd() which is project root in SvelteKit
 const AGENT_DIR = join(process.cwd(), 'src/lib/server/agent');
 let agentProcess: ReturnType<typeof spawn> | null = null;
 
 function spawnAgent(): ReturnType<typeof spawn> {
+	const logFd = openSync(LOG_FILE, 'a');
 	const proc = spawn('bun', ['run', 'index.ts'], {
 		cwd: AGENT_DIR,
-		stdio: 'ignore',
+		stdio: ['ignore', logFd, logFd],
 		detached: true
 	});
 	proc.unref();
 	proc.on('error', (err) => {
-		console.error('Agent process error:', err);
+		log.error('Agent process error:', err);
 		agentProcess = null;
 	});
 	proc.on('exit', () => {

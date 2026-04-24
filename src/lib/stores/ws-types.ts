@@ -28,10 +28,22 @@ export interface SlashCommandInfo {
 	argumentHint: string;
 }
 
+export interface ActiveRemoteSession {
+	sessionId: string;
+	name: string;
+	cwd: string;
+	projectCwd: string;
+	isManager: boolean;
+	isRunning: boolean;
+	ticketId?: string;
+	worktreePath?: string;
+}
+
 export interface AgentSession {
 	id: string;
 	name: string;
 	cwd: string;
+	projectCwd?: string;
 	streaming: boolean;
 	messages: ChatMessage[];
 	currentDelta: string;
@@ -50,6 +62,7 @@ export interface AgentSession {
 	error?: boolean;
 	errorMessage?: string;
 	isManager?: boolean;
+	discoveredFromServer?: boolean;
 }
 
 export interface FileDiff {
@@ -100,6 +113,7 @@ export type ServerMessage =
 	| { type: 'done'; result: { subtype: string; total_cost_usd?: number }; diffs?: FileDiff[] }
 	| { type: 'error'; error: string }
 	| { type: 'interrupted' }
+	| { type: 'active_sessions'; cwd: string | null; sessions: ActiveRemoteSession[] }
 	| { type: 'queue_state'; items: unknown[] };
 
 export type Pane = AgentSession;

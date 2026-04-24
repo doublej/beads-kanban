@@ -88,8 +88,7 @@
 <svelte:window onkeydown={(embedded || show) ? handleKeydown : undefined} />
 
 {#if embedded || show}
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-<aside class={embedded ? 'editor-embedded' : 'editor-window'} role="dialog" aria-label="Prompts Editor" tabindex="-1" onclick={(e) => e.stopPropagation()}>
+<div class={embedded ? 'editor-embedded' : 'editor-window'} role="dialog" aria-label="Prompts Editor" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 		{#if !forcedTab}
 		<header class="editor-header">
 			<div class="header-left">
@@ -144,7 +143,7 @@
 				onupdate={updateContent}
 			/>
 		</div>
-</aside>
+</div>
 {/if}
 
 <style>

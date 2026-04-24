@@ -69,7 +69,7 @@
 
 	<div class="field-row">
 		<div class="field field-half">
-			<label class="field-label">Priority</label>
+			<span class="field-label">Priority</span>
 			<div class="pill-group">
 				{#each [0, 1, 2, 3, 4] as p}
 					{@const cfg = getPriorityConfig(p)}
@@ -80,7 +80,7 @@
 			</div>
 		</div>
 		<div class="field field-half">
-			<label class="field-label">Type</label>
+			<span class="field-label">Type</span>
 			<div class="pill-group">
 				{#each ['task', 'bug', 'feature', 'epic', 'chore'] as t}
 					<button class="pill pill-icon" class:active={createForm.issue_type === t} onclick={() => updatecreateform('issue_type', t)}>
@@ -92,7 +92,7 @@
 	</div>
 
 	<div class="field">
-		<label class="field-label">Blocked By</label>
+		<span class="field-label">Blocked By</span>
 		<IssueSearch issues={allIssues} excludeIds={createForm.deps || []} placeholder="Link blocker..." onselect={addDepToCreate} />
 		{#if createForm.deps && createForm.deps.length > 0}
 			<div class="dep-chips">
@@ -112,17 +112,17 @@
 
 {:else if mode === 'edit' && editingIssue}
 	<div class="field">
-		<label class="field-label">Title</label>
-		<input type="text" class="input" bind:value={editingIssue.title} />
+		<label class="field-label" for="issue-title">Title</label>
+		<input id="issue-title" type="text" class="input" bind:value={editingIssue.title} />
 	</div>
 
 	<div class="field">
-		<label class="field-label">Description</label>
-		<textarea class="input" bind:value={editingIssue.description} rows="4"></textarea>
+		<label class="field-label" for="issue-description">Description</label>
+		<textarea id="issue-description" class="input" bind:value={editingIssue.description} rows="4"></textarea>
 	</div>
 
 	<div class="field">
-		<label class="field-label">Status</label>
+		<span class="field-label">Status</span>
 		<div class="pill-group">
 			{#each columns as col}
 				<button class="pill pill-status" class:active={column?.key === col.key} style="--pill-color: {col.accent}" onclick={() => onsetcolumn?.(col.key)}>
@@ -134,7 +134,7 @@
 
 	<div class="field-row">
 		<div class="field field-half">
-			<label class="field-label">Priority</label>
+			<span class="field-label">Priority</span>
 			<div class="pill-group compact">
 				{#each [0, 1, 2, 3, 4] as p}
 					{@const cfg = getPriorityConfig(p)}
@@ -145,7 +145,7 @@
 			</div>
 		</div>
 		<div class="field field-half">
-			<label class="field-label">Type</label>
+			<span class="field-label">Type</span>
 			<div class="pill-group compact">
 				{#each ['task', 'bug', 'feature', 'epic', 'chore'] as t}
 					<button class="pill pill-icon" class:active={editingIssue.issue_type === t} onclick={() => editingIssue.issue_type = t}>
@@ -159,20 +159,20 @@
 	<!-- Optional fields -->
 	{#if editingIssue.design || editingIssue._showDesign}
 		<div class="field collapsible">
-			<label class="field-label">Design <button class="btn-x" onclick={() => { editingIssue.design = ''; editingIssue._showDesign = false; }}>×</button></label>
-			<textarea class="input" bind:value={editingIssue.design} rows="2" placeholder="Technical approach..."></textarea>
+			<label class="field-label" for="issue-design">Design <button class="btn-x" onclick={() => { editingIssue.design = ''; editingIssue._showDesign = false; }}>×</button></label>
+			<textarea id="issue-design" class="input" bind:value={editingIssue.design} rows="2" placeholder="Technical approach..."></textarea>
 		</div>
 	{/if}
 	{#if editingIssue.acceptance_criteria || editingIssue._showAcceptance}
 		<div class="field collapsible">
-			<label class="field-label">Acceptance <button class="btn-x" onclick={() => { editingIssue.acceptance_criteria = ''; editingIssue._showAcceptance = false; }}>×</button></label>
-			<textarea class="input" bind:value={editingIssue.acceptance_criteria} rows="2" placeholder="Definition of done..."></textarea>
+			<label class="field-label" for="issue-acceptance">Acceptance <button class="btn-x" onclick={() => { editingIssue.acceptance_criteria = ''; editingIssue._showAcceptance = false; }}>×</button></label>
+			<textarea id="issue-acceptance" class="input" bind:value={editingIssue.acceptance_criteria} rows="2" placeholder="Definition of done..."></textarea>
 		</div>
 	{/if}
 	{#if editingIssue.notes || editingIssue._showNotes}
 		<div class="field collapsible">
-			<label class="field-label">Notes <button class="btn-x" onclick={() => { editingIssue.notes = ''; editingIssue._showNotes = false; }}>×</button></label>
-			<textarea class="input" bind:value={editingIssue.notes} rows="2" placeholder="Progress updates..."></textarea>
+			<label class="field-label" for="issue-notes">Notes <button class="btn-x" onclick={() => { editingIssue.notes = ''; editingIssue._showNotes = false; }}>×</button></label>
+			<textarea id="issue-notes" class="input" bind:value={editingIssue.notes} rows="2" placeholder="Progress updates..."></textarea>
 		</div>
 	{/if}
 
@@ -185,8 +185,8 @@
 	{/if}
 
 	<div class="field">
-		<label class="field-label">Assignee {#if activeAgents.length > 0}<span class="agent-hint">({activeAgents.length} agents)</span>{/if}</label>
-		<input type="text" class="input input-sm" bind:value={editingIssue.assignee} placeholder="e.g. agent1, @user, claude" list="assignee-agents" autocomplete="off" />
+		<label class="field-label" for="issue-assignee">Assignee {#if activeAgents.length > 0}<span class="agent-hint">({activeAgents.length} agents)</span>{/if}</label>
+		<input id="issue-assignee" type="text" class="input input-sm" bind:value={editingIssue.assignee} placeholder="e.g. agent1, @user, claude" list="assignee-agents" autocomplete="off" />
 		<datalist id="assignee-agents">
 			{#each activeAgents as agent}
 				<option value={agent}></option>
@@ -197,7 +197,7 @@
 	<!-- Agent overrides -->
 	<div class="field-row agent-overrides">
 		<div class="field field-half">
-			<label class="field-label">Agent Model</label>
+			<span class="field-label">Agent Model</span>
 			<div class="pill-group compact">
 				{#each modelOptions as opt}
 					<button
@@ -212,7 +212,7 @@
 			</div>
 		</div>
 		<div class="field field-half">
-			<label class="field-label">Agent Effort</label>
+			<span class="field-label">Agent Effort</span>
 			<div class="pill-group compact">
 				{#each effortOptions as opt}
 					<button

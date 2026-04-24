@@ -115,6 +115,10 @@
 		onhandleMouseUp,
 	}: Props = $props();
 
+	const nonManagerPaneCount = $derived(
+		[...wsPanes.values()].filter(p => !isManagerSession(p.name) && (p.projectCwd ?? p.cwd) === currentProjectPath).length
+	);
+
 	let agentMenuOpen = $state(false);
 	let agentNameInputOpen = $state(false);
 	let agentNameInputRef = $state<HTMLInputElement | null>(null);
@@ -220,8 +224,14 @@
 			</button>
 
 			{#if agentMenuOpen}
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div class="launcher-backdrop" onclick={() => agentMenuOpen = false}></div>
+				<div
+					class="launcher-backdrop"
+					onclick={() => agentMenuOpen = false}
+					onkeydown={(e) => e.key === 'Escape' && (agentMenuOpen = false)}
+					role="button"
+					tabindex="-1"
+					aria-label="Close"
+				></div>
 				<div class="launcher-menu">
 					<button class="launcher-option" onclick={handleNewAgent}>
 						<svg viewBox="0 0 16 16" width="13" height="13">
@@ -266,12 +276,12 @@
 						<circle cx="8" cy="4" r="1" fill="currentColor"/>
 					</svg>
 				</button>
-				<button type="submit" class="cta cta-icon" disabled={!newPaneName.trim()}>
+				<button type="submit" class="cta cta-icon" disabled={!newPaneName.trim()} aria-label="Confirm">
 					<svg viewBox="0 0 16 16" width="12" height="12">
 						<path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 					</svg>
 				</button>
-				<button type="button" class="cta cta-icon danger" onclick={() => { newPaneName = ''; agentNameInputOpen = false; }}>
+				<button type="button" class="cta cta-icon danger" onclick={() => { newPaneName = ''; agentNameInputOpen = false; }} aria-label="Cancel">
 					<svg viewBox="0 0 16 16" width="10" height="10">
 						<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 					</svg>
@@ -300,7 +310,7 @@
 					</svg>
 					Fresh
 				</button>
-				<button class="cta cta-icon danger" onclick={() => { resumePrompt = null; }}>
+				<button class="cta cta-icon danger" onclick={() => { resumePrompt = null; }} aria-label="Dismiss">
 					<svg viewBox="0 0 12 12" width="10" height="10">
 						<path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 					</svg>
@@ -309,7 +319,25 @@
 		{/if}
 
 		<div class="agent-tabs">
-			{#each [...wsPanes.values()].filter(p => !isManagerSession(p.name)) as pane}
+			{#if managerEnabled}
+				<button
+					class="manager-toggle"
+					class:active={getManagerVisible()}
+					class:streaming={managerSession?.streaming}
+					onclick={() => {
+						if (managerSession) {
+							toggleManagerVisibility();
+						} else {
+							onstartmanager?.();
+						}
+					}}
+					title={getManagerVisible() ? 'Hide manager' : 'Show manager'}
+				>
+					<span class="manager-dot" class:live={managerSession?.streaming}></span>
+					<span class="manager-toggle-label">Manager</span>
+				</button>
+			{/if}
+			{#each [...wsPanes.values()].filter(p => !isManagerSession(p.name) && (p.projectCwd ?? p.cwd) === currentProjectPath) as pane}
 				{@const unread = getUnreadCount(pane.name)}
 				{@const isExpanded = expandedPanes.has(pane.name)}
 				<div class="agent-tab-wrapper" class:active={isExpanded}>
@@ -341,31 +369,12 @@
 					{/if}
 				</div>
 			{/each}
-			{#if managerEnabled}
-				<button
-					class="manager-toggle"
-					class:active={getManagerVisible()}
-					class:streaming={managerSession?.streaming}
-					onclick={() => {
-						if (managerSession) {
-							toggleManagerVisibility();
-						} else {
-							onstartmanager?.();
-						}
-					}}
-					title={getManagerVisible() ? 'Hide manager' : 'Show manager'}
-				>
-					<span class="manager-dot" class:live={managerSession?.streaming}></span>
-					<span class="manager-toggle-label">Manager</span>
-				</button>
-			{/if}
 		</div>
-		<div class="agent-bar-spacer"></div>
 		<div class="agent-bar-status">
 			<StatusBar
 				dataStatus={loadingStatus}
 				agentConnected={wsConnected}
-				agentCount={wsPanes.size}
+				agentCount={nonManagerPaneCount}
 				unreadCount={getTotalUnreadCount()}
 				{agentEnabled}
 				light={!isDarkMode}
@@ -443,7 +452,7 @@
 	<StatusBar
 		dataStatus={loadingStatus}
 		agentConnected={wsConnected}
-		agentCount={wsPanes.size}
+		agentCount={nonManagerPaneCount}
 		unreadCount={getTotalUnreadCount()}
 		{agentEnabled}
 		light={!isDarkMode}
@@ -494,14 +503,8 @@
 			0 2px 8px rgba(0, 0, 0, 0.08);
 	}
 
-	.agent-bar-spacer {
-		flex: 1;
-		min-width: 0.5rem;
-	}
-
 	.agent-bar-status {
 		flex-shrink: 0;
-		margin-left: auto;
 	}
 
 	.agent-bar-status :global(.status-bar) {
@@ -757,7 +760,8 @@
 	.agent-tabs {
 		display: flex;
 		gap: 4px;
-		flex: 1;
+		flex: 1 1 0;
+		min-width: 0;
 		overflow-x: auto;
 		scrollbar-width: none;
 	}
@@ -857,7 +861,7 @@
 	}
 
 	.tab-name {
-		max-width: 80px;
+		max-width: 180px;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}

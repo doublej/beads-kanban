@@ -15,12 +15,13 @@
 	let { x, y, issue, onSetPriority, onStartRopeDrag, onClose }: Props = $props();
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events a11y_interactive_supports_focus -->
 <div
 	class="context-menu"
 	role="menu"
+	tabindex="0"
 	style="left: {x}px; top: {y}px"
 	onclick={(e) => e.stopPropagation()}
+	onkeydown={(e) => e.stopPropagation()}
 >
 	<div class="context-menu-section">
 		<span class="context-menu-label">Priority</span>
@@ -48,6 +49,10 @@
 		<div
 			class="rope-handle"
 			onmousedown={onStartRopeDrag}
+			onkeydown={(e) => e.key === 'Enter' && onStartRopeDrag(e as any)}
+			role="button"
+			tabindex="0"
+			aria-label="Drag to link issues"
 		>
 			<Icon name="git-branch" size={14} class="rope-icon" />
 			<span>Drag to link</span>

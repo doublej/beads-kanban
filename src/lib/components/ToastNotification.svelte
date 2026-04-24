@@ -19,8 +19,11 @@
 
 <div
 	class="toast toast-{toast.type}"
-	role="alert"
+	role="button"
+	tabindex="0"
+	aria-label="Dismiss notification"
 	onclick={onDismiss}
+	onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && onDismiss()}
 >
 	<div class="toast-indicator"></div>
 	<div class="toast-icon">{typeIcons[toast.type]}</div>

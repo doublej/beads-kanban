@@ -59,7 +59,7 @@
 			<span class="setting-name">Show column counts</span>
 			<span class="setting-desc">Display totals in headers</span>
 		</div>
-		<button class="toggle-switch" onclick={() => settings.showColumnCounts = !settings.showColumnCounts}>
+		<button class="toggle-switch" onclick={() => settings.showColumnCounts = !settings.showColumnCounts} aria-label="Toggle column counts">
 			<span class="toggle-track" class:active={settings.showColumnCounts}>
 				<span class="toggle-thumb"></span>
 			</span>

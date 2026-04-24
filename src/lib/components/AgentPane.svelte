@@ -85,7 +85,6 @@
 	let ticketId = $derived(getTicketIdFromPaneName(pane.name));
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="agent-window {size}"
 	class:streaming={pane.streaming}
@@ -96,6 +95,9 @@
 	data-pane={pane.name}
 	{style}
 	onclick={onSetActive}
+	onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && onSetActive(e as any)}
+	role="button"
+	tabindex="0"
 >
 	<AgentPaneHeader
 		{pane}

@@ -47,6 +47,7 @@ export {
 	getTotalUnreadCount,
 	getUnreadCount,
 	notifyAgentOfTicketUpdate,
+	notifyManagerOfTicketUpdate,
 } from './stores/agent-messages.svelte';
 
 // Session persistence (pass-through re-export)

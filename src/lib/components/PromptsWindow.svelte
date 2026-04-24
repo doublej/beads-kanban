@@ -101,8 +101,7 @@ NEVER:
 <svelte:window onkeydown={show ? handleKeydown : undefined} />
 
 {#if show}
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_click_events_have_key_events -->
-<aside class="prompts-window" role="dialog" aria-label="Prompts" tabindex="-1" onclick={(e) => e.stopPropagation()}>
+<div class="prompts-window" role="dialog" aria-label="Prompts" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 		<header class="prompts-header">
 			<div class="prompts-title-row">
 				<span class="prompts-icon"><Icon name="message" size={18} /></span>
@@ -127,7 +126,7 @@ NEVER:
 			<kbd>Esc</kbd> close
 		</div>
 	</footer>
-</aside>
+</div>
 {/if}
 
 <style>

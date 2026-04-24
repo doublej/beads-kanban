@@ -30,8 +30,7 @@
 	}: Props = $props();
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="menu-dropdown" onclick={(e) => e.stopPropagation()}>
+<div class="menu-dropdown" role="menu" tabindex="0" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 	<div class="menu-section">
 		<span class="menu-label">Session</span>
 		<button class="menu-item" class:active={isAutoscrollEnabled} onclick={(e) => { e.stopPropagation(); onToggleAutoscroll(); }}>

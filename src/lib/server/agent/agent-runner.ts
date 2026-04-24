@@ -6,6 +6,8 @@ import { buildManagerPrompt } from "./manager-prompt";
 import { extractFilePath, snapshotFile, computeDiffs } from "./file-diff";
 import { buildSystemPrompt } from "./system-prompt";
 import type { AgentQueue } from "./queue-manager";
+import { hookExecutor } from "./hook-executor";
+import { markWorktreeCompleted } from "./worktree-registry";
 import { log } from "../logger";
 
 // Intercept fetch to log auth headers
@@ -55,7 +57,22 @@ export type RunAgentOpts = {
 
 export async function runAgent(session: AgentSession, briefing: string, opts: RunAgentOpts) {
   session.isRunning = true;
+
+  const projectCwd = session.projectCwd ?? session.cwd;
+  const ticketId = session.ticketId ?? (session.agentName?.endsWith("-agent") ? session.agentName.slice(0, -6) : undefined);
+
+  if (!session.isManager && session.agentName) {
+    hookExecutor.executeHooks("AgentStarted", {
+      cwd: projectCwd,
+      agentName: session.agentName,
+      ticketId,
+      id: ticketId,
+      worktreePath: session.worktreePath ?? "",
+    }).catch(err => log.error("[hooks] AgentStarted failed:", err));
+  }
+
   const inputIterator = createInputIterator(session);
+  let runError: unknown = null;
 
   const initialMessage: SDKUserMessage = {
     type: "user",
@@ -238,31 +255,76 @@ export async function runAgent(session: AgentSession, briefing: string, opts: Ru
       if (message.type === "result") {
         const diffs = await computeDiffs(session.fileSnapshots, session.touchedFiles);
         sendToClient(session, { type: "done", result: message, diffs });
+        if (!session.isManager) break;
       }
     }
+  } catch (err) {
+    runError = err;
+    throw err;
   } finally {
     session.isRunning = false;
+    const threwError = runError !== null;
+    const errorMessage = threwError
+      ? (runError instanceof Error ? runError.message : String(runError))
+      : undefined;
+
     // Notify manager when a worker completes
     if (!session.isManager && opts.sessions) {
+      const outcome = threwError
+        ? `encountered an error: ${errorMessage}`
+        : `completed ticket ${ticketId ?? "(unknown)"}`;
+      const cwdLine = session.cwd ? ` CWD: ${session.cwd}.` : "";
+      const content = `[System] Agent "${session.agentName}" ${outcome}.${cwdLine} Review the ticket and dispatch follow-up work if needed.`;
+      let delivered = false;
       for (const s of opts.sessions.values()) {
-        if (!s.isManager || !s.isRunning) continue;
+        if (!s.isManager) continue;
+        const managerProjectCwd = s.projectCwd ?? s.cwd;
+        if (managerProjectCwd !== projectCwd) continue;
         const notification: SDKUserMessage = {
           type: "user",
           session_id: s.id,
           parent_tool_use_id: null,
-          message: {
-            role: "user",
-            content: `[System] Agent "${session.agentName}" has completed its task.`,
-          },
+          message: { role: "user", content },
         };
+        sendToClient(s, { type: "stream", data: notification });
         if (s.inputResolver) {
           s.inputResolver(notification);
         } else {
           s.inputQueue.push(notification);
         }
+        delivered = true;
+        log.info(`[agent-runner] Notified manager ${s.agentName} of ${session.agentName} ${threwError ? "error" : "completion"} (ticket ${ticketId ?? "?"})`);
         break;
       }
+      if (!delivered) {
+        log.warn(`[agent-runner] No manager session found for project ${projectCwd} — ${session.agentName} completion not delivered`);
+      }
     }
+
+    if (!session.isManager && session.agentName) {
+      const baseCtx = {
+        cwd: projectCwd,
+        agentName: session.agentName,
+        ticketId,
+        id: ticketId,
+        worktreePath: session.worktreePath ?? "",
+      };
+      if (threwError) {
+        hookExecutor.executeHooks("AgentError", { ...baseCtx, error: errorMessage ?? "" })
+          .catch(e => log.error("[hooks] AgentError failed:", e));
+      } else {
+        hookExecutor.executeHooks("AgentCompleted", baseCtx)
+          .catch(e => log.error("[hooks] AgentCompleted failed:", e));
+      }
+      if (session.worktreePath && ticketId) {
+        try {
+          markWorktreeCompleted(projectCwd, ticketId);
+        } catch (e) {
+          log.warn("[worktree-registry] markWorktreeCompleted failed:", e);
+        }
+      }
+    }
+
     // Auto-start next queued item when a worker finishes
     if (!session.isManager && opts.queue) {
       opts.queue.maybeStartNext();

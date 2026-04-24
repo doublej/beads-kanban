@@ -6,12 +6,18 @@ import { SESSION_TIMEOUT_MS } from "./session-types";
 import { runAgent, sendToClient } from "./agent-runner";
 import { calculateSessionUsage } from "./sdk-sessions";
 import type { AgentQueue } from "./queue-manager";
+import { pruneStale } from "./worktree-registry";
+import { log } from "../logger";
+
+const prunedCwds = new Set<string>();
 
 export type WebSocketConfig = {
   sessions: Map<string, AgentSession>;
   beadsMcpPath: string | null;
   queue: AgentQueue;
 };
+
+const clientCwdByWs: WeakMap<ServerWebSocket<WSData>, string> = new WeakMap();
 
 function sendToWs(ws: ServerWebSocket<WSData>, msg: object) {
   ws.send(JSON.stringify(msg));
@@ -22,7 +28,7 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
 
   return {
     open(ws: ServerWebSocket<WSData>) {
-      console.log("Client connected");
+      log.info("Client connected");
       queue.addClient(ws);
     },
 
@@ -38,16 +44,26 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
             if (s && s.ws === null) {
               s.abortController.abort();
               sessions.delete(sessionId);
-              console.log(`Session ${sessionId} cleaned up after timeout`);
+              log.info(`Session ${sessionId} cleaned up after timeout`);
             }
           }, SESSION_TIMEOUT_MS);
         }
       }
-      console.log("Client disconnected");
+      log.info("Client disconnected");
     },
 
     async message(ws: ServerWebSocket<WSData>, raw: string | Buffer) {
       const msg = JSON.parse(raw.toString()) as ClientMessage;
+
+      if (msg.type === "set_project") {
+        clientCwdByWs.set(ws, msg.cwd);
+        queue.setClientCwd(ws, msg.cwd);
+        if (!prunedCwds.has(msg.cwd)) {
+          prunedCwds.add(msg.cwd);
+          pruneStale(msg.cwd).catch(err => log.warn(`[worktree-registry] pruneStale failed:`, err));
+        }
+        return;
+      }
 
       switch (msg.type) {
         case "start": {
@@ -61,6 +77,7 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
           const session: AgentSession = {
             id: sessionId,
             cwd: msg.cwd,
+            projectCwd: msg.cwd,
             agentName: msg.agentName,
             systemPromptAppend: msg.systemPromptAppend,
             sdkSessionId: msg.resumeSessionId,
@@ -94,6 +111,7 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
           }).catch((err) => {
             sendToClient(session, { type: "error", error: String(err) });
           });
+          queue.broadcastActiveSessions();
           return;
         }
 
@@ -243,9 +261,12 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
           queue.reorder(msg.fromIndex, msg.toIndex);
           return;
 
-        case "queue_list":
-          sendToWs(ws, { type: "queue_state", items: queue.getItems() });
+        case "queue_list": {
+          const clientCwd = clientCwdByWs.get(ws);
+          const items = clientCwd ? queue.getItemsForCwd(clientCwd) : [];
+          sendToWs(ws, { type: "queue_state", items });
           return;
+        }
       }
     },
   };

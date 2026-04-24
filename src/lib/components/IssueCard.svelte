@@ -15,6 +15,7 @@
 		flyingHidden?: boolean;
 		shrinkingSource?: boolean;
 		showImpact?: boolean;
+		inWorktree?: boolean;
 		registerCard: (node: HTMLElement, id: string) => void;
 		onclick: () => void;
 		ondragstart: (e: DragEvent) => void;
@@ -34,6 +35,7 @@
 		flyingHidden = false,
 		shrinkingSource = false,
 		showImpact = true,
+		inWorktree = false,
 		registerCard,
 		onclick,
 		ondragstart,
@@ -47,7 +49,9 @@
 	const isAgentAssignee = $derived(checkAgentAssignee(issue.assignee));
 </script>
 
-<article
+<div
+	role="button"
+	tabindex="0"
 	class="card"
 	class:animating={animating}
 	class:selected={selected}
@@ -62,19 +66,20 @@
 	ondragstart={ondragstart}
 	ondragend={ondragend}
 	onclick={onclick}
+	onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') onclick(); }}
 	oncontextmenu={oncontextmenu}
 	use:registerCard={issue.id}
 	data-card-id={issue.id}
 >
 	<div class="card-content">
-		<IssueCardBadges {issue} {hasOpenBlockers} {showImpact} {isAgentAssignee} {oncopyid} />
+		<IssueCardBadges {issue} {hasOpenBlockers} {showImpact} {isAgentAssignee} {inWorktree} {oncopyid} />
 		<h3 class="card-title">{issue.title}</h3>
 		{#if issue.description}
 			<p class="card-description">{issue.description}</p>
 		{/if}
 		<IssueCardMeta {issue} {isAgentAssignee} />
 	</div>
-</article>
+</div>
 
 <style>
 	.card {

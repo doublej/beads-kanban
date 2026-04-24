@@ -7,6 +7,9 @@ import { createWebSocketHandlers } from "./websocket-handler";
 import { listSdkSessions, getSessionHistory } from "./sdk-sessions";
 import { AgentQueue } from "./queue-manager";
 import { runAgent, sendToClient } from "./agent-runner";
+import { createWorktree } from "./worktree";
+import { registerWorktree } from "./worktree-registry";
+import { log } from "../logger";
 
 const PORT = parseInt(process.env.AGENT_PORT || "9347", 10);
 
@@ -34,12 +37,20 @@ const sessions = new Map<string, AgentSession>();
 const queue = new AgentQueue(sessions);
 
 // Wire up queue dispatch: when queue dequeues an item, start an agent session
-queue.setDispatchFn((item, briefing) => {
+queue.setDispatchFn(async (item, briefing) => {
+  const sessionCwd = item.useWorktree
+    ? await createWorktree(item.cwd, item.ticketId)
+    : item.cwd;
+
   const sessionId = crypto.randomUUID();
   const session: AgentSession = {
     id: sessionId,
-    cwd: item.cwd,
+    cwd: sessionCwd,
+    projectCwd: item.cwd,
+    ticketId: item.ticketId,
+    worktreePath: item.useWorktree ? sessionCwd : undefined,
     agentName: item.agentName,
+    model: item.model,
     abortController: new AbortController(),
     inputQueue: [],
     fileSnapshots: new Map(),
@@ -50,17 +61,26 @@ queue.setDispatchFn((item, briefing) => {
   };
   sessions.set(sessionId, session);
 
+  if (item.useWorktree) {
+    log.info(`[queue] Started ${item.agentName} in worktree ${sessionCwd}`);
+    registerWorktree(item.cwd, item.ticketId, sessionCwd, sessionId);
+  }
+
   runAgent(session, briefing, {
     beadsMcpPath: BEADS_MCP_PATH,
     queue,
     sessions,
   }).then(() => {
+    queue.broadcastActiveSessions();
     queue.maybeStartNext();
   }).catch((err) => {
-    console.error(`[queue] Agent ${item.agentName} failed:`, err);
+    log.error(`[queue] Agent ${item.agentName} failed:`, err);
     sessions.delete(sessionId);
+    queue.broadcastActiveSessions();
     queue.maybeStartNext();
   });
+
+  queue.broadcastActiveSessions();
 });
 
 const wsHandlers = createWebSocketHandlers({
@@ -84,22 +104,22 @@ const server = Bun.serve<WSData>({
   websocket: wsHandlers,
 });
 
-console.log(`Agent WebSocket server running on ws://localhost:${PORT}`);
+log.info(`Agent WebSocket server running on ws://localhost:${PORT}`);
 if (BEADS_MCP_PATH) {
-  console.log(`Beads MCP enabled: ${BEADS_MCP_PATH}`);
+  log.info(`Beads MCP enabled: ${BEADS_MCP_PATH}`);
 } else {
-  console.log("Beads MCP not found (optional)");
+  log.info("Beads MCP not found (optional)");
 }
 
 function shutdown() {
-  console.log("\nShutting down...");
+  log.info("Shutting down...");
   for (const [id, session] of sessions) {
     session.abortController.abort();
     if (session.cleanupTimer) clearTimeout(session.cleanupTimer);
   }
   sessions.clear();
   server.stop();
-  console.log("Server stopped");
+  log.info("Server stopped");
   process.exit(0);
 }
 

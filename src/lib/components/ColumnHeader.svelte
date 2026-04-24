@@ -35,7 +35,13 @@
 	}: Props = $props();
 </script>
 
-<div class="column-header" onclick={() => isCollapsed && oncollapseclick(column.key)}>
+<div
+	class="column-header"
+	onclick={() => isCollapsed && oncollapseclick(column.key)}
+	onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && isCollapsed && oncollapseclick(column.key)}
+	role="button"
+	tabindex="0"
+>
 	<div class="column-title">
 		<kbd class="hotkey-hint hotkey-hint-column">{columnIndex + 1}</kbd>
 		<span class="column-icon"><Icon name={column.icon} size={12} /></span>

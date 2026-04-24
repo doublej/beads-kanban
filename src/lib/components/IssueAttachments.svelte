@@ -57,16 +57,21 @@
 				{@const ts = formatTimestamp(a.created_at)}
 				<div class="attachment">
 					{#if isImageMimetype(a.mimetype)}
-						<img
-							src="/api/issues/{issueId}/attachments/{a.filename}"
-							alt={a.filename}
-							class="att-thumb clickable"
+						<button
+							class="att-thumb-btn"
+							aria-label="View {a.filename}"
 							onclick={() => {
 								const imageAttachments = attachments.filter(att => isImageMimetype(att.mimetype));
 								theatreIndex = imageAttachments.findIndex(att => att.filename === a.filename);
 								theatreOpen = true;
 							}}
-						/>
+						>
+							<img
+								src="/api/issues/{issueId}/attachments/{a.filename}"
+								alt={a.filename}
+								class="att-thumb"
+							/>
+						</button>
 					{:else}
 						<div class="att-icon"><Icon name="file" size={14} /></div>
 					{/if}
@@ -81,7 +86,7 @@
 	{:else if !loadingAttachments}
 		<p class="empty">No attachments</p>
 	{/if}
-	<div class="dropzone" ondragover={(e) => e.preventDefault()} ondrop={handleFileDrop}>
+	<div class="dropzone" ondragover={(e) => e.preventDefault()} ondrop={handleFileDrop} role="region" aria-label="File drop zone">
 		<input type="file" id="att-input" class="dropzone-input" onchange={handleFileSelect} />
 		<label for="att-input" class="dropzone-label"><Icon name="plus" size={14} /><span>Drop or click</span></label>
 	</div>
@@ -136,12 +141,16 @@
 		flex-shrink: 0;
 	}
 
-	.att-thumb.clickable {
+	.att-thumb-btn {
+		background: none;
+		border: none;
+		padding: 0;
 		cursor: pointer;
 		transition: all 150ms ease;
+		flex-shrink: 0;
 	}
 
-	.att-thumb.clickable:hover {
+	.att-thumb-btn:hover .att-thumb {
 		opacity: 0.8;
 		transform: scale(1.05);
 	}

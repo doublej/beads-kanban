@@ -6,6 +6,7 @@ export type QueueItem = {
 	description: string;
 	priority: number;
 	issueType: string;
+	model?: string;
 	useWorktree: boolean;
 	enqueuedAt: string; // ISO timestamp
 };

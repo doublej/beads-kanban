@@ -42,7 +42,7 @@
 			<span class="setting-name">Agent Features</span>
 			<span class="setting-desc">Enable AI agent integration</span>
 		</div>
-		<button class="toggle-switch" onclick={() => agentEnabled = !agentEnabled}>
+		<button class="toggle-switch" onclick={() => agentEnabled = !agentEnabled} aria-label="Toggle agent features">
 			<span class="toggle-track" class:active={agentEnabled}>
 				<span class="toggle-thumb"></span>
 			</span>
@@ -54,7 +54,7 @@
 			<span class="setting-name">Show chat bar</span>
 			<span class="setting-desc">Display the agent bar at the bottom</span>
 		</div>
-		<button class="toggle-switch" onclick={() => showAgentBar = !showAgentBar}>
+		<button class="toggle-switch" onclick={() => showAgentBar = !showAgentBar} aria-label="Toggle agent bar">
 			<span class="toggle-track" class:active={showAgentBar}>
 				<span class="toggle-thumb"></span>
 			</span>
@@ -64,8 +64,9 @@
 	{#if agentEnabled}
 		<div class="agent-config">
 			<div class="config-row">
-				<label class="config-label">Host</label>
+				<label class="config-label" for="agent-host">Host</label>
 				<input
+					id="agent-host"
 					type="text"
 					class="config-input"
 					bind:value={agentHost}
@@ -73,8 +74,9 @@
 				/>
 			</div>
 			<div class="config-row">
-				<label class="config-label">Port</label>
+				<label class="config-label" for="agent-port">Port</label>
 				<input
+					id="agent-port"
 					type="number"
 					class="config-input config-input-port"
 					bind:value={agentPort}
@@ -128,7 +130,7 @@
 				<span class="setting-name">Expand Tool Calls</span>
 				<span class="setting-desc">Show tool input/output by default</span>
 			</div>
-			<button class="toggle-switch" onclick={() => agentToolsExpanded = !agentToolsExpanded}>
+			<button class="toggle-switch" onclick={() => agentToolsExpanded = !agentToolsExpanded} aria-label="Toggle tool call expansion">
 				<span class="toggle-track" class:active={agentToolsExpanded}>
 					<span class="toggle-thumb"></span>
 				</span>
@@ -187,7 +189,7 @@
 				<span class="setting-name" style="color: #f59e0b;">Manager Agent</span>
 				<span class="setting-desc">Orchestrator that manages tickets and agents</span>
 			</div>
-			<button class="toggle-switch" onclick={() => managerEnabled = !managerEnabled}>
+			<button class="toggle-switch" onclick={() => managerEnabled = !managerEnabled} aria-label="Toggle manager agent">
 				<span class="toggle-track" class:active={managerEnabled}>
 					<span class="toggle-thumb"></span>
 				</span>

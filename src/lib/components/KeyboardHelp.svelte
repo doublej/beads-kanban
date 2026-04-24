@@ -8,19 +8,18 @@
 	function handleClose() {
 		show = false;
 	}
-
-	function handleOverlayClick() {
-		handleClose();
-	}
-
-	function handleContentClick(e: MouseEvent) {
-		e.stopPropagation();
-	}
 </script>
 
 {#if show}
-	<div class="keyboard-help-overlay" onclick={handleOverlayClick}>
-		<div class="keyboard-help" onclick={handleContentClick}>
+	<div
+		class="keyboard-help-overlay"
+		onclick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+		onkeydown={(e) => e.key === 'Escape' && handleClose()}
+		role="button"
+		tabindex="-1"
+		aria-label="Close"
+	>
+		<div class="keyboard-help">
 			<div class="keyboard-help-header">
 				<h2>Keyboard Shortcuts</h2>
 				<button class="keyboard-help-close" onclick={handleClose}>

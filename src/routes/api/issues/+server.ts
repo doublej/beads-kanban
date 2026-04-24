@@ -4,6 +4,7 @@ import { promisify } from 'util';
 import type { RequestHandler } from './$types';
 import { getAllIssues, resolveProjectCwd } from '$lib/db';
 import { notificationStore } from '$lib/notifications/notification-store.svelte';
+import { hookExecutor } from '$lib/server/agent/hook-executor';
 
 const execAsync = promisify(exec);
 
@@ -40,6 +41,14 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
 		// Emit notification event
 		notificationStore.emit('issue_created', created);
+		await hookExecutor.executeHooks('TicketCreated', {
+			id: created.id,
+			title: created.title,
+			status: created.status,
+			priority: created.priority,
+			assignee: created.assignee,
+			cwd,
+		});
 
 		return json({ success: true, id: created.id, issue: created, warning: stderr || undefined });
 	} catch (err: unknown) {

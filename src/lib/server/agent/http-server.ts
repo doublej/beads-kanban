@@ -77,7 +77,9 @@ export function createHttpHandler(config: HttpConfig) {
     }
 
     if (url.pathname === "/queue" && req.method === "GET") {
-      return new Response(JSON.stringify({ items: config.queue.getItems() }), {
+      const cwd = url.searchParams.get("cwd");
+      const items = cwd ? config.queue.getItemsForCwd(cwd) : [];
+      return new Response(JSON.stringify({ items }), {
         headers: corsHeaders,
       });
     }
