@@ -4,28 +4,23 @@ import { requireProjectCwd } from '$lib/server/cwd';
 import { updateIssue, deleteIssue, addLabel, removeLabel, setMetadata, unsetMetadata } from '$lib/bd';
 import { notificationStore } from '$lib/notifications/notification-store.svelte';
 import { hookExecutor } from '$lib/server/agent/hook-executor';
-import { ok, err, wrap, ApiError } from '$lib/server/response';
-
-const VALID_STATUSES = ['open', 'in_progress', 'hooked', 'blocked', 'closed'];
+import { ok, wrap, ApiError } from '$lib/server/response';
+import { parseBody, UpdateIssueSchema } from '$lib/server/schemas';
 
 export const PATCH: RequestHandler = wrap(async ({ params, request, url }) => {
-	const body = await request.json();
+	const body = await parseBody(request, UpdateIssueSchema);
 	const {
-		status, title, description, priority, issue_type, design,
+		status, title, description, priority, design,
 		acceptance_criteria, notes, assignee, addLabels, removeLabels,
 		agent_model, agent_effort,
-	} = body ?? {};
-
-	if (status && !VALID_STATUSES.includes(status)) {
-		throw new ApiError('Invalid status', 400, 'VALIDATION');
-	}
+	} = body;
 
 	const cwd = requireProjectCwd(url);
 	const beforeIssue = getIssueById(params.id, cwd);
 
 	const updateRes = await updateIssue(
 		params.id,
-		{ status, title, description, priority, design, acceptance_criteria, notes, assignee },
+		{ status, title, description, priority, design, acceptance_criteria, notes, assignee: assignee ?? undefined },
 		cwd,
 	);
 	if (!updateRes.success) throw new ApiError(updateRes.error || 'Update failed');

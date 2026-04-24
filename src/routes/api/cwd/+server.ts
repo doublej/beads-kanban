@@ -3,6 +3,7 @@ import { existsSync, statSync } from 'fs';
 import { resolve } from 'path';
 import { getStoredCwd, setStoredCwd } from '$lib/db';
 import { ok, wrap, ApiError } from '$lib/server/response';
+import { parseBody, SetCwdSchema } from '$lib/server/schemas';
 
 export const GET: RequestHandler = wrap(async () => {
 	const cwd = getStoredCwd();
@@ -10,10 +11,7 @@ export const GET: RequestHandler = wrap(async () => {
 });
 
 export const POST: RequestHandler = wrap(async ({ request }) => {
-	const { path } = (await request.json()) ?? {};
-	if (!path || typeof path !== 'string') {
-		throw new ApiError('Path required', 400, 'VALIDATION');
-	}
+	const { path } = await parseBody(request, SetCwdSchema);
 	const resolved = resolve(path);
 	if (!existsSync(resolved)) throw new ApiError('Path does not exist', 400, 'NOT_FOUND');
 	if (!statSync(resolved).isDirectory()) throw new ApiError('Path is not a directory', 400, 'NOT_DIR');

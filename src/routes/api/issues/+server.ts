@@ -4,25 +4,27 @@ import { requireProjectCwd } from '$lib/server/cwd';
 import { createIssue } from '$lib/bd';
 import { notificationStore } from '$lib/notifications/notification-store.svelte';
 import { hookExecutor } from '$lib/server/agent/hook-executor';
-import { ok, err, wrap, ApiError } from '$lib/server/response';
+import { ok, wrap, ApiError } from '$lib/server/response';
+import { parseBody, CreateIssueSchema } from '$lib/server/schemas';
 
 export const GET: RequestHandler = wrap(async ({ url }) => {
 	const cwd = requireProjectCwd(url);
-	const issues = getAllIssues(cwd);
-	return ok({ issues });
+	return ok({ issues: getAllIssues(cwd) });
 });
 
 export const POST: RequestHandler = wrap(async ({ request, url }) => {
-	const body = await request.json();
-	const { title, description, priority, issue_type, deps } = body ?? {};
-
-	if (!title) throw new ApiError('Title required', 400, 'VALIDATION');
-
+	const body = await parseBody(request, CreateIssueSchema);
 	const cwd = requireProjectCwd(url);
+
 	const result = await createIssue(
-		title,
-		{ description, priority, issue_type, deps },
-		cwd
+		body.title,
+		{
+			description: body.description,
+			priority: body.priority,
+			issue_type: body.issue_type,
+			deps: body.deps ?? body.dependencies,
+		},
+		cwd,
 	);
 	if (!result.success || !result.issue) {
 		throw new ApiError(result.error || 'Failed to create issue', 500);
