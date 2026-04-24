@@ -6,6 +6,7 @@ The app is local-only. There is no auth, no API key, no CORS hardening. If the d
 
 - **Base URL** — defaults to `http://localhost:5173`. Use whatever host the SvelteKit dev/build server is running on.
 - **Project context** — every endpoint that touches a project's data requires `?project=<absolute-path>`. The path must contain a `.beads` directory. Endpoints that don't take `?project=` are listed as "global" below.
+- **Agent worker** — `/api/agents/*`, `/api/issues/:id/agent-sessions`, `/api/agent-sessions/*` and `/api/worktrees` proxy a separate `bun` process on `localhost:9347`. Start it with `POST /api/agent { action: 'start' }` if it isn't already running.
 - **Content type** — every JSON request must send `Content-Type: application/json`.
 
 ## Response envelope
@@ -151,6 +152,7 @@ Tickets that depend on this one with `dependency_type === 'parent-child'`.
 ### Agent sessions for an issue
 
 - `GET /api/issues/:id/agent-sessions?project=…` → `{ sessions: SdkSessionInfo[] }`. Filtered by `agentName` prefix `<id>-`.
+- `GET /api/agent-sessions/:sessionId/history?project=…` → `{ messages: unknown[] }`. Replays the SDK session transcript. Both endpoints proxy the agent worker on `:9347`; if the worker is down they return empty arrays rather than erroring.
 
 ---
 
