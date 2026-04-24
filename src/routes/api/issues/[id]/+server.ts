@@ -25,31 +25,23 @@ export const PATCH: RequestHandler = wrap(async ({ params, request, url }) => {
 	);
 	if (!updateRes.success) throw new ApiError(updateRes.error || 'Update failed');
 
+	const sideEffects: Promise<{ success: boolean; error?: string }>[] = [];
 	if (agent_model !== undefined) {
-		const r = agent_model
-			? await setMetadata(params.id, 'agent_model', String(agent_model), cwd)
-			: await unsetMetadata(params.id, 'agent_model', cwd);
-		if (!r.success) throw new ApiError(r.error || 'Update failed');
+		sideEffects.push(agent_model
+			? setMetadata(params.id, 'agent_model', String(agent_model), cwd)
+			: unsetMetadata(params.id, 'agent_model', cwd));
 	}
 	if (agent_effort !== undefined) {
-		const r = agent_effort
-			? await setMetadata(params.id, 'agent_effort', String(agent_effort), cwd)
-			: await unsetMetadata(params.id, 'agent_effort', cwd);
-		if (!r.success) throw new ApiError(r.error || 'Update failed');
+		sideEffects.push(agent_effort
+			? setMetadata(params.id, 'agent_effort', String(agent_effort), cwd)
+			: unsetMetadata(params.id, 'agent_effort', cwd));
 	}
+	for (const label of removeLabels ?? []) sideEffects.push(removeLabel(params.id, label, cwd));
+	for (const label of addLabels ?? []) sideEffects.push(addLabel(params.id, label, cwd));
 
-	if (removeLabels?.length) {
-		for (const label of removeLabels) {
-			const r = await removeLabel(params.id, label, cwd);
-			if (!r.success) throw new ApiError(r.error || 'Update failed');
-		}
-	}
-	if (addLabels?.length) {
-		for (const label of addLabels) {
-			const r = await addLabel(params.id, label, cwd);
-			if (!r.success) throw new ApiError(r.error || 'Update failed');
-		}
-	}
+	const results = await Promise.all(sideEffects);
+	const failed = results.find((r) => !r.success);
+	if (failed) throw new ApiError(failed.error || 'Update failed');
 
 	const afterIssue = getIssueById(params.id, cwd);
 	if (beforeIssue && afterIssue) {

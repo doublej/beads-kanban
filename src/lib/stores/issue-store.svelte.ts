@@ -136,8 +136,13 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 	}
 
 	let pollCount = 0;
+	let lastSnapshotHash = '';
 
-	async function refreshIssues(hasChanges: boolean) {
+	function snapshotHash(items: Issue[]): string {
+		return items.map((i) => `${i.id}:${i.updated_at ?? ''}:${i.status}`).join('|');
+	}
+
+	async function refreshIssues() {
 		try {
 			const res = await fetch(appendProjectParam('/api/issues'));
 			const payload = await res.json();
@@ -147,6 +152,11 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 			}
 			const data = { issues: payload.data?.issues ?? [] };
 			pollCount += 1;
+
+			const hash = snapshotHash(data.issues);
+			const hasChanges = hash !== lastSnapshotHash;
+			lastSnapshotHash = hash;
+
 			loadingStatus = {
 				...loadingStatus,
 				phase: 'ready',
@@ -160,6 +170,8 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 				initialLoaded = true;
 				fetchMutations();
 			}
+			if (!hasChanges) return;
+
 			const oldIssuesMap = new Map(issues.map((i) => [i.id, i]));
 			checkEditingIssueClosed(data);
 			handleStatusChanges(data, oldIssuesMap);
@@ -174,13 +186,13 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 		sseSource = eventSource;
 
 		// Initial snapshot fires on open; subsequent refreshes triggered by events.
-		void refreshIssues(false);
+		void refreshIssues();
 
 		eventSource.onmessage = (event) => {
 			let msg: { type?: string; name?: string };
 			try { msg = JSON.parse(event.data); } catch { return; }
 			if (msg.type === 'event') {
-				void refreshIssues(true);
+				void refreshIssues();
 			}
 		};
 

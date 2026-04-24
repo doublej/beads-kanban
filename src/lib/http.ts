@@ -35,9 +35,9 @@ async function parseEnvelope<T>(res: Response): Promise<T> {
 		if (!res.ok) throw new ApiClientError(res.statusText || 'Request failed', res.status);
 		return undefined as T;
 	}
-	const payload = (await res.json()) as Envelope<T> | ErrorEnvelope;
-	if ('ok' in payload && payload.ok === true) return payload.data;
-	if ('ok' in payload && payload.ok === false) {
+	const payload = (await res.json()) as Envelope<T> | ErrorEnvelope | T;
+	if (payload && typeof payload === 'object' && 'ok' in payload) {
+		if (payload.ok) return payload.data;
 		throw new ApiClientError(
 			payload.error.message,
 			res.status,

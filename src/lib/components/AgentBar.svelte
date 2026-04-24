@@ -131,7 +131,7 @@
 			const res = await fetch('/api/agent/name', { method: 'POST' });
 			if (res.ok) {
 				const payload = await res.json();
-				if (payload?.ok) newPaneName = payload.data.name;
+				if (payload?.ok && payload.data?.name) newPaneName = payload.data.name;
 			}
 		} catch (e) {
 			console.error('Failed to generate name:', e);
