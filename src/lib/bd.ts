@@ -150,10 +150,6 @@ export async function removeLabel(issueId: string, label: string, cwd?: string):
 	return run(`bd label remove ${issueId} ${label}`, cwd)
 }
 
-export async function renameIssue(oldId: string, newId: string, cwd?: string): Promise<BdResult> {
-	return run(`bd rename ${oldId} ${newId}`, cwd)
-}
-
 export async function setMetadata(id: string, key: string, value: string, cwd?: string): Promise<BdResult> {
 	return run(`bd update ${id} --set-metadata ${key}=${value}`, cwd)
 }
@@ -164,8 +160,4 @@ export async function unsetMetadata(id: string, key: string, cwd?: string): Prom
 
 export async function getChildren(id: string, cwd?: string): Promise<BdResult> {
 	return run(`bd children ${id} --json`, cwd)
-}
-
-export async function getTypes(cwd?: string): Promise<BdResult> {
-	return run(`bd types --json`, cwd)
 }

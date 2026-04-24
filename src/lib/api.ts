@@ -50,18 +50,9 @@ export async function deleteAttachmentApi(issueId: string, filename: string): Pr
 	await deleteJSON(`/api/issues/${issueId}/attachments/${encodeURIComponent(filename)}`);
 }
 
-export async function renameIssueApi(id: string, newId: string): Promise<void> {
-	await postJSON(`/api/issues/${id}/rename`, { newId });
-}
-
 export async function getChildrenApi(id: string): Promise<{ id: string; title: string; status: string }[]> {
 	const data = await fetchJSON<{ children: { id: string; title: string; status: string }[] }>(`/api/issues/${id}/children`);
 	return data.children;
-}
-
-export async function getTypesApi(): Promise<string[]> {
-	const data = await fetchJSON<{ types: string[] }>('/api/types');
-	return data.types;
 }
 
 export async function getDiffApi(rev = 'HEAD~1'): Promise<DiffResult> {
