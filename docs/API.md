@@ -152,7 +152,7 @@ Tickets that depend on this one with `dependency_type === 'parent-child'`.
 ### Agent sessions for an issue
 
 - `GET /api/issues/:id/agent-sessions?project=…` → `{ sessions: SdkSessionInfo[] }`. Filtered by `agentName` prefix `<id>-`.
-- `GET /api/agent-sessions/:sessionId/history?project=…` → `{ messages: unknown[] }`. Replays the SDK session transcript. Both endpoints proxy the agent worker on `:9347`; if the worker is down they return empty arrays rather than erroring.
+- `GET /api/agent-sessions/:sessionId/history?project=…[&since=<idx>]` → `{ messages: unknown[] }`. Replays the SDK session transcript. The `since` parameter is **accepted by clients but not yet honored server-side** — currently returns the full transcript regardless. Server-side filter is a known gap; once added, clients (e.g. `reminders-beads-bridge` `Client.agent_session_history`) can poll incrementally instead of refetching the entire transcript. Both endpoints proxy the agent worker on `:9347`; if the worker is down they return empty arrays rather than erroring.
 
 ---
 
