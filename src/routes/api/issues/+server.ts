@@ -1,12 +1,13 @@
 import type { RequestHandler } from './$types';
-import { getAllIssues, resolveProjectCwd } from '$lib/db';
+import { getAllIssues } from '$lib/db';
+import { requireProjectCwd } from '$lib/server/cwd';
 import { createIssue } from '$lib/bd';
 import { notificationStore } from '$lib/notifications/notification-store.svelte';
 import { hookExecutor } from '$lib/server/agent/hook-executor';
 import { ok, err, wrap, ApiError } from '$lib/server/response';
 
 export const GET: RequestHandler = wrap(async ({ url }) => {
-	const cwd = resolveProjectCwd(url);
+	const cwd = requireProjectCwd(url);
 	const issues = getAllIssues(cwd);
 	return ok({ issues });
 });
@@ -17,7 +18,7 @@ export const POST: RequestHandler = wrap(async ({ request, url }) => {
 
 	if (!title) throw new ApiError('Title required', 400, 'VALIDATION');
 
-	const cwd = resolveProjectCwd(url);
+	const cwd = requireProjectCwd(url);
 	const result = await createIssue(
 		title,
 		{ description, priority, issue_type, deps },

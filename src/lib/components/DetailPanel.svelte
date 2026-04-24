@@ -10,6 +10,7 @@
 	import IssueAttachments from './IssueAttachments.svelte';
 	import DetailPanelFooter from './DetailPanelFooter.svelte';
 	import MarkdownContent from './MarkdownContent.svelte';
+	import { appendProjectParam } from '$lib/project';
 
 	let isEditMode = $state(false);
 
@@ -134,7 +135,7 @@
 			return;
 		}
 		loadingRelated = true;
-		fetch(`/api/issues/${encodeURIComponent(id)}/agent-sessions`)
+		fetch(appendProjectParam(`/api/issues/${encodeURIComponent(id)}/agent-sessions`))
 			.then((r) => (r.ok ? r.json() : null))
 			.then((payload) => { relatedSessions = payload?.ok ? (payload.data?.sessions ?? []) : []; })
 			.catch(() => { relatedSessions = []; })
@@ -151,7 +152,7 @@
 		expandedMessages = [];
 		loadingExpanded = true;
 		try {
-			const r = await fetch(`/api/agent-sessions/${encodeURIComponent(sessionId)}/history`);
+			const r = await fetch(appendProjectParam(`/api/agent-sessions/${encodeURIComponent(sessionId)}/history`));
 			if (r.ok) {
 				const payload = await r.json();
 				expandedMessages = payload?.ok ? (payload.data?.messages ?? []) : [];

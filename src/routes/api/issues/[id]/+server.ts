@@ -1,5 +1,6 @@
 import type { RequestHandler } from './$types';
-import { resolveProjectCwd, getIssueById } from '$lib/db';
+import { getIssueById } from '$lib/db';
+import { requireProjectCwd } from '$lib/server/cwd';
 import { updateIssue, deleteIssue, addLabel, removeLabel, setMetadata, unsetMetadata } from '$lib/bd';
 import { notificationStore } from '$lib/notifications/notification-store.svelte';
 import { hookExecutor } from '$lib/server/agent/hook-executor';
@@ -19,7 +20,7 @@ export const PATCH: RequestHandler = wrap(async ({ params, request, url }) => {
 		throw new ApiError('Invalid status', 400, 'VALIDATION');
 	}
 
-	const cwd = resolveProjectCwd(url);
+	const cwd = requireProjectCwd(url);
 	const beforeIssue = getIssueById(params.id, cwd);
 
 	const updateRes = await updateIssue(
@@ -103,7 +104,7 @@ export const PATCH: RequestHandler = wrap(async ({ params, request, url }) => {
 });
 
 export const DELETE: RequestHandler = wrap(async ({ params, url }) => {
-	const cwd = resolveProjectCwd(url);
+	const cwd = requireProjectCwd(url);
 	const issue = getIssueById(params.id, cwd);
 
 	const result = await deleteIssue(params.id, cwd);

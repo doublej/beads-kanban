@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { resolveProjectCwd } from '$lib/db';
+import { requireProjectCwd } from '$lib/server/cwd';
 import { ok, wrap } from '$lib/server/response';
 
 type SdkSessionInfo = {
@@ -14,7 +14,7 @@ export const GET: RequestHandler = wrap(async ({ params, url }) => {
 	const id = params.id;
 	if (!id) return ok({ sessions: [] });
 
-	const cwd = resolveProjectCwd(url);
+	const cwd = requireProjectCwd(url);
 	try {
 		const res = await fetch(`http://localhost:9347/sessions?cwd=${encodeURIComponent(cwd)}`);
 		if (!res.ok) return ok({ sessions: [] });

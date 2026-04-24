@@ -9,11 +9,11 @@ import {
 	MAX_FILE_SIZE_MB,
 	MAX_FILE_SIZE_BYTES,
 } from '$lib/attachments';
-import { resolveProjectCwd } from '$lib/db';
+import { requireProjectCwd } from '$lib/server/cwd';
 import { ok, wrap, ApiError } from '$lib/server/response';
 
 export const GET: RequestHandler = wrap(async ({ params, url }) => {
-	const cwd = resolveProjectCwd(url);
+	const cwd = requireProjectCwd(url);
 	const dir = getAttachmentsDir(params.id, cwd);
 	if (!existsSync(dir)) return ok({ attachments: [] });
 
@@ -42,7 +42,7 @@ export const POST: RequestHandler = wrap(async ({ params, request, url }) => {
 		);
 	}
 
-	const cwd = resolveProjectCwd(url);
+	const cwd = requireProjectCwd(url);
 	const dir = getAttachmentsDir(params.id, cwd);
 	if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 

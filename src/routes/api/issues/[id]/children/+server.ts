@@ -1,9 +1,10 @@
 import type { RequestHandler } from './$types';
-import { getAllIssues, resolveProjectCwd } from '$lib/db';
+import { getAllIssues } from '$lib/db';
+import { requireProjectCwd } from '$lib/server/cwd';
 import { ok, wrap } from '$lib/server/response';
 
 export const GET: RequestHandler = wrap(async ({ params, url }) => {
-	const cwd = resolveProjectCwd(url);
+	const cwd = requireProjectCwd(url);
 	const issues = getAllIssues(cwd);
 	const children = issues
 		.filter((issue) =>

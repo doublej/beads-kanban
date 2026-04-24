@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 import type { RequestHandler } from './$types';
-import { getAllIssues, resolveProjectCwd } from '$lib/db';
+import { getAllIssues } from '$lib/db';
+import { requireProjectCwd } from '$lib/server/cwd';
 import type { DiffChange, DiffResult } from '$lib/types';
 import { ok, wrap, ApiError } from '$lib/server/response';
 
@@ -80,7 +81,7 @@ function computeDiff(
 }
 
 export const GET: RequestHandler = wrap(async ({ url }) => {
-	const cwd = resolveProjectCwd(url);
+	const cwd = requireProjectCwd(url);
 	const rev = url.searchParams.get('rev') || 'HEAD~1';
 	if (!/^[a-zA-Z0-9~^.\-_/]+$/.test(rev)) {
 		throw new ApiError('Invalid revision format', 400, 'VALIDATION');
