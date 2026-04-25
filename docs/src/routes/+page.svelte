@@ -400,7 +400,7 @@
 					<span class="step-num">1</span>
 					<div class="step-content">
 						<strong>Install prerequisites</strong>
-						<p>Install <a href="https://bun.sh" target="_blank" rel="noopener">Bun</a> and the <a href="https://github.com/steveyegge/beads" target="_blank" rel="noopener">Beads CLI</a> (<code>bd</code> v0.49.0+).</p>
+						<p>Install <a href="https://bun.sh" target="_blank" rel="noopener">Bun</a> and the <a href="https://github.com/steveyegge/beads" target="_blank" rel="noopener">Beads CLI</a> (<code>bd</code> v1.0.0+).</p>
 					</div>
 				</li>
 				<li>

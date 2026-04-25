@@ -13,6 +13,13 @@ export function bdEnv(): NodeJS.ProcessEnv {
 	return { ...process.env, BD_JSON_ENVELOPE: '1' }
 }
 
+/** Hard-timeout for `bd dolt push|pull`. Mitigates upstream #3370 (push hangs forever on unreachable remote). */
+export const BD_NETWORK_TIMEOUT_MS = (() => {
+	const raw = process.env.BEADS_KANBAN_BD_TIMEOUT_MS
+	const n = raw ? Number(raw) : NaN
+	return Number.isFinite(n) && n > 0 ? n : 15000
+})()
+
 /**
  * Parse bd JSON output, unwrapping the 1.0 envelope `{data, schema_version}` if present.
  * Pre-1.0 (or future tools that don't envelope) return their payload directly — both shapes work.
@@ -71,13 +78,15 @@ function escapeArg(val: string): string {
 	return val.replace(/"/g, '\\"')
 }
 
-async function run(cmd: string, cwd?: string): Promise<BdResult> {
+async function run(cmd: string, cwd?: string, timeoutMs?: number): Promise<BdResult> {
 	try {
-		const { stdout, stderr } = await execAsync(cmd, { cwd: cwd ?? getStoredCwd(), env: bdEnv() })
+		const { stdout, stderr } = await execAsync(cmd, { cwd: cwd ?? getStoredCwd(), env: bdEnv(), timeout: timeoutMs })
 		return { success: true, stdout: stdout.trim(), warning: stderr || undefined }
 	} catch (err: unknown) {
-		const e = err as { stderr?: string; message?: string }
-		return { success: false, error: e.stderr || e.message || 'Command failed' }
+		const e = err as { stderr?: string; message?: string; killed?: boolean; signal?: string }
+		const timedOut = e.killed && e.signal === 'SIGTERM'
+		const msg = timedOut ? `bd command timed out after ${timeoutMs}ms (set BEADS_KANBAN_BD_TIMEOUT_MS to override)` : (e.stderr || e.message || 'Command failed')
+		return { success: false, error: msg }
 	}
 }
 
@@ -213,6 +222,14 @@ export interface BdDoctorReport {
 	ok: boolean
 	findings: BdDoctorFinding[]
 	error?: string
+}
+
+export async function pushDolt(cwd?: string): Promise<BdResult> {
+	return run('bd dolt push', cwd, BD_NETWORK_TIMEOUT_MS)
+}
+
+export async function pullDolt(cwd?: string): Promise<BdResult> {
+	return run('bd dolt pull', cwd, BD_NETWORK_TIMEOUT_MS)
 }
 
 export async function runDoctor(cwd?: string): Promise<BdDoctorReport> {

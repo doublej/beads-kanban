@@ -76,6 +76,11 @@ beads-kanban reap --scan-cwd <dir>     # reap only servers whose cwd is inside <
 
 The reaper only kills processes where the command contains `dolt sql-server` and the cwd is inside an explicitly-supplied directory. SIGTERM only — failures are reported, not escalated.
 
+## Known upstream bugs (with mitigations)
+- [#3370](https://github.com/steveyegge/beads/issues/3370) — `bd dolt push` hangs forever when the remote is unreachable. Mitigation: `pushDolt()` / `pullDolt()` in `src/lib/bd.ts` enforce a 15 s timeout (override via `BEADS_KANBAN_BD_TIMEOUT_MS`).
+- [#3392](https://github.com/steveyegge/beads/issues/3392) — auto-start can race against a stale dolt-server lock. Mitigation: `bd dolt stop` is preferred over SIGTERM in the reaper, which removes the lock cleanly; fallback path still SIGTERMs.
+- [#3449](https://github.com/steveyegge/beads/issues/3449) — bootstrap can leave the server pointing at pre-bootstrap state. Mitigation: kanban runs `bd doctor --fix --json` once per cwd per session and surfaces noteworthy findings via the toast queue.
+
 ## Docs site
 `cd docs && bun install && bun run dev`
 
