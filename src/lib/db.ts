@@ -7,6 +7,7 @@ import { join, resolve } from 'path';
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import type { Issue, Dependency, MutationEntry, Attachment, Comment, AgentModel, AgentEffort } from './types';
 import { getMimetype } from './attachments';
+import { recordTouchedCwd } from './touched-cwds';
 
 const CONFIG_FILE = join(process.cwd(), '.beads-cwd');
 
@@ -51,6 +52,7 @@ function buildMap<T, V>(rows: T[], key: (r: T) => string, val: (r: T) => V): Map
 /** Run a SELECT query via `bd sql --json`. Uses spawnSync to avoid shell-quoting issues. */
 function bdSql<T>(query: string, cwd?: string): T[] {
 	const effectiveCwd = cwd ?? getStoredCwd();
+	recordTouchedCwd(effectiveCwd);
 	const result = spawnSync('bd', ['sql', '--json', query], {
 		cwd: effectiveCwd,
 		encoding: 'utf-8',
