@@ -184,3 +184,45 @@ export async function unsetMetadata(id: string, key: string, cwd?: string): Prom
 export async function getChildren(id: string, cwd?: string): Promise<BdResult> {
 	return run(`bd children ${id} --json`, cwd)
 }
+
+export interface BdPing {
+	ok: boolean
+	status?: string
+	total_ms?: number
+	error?: string
+}
+
+export async function pingBd(cwd?: string): Promise<BdPing> {
+	const result = await run('bd ping --json', cwd)
+	if (!result.success || !result.stdout) return { ok: false, error: result.error }
+	try {
+		const parsed = unwrapBdJson<{ status?: string; total_ms?: number; error?: string }>(result.stdout)
+		return { ok: parsed.status === 'ok', status: parsed.status, total_ms: parsed.total_ms, error: parsed.error }
+	} catch (err) {
+		return { ok: false, error: err instanceof Error ? err.message : String(err) }
+	}
+}
+
+export interface BdDoctorFinding {
+	severity?: string
+	message?: string
+	fixed?: boolean
+}
+
+export interface BdDoctorReport {
+	ok: boolean
+	findings: BdDoctorFinding[]
+	error?: string
+}
+
+export async function runDoctor(cwd?: string): Promise<BdDoctorReport> {
+	const result = await run('bd doctor --fix --json', cwd)
+	if (!result.success || !result.stdout) return { ok: false, findings: [], error: result.error }
+	try {
+		const parsed = unwrapBdJson<{ findings?: BdDoctorFinding[] }>(result.stdout)
+		const findings = Array.isArray(parsed?.findings) ? parsed.findings : []
+		return { ok: true, findings }
+	} catch (err) {
+		return { ok: false, findings: [], error: err instanceof Error ? err.message : String(err) }
+	}
+}

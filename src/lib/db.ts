@@ -12,6 +12,15 @@ import { bdEnv, unwrapBdJson } from './bd';
 
 const CONFIG_FILE = join(process.cwd(), '.beads-cwd');
 
+const doctorRanForCwd = new Set<string>();
+
+/** True the first time this process sees `cwd`; subsequent calls return false. Session-scoped. */
+export function markDoctorRan(cwd: string): boolean {
+	if (doctorRanForCwd.has(cwd)) return false;
+	doctorRanForCwd.add(cwd);
+	return true;
+}
+
 export function getStoredCwd(): string {
 	if (existsSync(CONFIG_FILE)) {
 		const stored = readFileSync(CONFIG_FILE, 'utf-8').trim();

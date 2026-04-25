@@ -39,6 +39,7 @@
 	import SetupWizard from '$lib/components/SetupWizard.svelte';
 	import { fetchMutations } from '$lib/mutationStore.svelte';
 	import StatsView from '$lib/components/StatsView.svelte';
+	import HealthBadge from '$lib/components/HealthBadge.svelte';
 	import DiffView from '$lib/components/DiffView.svelte';
 	import ThemeTransition from '$lib/components/ThemeTransition.svelte';
 	import ProjectSwitcher from '$lib/components/ProjectSwitcher.svelte';
@@ -753,9 +754,11 @@
 
 	{#if bdVersion && !bdVersion.compatible}
 		<div class="version-warning">
-			bd v{bdVersion.version} detected — v0.49.0+ required for full functionality. Run <code>brew upgrade bd</code> to update.
+			bd v{bdVersion.version} detected — v1.0.0+ required for full functionality. Run <code>brew upgrade bd</code> to update.
 		</div>
 	{/if}
+
+	<div class="health-row"><HealthBadge /></div>
 
 	{#if viewMode === 'kanban'}
 	<ColumnNav
@@ -1004,6 +1007,12 @@
 		background: rgba(245, 158, 11, 0.2);
 		padding: 1px 5px;
 		border-radius: 3px;
+	}
+
+	.health-row {
+		display: flex;
+		justify-content: flex-end;
+		padding: 4px 16px 0;
 	}
 
 	.app {
