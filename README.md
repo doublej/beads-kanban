@@ -60,6 +60,21 @@ Agent dependencies are included in the root install. The `.env` file takes prece
 - `AGENT_PORT`: agent server port (default 9347)
 - `BD_DB`: optional override for Beads DB path (used as fallback)
 - `VAPID_SUBJECT`: optional mailto: address for push notification VAPID keys (default: `mailto:admin@beadskanban.local`)
+- `BEADS_KANBAN_AUTO_REAP=1`: on Ctrl-C, also `SIGTERM` orphan `dolt sql-server` processes spawned by this session's `bd sql` reads. Off by default — killing a dolt server held by another terminal's `bd` session would disrupt that session.
+
+## Reaping orphan dolt servers
+
+Each `bd sql` invocation spawns a per-project `dolt sql-server` that survives the parent. After a day of switching between projects, these can accumulate and exhaust memory.
+
+Beads-kanban tracks the cwds it touches at `~/.cache/beads-kanban/touched-cwds-<pid>.json` and offers a `reap` subcommand to clean up:
+
+```bash
+beads-kanban reap                      # default --touched: reap orphans from dead sessions
+beads-kanban reap --all                # reap any orphan dolt sql-server with /.beads/dolt in cwd
+beads-kanban reap --scan-cwd <dir>     # reap only servers whose cwd is inside <dir>
+```
+
+The reaper only kills processes where all of: command contains `dolt sql-server`, ppid is launchd (`1`), and cwd is inside an explicitly-supplied directory. SIGTERM only — failures are reported, not escalated.
 
 ## Docs site
 `cd docs && bun install && bun run dev`
