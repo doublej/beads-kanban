@@ -16,7 +16,7 @@
 declare const Bun: unknown | undefined
 
 import { resolve, join, dirname } from 'path'
-import { existsSync, writeFileSync, lstatSync, readFileSync, readdirSync, unlinkSync } from 'fs'
+import { existsSync, writeFileSync, lstatSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync } from 'fs'
 import { spawn, execSync, spawnSync } from 'child_process'
 import { createInterface } from 'readline'
 import { createServer, createConnection } from 'net'
@@ -273,10 +273,33 @@ async function runReap(args: string[]): Promise<number> {
 	return failed.length === 0 ? 0 : 1
 }
 
+function autoReapEnabled(): boolean {
+	return process.env.BEADS_KANBAN_AUTO_REAP !== '0'
+}
+
+const LOG_ROTATE_MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+
+function rotateIfLarge(file: string): void {
+	if (!existsSync(file)) return
+	try {
+		if (statSync(file).size <= LOG_ROTATE_MAX_BYTES) return
+		const backup = `${file}.1`
+		if (existsSync(backup)) unlinkSync(backup)
+		renameSync(file, backup)
+	} catch (err) {
+		console.error(`[beads-kanban] log rotation failed for ${file}: ${err instanceof Error ? err.message : String(err)}`)
+	}
+}
+
+function rotateLogs(target: string): void {
+	rotateIfLarge(join(target, '.beads', 'dolt-server.log'))
+	rotateIfLarge(join(target, '.beads', 'daemon.log'))
+}
+
 function reapOnShutdown(parentPid: number): void {
 	const file = join(CACHE_DIR, `touched-cwds-${parentPid}.json`)
 	const cwds = readTouchedCwdsFile(file)
-	if (process.env.BEADS_KANBAN_AUTO_REAP === '1' && cwds.length > 0) {
+	if (autoReapEnabled() && cwds.length > 0) {
 		try {
 			const orphans = findOrphanedDoltPids(cwds)
 			const { killed, failed } = killDoltPids(orphans)
@@ -322,6 +345,9 @@ async function main() {
 			fail(`bd init failed: ${err instanceof Error ? err.message : 'unknown error'}`)
 		}
 	}
+
+	// Rotate large logs (>10 MB) before they grow further this session
+	rotateLogs(target)
 
 	// Write .beads-cwd and start server
 	writeFileSync(join(APP_DIR, '.beads-cwd'), target, 'utf-8')

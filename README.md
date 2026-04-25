@@ -60,7 +60,7 @@ Agent dependencies are included in the root install. The `.env` file takes prece
 - `AGENT_PORT`: agent server port (default 9347)
 - `BD_DB`: optional override for Beads DB path (used as fallback)
 - `VAPID_SUBJECT`: optional mailto: address for push notification VAPID keys (default: `mailto:admin@beadskanban.local`)
-- `BEADS_KANBAN_AUTO_REAP=1`: on Ctrl-C, also `SIGTERM` orphan `dolt sql-server` processes spawned by this session's `bd sql` reads. Off by default — killing a dolt server held by another terminal's `bd` session would disrupt that session.
+- `BEADS_KANBAN_AUTO_REAP`: scoped reaping is **on by default**. On Ctrl-C, `bd dolt stop` (clean) is attempted on every dolt server spawned by this session's `bd sql` reads — SIGTERM fallback if that fails. The dev server also runs a 10-minute periodic reap over the same scope. Set `BEADS_KANBAN_AUTO_REAP=0` to disable both (e.g. when sharing a dolt server across terminals).
 
 ## Reaping orphan dolt servers
 
