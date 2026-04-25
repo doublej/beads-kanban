@@ -15,7 +15,7 @@ export interface BdResult {
 	warning?: string
 }
 
-const MIN_BD_VERSION = '0.57.0'
+const MIN_BD_VERSION = '1.0.0'
 
 export interface BdVersion {
 	version: string

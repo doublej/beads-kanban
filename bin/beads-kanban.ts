@@ -21,7 +21,7 @@ import { createInterface } from 'readline'
 import { createServer, createConnection } from 'net'
 import { homedir } from 'os'
 
-const MIN_BD_VERSION = '0.49.0'
+const MIN_BD_VERSION = '1.0.0'
 const AGENT_PORT = 9347
 const APP_DIR = dirname(new URL('.', import.meta.url).pathname)
 const CACHE_DIR = join(homedir(), '.cache', 'beads-kanban')
@@ -100,16 +100,15 @@ function readTouchedCwdsFile(file: string): string[] {
 }
 
 function listDoltCandidates(): { pid: number }[] {
-	const result = spawnSync('ps', ['-axo', 'pid,ppid,command'], { encoding: 'utf-8' })
+	const result = spawnSync('ps', ['-axo', 'pid,command'], { encoding: 'utf-8' })
 	if (result.status !== 0 || result.error) return []
 	const out: { pid: number }[] = []
 	for (const raw of result.stdout.split('\n').slice(1)) {
 		const line = raw.trim()
 		if (!line) continue
-		const m = line.match(/^(\d+)\s+(\d+)\s+(.*)$/)
+		const m = line.match(/^(\d+)\s+(.*)$/)
 		if (!m) continue
-		if (Number(m[2]) !== 1) continue
-		if (!m[3].includes('dolt sql-server')) continue
+		if (!m[2].includes('dolt sql-server')) continue
 		out.push({ pid: Number(m[1]) })
 	}
 	return out

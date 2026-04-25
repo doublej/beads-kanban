@@ -17,7 +17,7 @@ bun run check    # Type-check with svelte-check
 ## Architecture
 
 ### Data Flow
-- **Backend**: API routes in `src/routes/api/` use `$lib/db.ts` for reads, shell out to `bd` CLI for writes
+- **Backend**: API routes in `src/routes/api/` use `$lib/db.ts` for reads (via `bd sql --json`, backend-agnostic), shell out to `bd` CLI for writes
 - **Frontend**: Single-page Kanban in `src/routes/+page.svelte`
 - Issues flow: SQLite DB → `$lib/db.ts` → API → Svelte state → Kanban columns
 
@@ -25,7 +25,7 @@ bun run check    # Type-check with svelte-check
 - `src/routes/+page.svelte` - Main Kanban board (UI logic, drag/drop, keyboard nav)
 - `src/routes/api/issues/+server.ts` - GET (via db)/POST (via bd CLI) issues
 - `src/routes/api/issues/[id]/+server.ts` - PATCH/DELETE single issue via `bd` CLI
-- `src/lib/db.ts` - SQLite database access for reading issues (bypasses CLI for perf)
+- `src/lib/db.ts` - Read-only access via `bd sql --json` (works with both SQLite and Dolt backends)
 - `src/lib/wsStore.svelte.ts` - WebSocket store for embedded agent server (ws://localhost:9347)
 - `src/lib/types.ts` - TypeScript interfaces (Issue, Dependency, Column, etc.)
 - `src/lib/api.ts` - Client-side API calls

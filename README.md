@@ -4,7 +4,7 @@ Kanban board UI for the Beads issue tracker. Reads directly from `.beads` SQLite
 
 ## Requirements
 - **Runtime**: Node 18+ or Bun 1.0+
-- **Beads CLI**: `bd` v0.49.0+ ([install](https://github.com/steveyegge/beads))
+- **Beads CLI**: `bd` v1.0.0+ ([install](https://github.com/steveyegge/beads))
 - **Optional**: `uv` + `beads-mcp` for agent MCP tools
 
 ## Installation
@@ -74,7 +74,7 @@ beads-kanban reap --all                # reap any orphan dolt sql-server with /.
 beads-kanban reap --scan-cwd <dir>     # reap only servers whose cwd is inside <dir>
 ```
 
-The reaper only kills processes where all of: command contains `dolt sql-server`, ppid is launchd (`1`), and cwd is inside an explicitly-supplied directory. SIGTERM only — failures are reported, not escalated.
+The reaper only kills processes where the command contains `dolt sql-server` and the cwd is inside an explicitly-supplied directory. SIGTERM only — failures are reported, not escalated.
 
 ## Docs site
 `cd docs && bun install && bun run dev`
