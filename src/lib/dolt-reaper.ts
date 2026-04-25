@@ -77,16 +77,33 @@ export function findAllOrphanedDoltPids(): DoltOrphan[] {
 	return out;
 }
 
-/** Send SIGTERM to each PID. No SIGKILL escalation. */
-export function killDoltPids(pids: number[]): ReapResult {
+const DOLT_STOP_TIMEOUT_MS = 5000;
+
+/** Try a clean `bd dolt stop` from `cwd`. Returns true on exit code 0 within the timeout. */
+function tryDoltStop(cwd: string): boolean {
+	const result = spawnSync('bd', ['dolt', 'stop'], {
+		cwd,
+		encoding: 'utf-8',
+		timeout: DOLT_STOP_TIMEOUT_MS,
+		env: { ...process.env, BD_JSON_ENVELOPE: '1' }
+	});
+	return result.status === 0 && !result.error;
+}
+
+/** Stop each dolt server cleanly via `bd dolt stop`; SIGTERM fallback if that fails or times out. */
+export function killDoltPids(orphans: DoltOrphan[]): ReapResult {
 	const killed: number[] = [];
 	const failed: { pid: number; err: string }[] = [];
-	for (const pid of pids) {
+	for (const orphan of orphans) {
+		if (tryDoltStop(orphan.cwd)) {
+			killed.push(orphan.pid);
+			continue;
+		}
 		try {
-			process.kill(pid, 'SIGTERM');
-			killed.push(pid);
+			process.kill(orphan.pid, 'SIGTERM');
+			killed.push(orphan.pid);
 		} catch (err) {
-			failed.push({ pid, err: err instanceof Error ? err.message : String(err) });
+			failed.push({ pid: orphan.pid, err: err instanceof Error ? err.message : String(err) });
 		}
 	}
 	return { killed, failed };

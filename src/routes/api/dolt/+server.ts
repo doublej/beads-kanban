@@ -27,6 +27,6 @@ export const POST: RequestHandler = wrap(async ({ url }) => {
 	const scope = scopeCwds(url);
 	if (!Array.isArray(scope)) return err(scope.error, 400);
 	const orphans = findOrphanedDoltPids(scope);
-	const { killed, failed } = killDoltPids(orphans.map((o) => o.pid));
+	const { killed, failed } = killDoltPids(orphans);
 	return ok({ orphaned: orphans.length, pids: orphans, killed, failed });
 });

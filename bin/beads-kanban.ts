@@ -9,6 +9,7 @@
  *
  * Reaper helpers below are duplicated from src/lib/{touched-cwds,dolt-reaper}.ts so
  * the CLI stays compilable as a single file via `tsc -p bin/tsconfig.json` (no bundler).
+ * Keep behavior in sync between the two; future bundler swap can dedupe.
  */
 
 // Type guard for Bun runtime
@@ -159,10 +160,24 @@ function findAllOrphanedDoltPids(): DoltOrphan[] {
 	return out
 }
 
+function tryDoltStop(cwd: string): boolean {
+	const result = spawnSync('bd', ['dolt', 'stop'], {
+		cwd,
+		encoding: 'utf-8',
+		timeout: 5000,
+		env: bdEnv(),
+	})
+	return result.status === 0 && !result.error
+}
+
 function killDoltPids(orphans: DoltOrphan[]): { killed: DoltOrphan[]; failed: { orphan: DoltOrphan; err: string }[] } {
 	const killed: DoltOrphan[] = []
 	const failed: { orphan: DoltOrphan; err: string }[] = []
 	for (const o of orphans) {
+		if (tryDoltStop(o.cwd)) {
+			killed.push(o)
+			continue
+		}
 		try {
 			process.kill(o.pid, 'SIGTERM')
 			killed.push(o)
