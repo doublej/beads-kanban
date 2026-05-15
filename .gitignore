@@ -17,5 +17,10 @@ bin/beads-kanban.js.map
 # Manager agent memory
 CLAUDE-MANAGER.md
 
-# App log
-.beads/beads-app.log
+# Beads database — keep only README + .gitignore tracked
+.beads/*
+!.beads/.gitignore
+!.beads/README.md
+
+# Beads workdir pointer (leaks home path)
+.beads-cwd
