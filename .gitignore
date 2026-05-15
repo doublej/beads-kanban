@@ -1,6 +1,10 @@
 # Local-only assets
 local/
 
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
+
 node_modules/
 .svelte-kit/
 build/
