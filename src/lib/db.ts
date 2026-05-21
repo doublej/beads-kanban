@@ -1,6 +1,7 @@
 /**
  * Read-only database access via `bd sql --json`.
- * Works with both SQLite and Dolt backends. Min bd version: see MIN_BD_VERSION in bd.ts.
+ * Requires bd in Dolt server mode (`bd init --server`); embedded mode does not expose `bd sql`.
+ * Min bd version: see MIN_BD_VERSION in bd.ts.
  */
 import { spawnSync } from 'child_process';
 import { join, resolve } from 'path';
