@@ -146,6 +146,10 @@
 	text-transform: uppercase;
 	letter-spacing: 0.07em;
 	color: var(--ink-3);
+	background: transparent;
+	padding: 0;
+	border-radius: 0;
+	border: 0;
 }
 
 /* Tabular monospace digits */
