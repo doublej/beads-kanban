@@ -1,11 +1,13 @@
 #!/usr/bin/env bun
 /**
- * CLI entry point for beads-kanban.
+ * CLI entry point for bdk (beads-kanban).
  * Validates target directory, checks bd CLI, writes .beads-cwd, starts dev server.
  *
  * Subcommands:
- *   beads-kanban [path]         Start the dev server against [path].
- *   beads-kanban reap [opts]    Reap orphan `dolt sql-server` processes.
+ *   bdk [path]            Start the dev server against [path] (default: cwd).
+ *   bdk zen <ids>         Start the server and open focus review for the given ids.
+ *   bdk reap [opts]       Reap orphan `dolt sql-server` processes.
+ *   bdk help              Show usage.
  *
  * Reaper helpers below are duplicated from src/lib/{touched-cwds,dolt-reaper}.ts so
  * the CLI stays compilable as a single file via `tsc -p bin/tsconfig.json` (no bundler).
@@ -225,7 +227,7 @@ function reapScanCwd(dir: string): { killed: DoltOrphan[]; failed: { orphan: Dol
 }
 
 function printReapHelp(): void {
-	console.log(`Usage: beads-kanban reap [--touched|--all|--scan-cwd <dir>]
+	console.log(`Usage: bdk reap [--touched|--all|--scan-cwd <dir>]
 
   --touched          Default. Reap dolt servers from cache files of dead beads-kanban sessions.
   --all              Reap any orphan dolt sql-server whose cwd contains /.beads/dolt. Use with care.
@@ -313,14 +315,41 @@ function reapOnShutdown(parentPid: number): void {
 	}
 }
 
-async function main() {
-	const argv = process.argv.slice(2)
-	if (argv[0] === 'reap') {
-		process.exit(await runReap(argv.slice(1)))
+// --- Browser open + readiness ---
+
+function openBrowser(url: string): void {
+	const cmd = process.platform === 'darwin' ? 'open'
+		: process.platform === 'win32' ? 'start'
+		: 'xdg-open'
+	try {
+		const child = spawn(cmd, [url], {
+			stdio: 'ignore',
+			detached: true,
+			shell: process.platform === 'win32',
+		})
+		child.on('error', () => console.log(`Open manually: ${url}`))
+		child.unref()
+	} catch {
+		console.log(`Open manually: ${url}`)
 	}
+}
 
-	const target = resolve(argv[0] ?? process.cwd())
+function delay(ms: number): Promise<void> {
+	return new Promise((res) => setTimeout(res, ms))
+}
 
+async function waitForPort(port: number, timeoutMs = 30000): Promise<boolean> {
+	const deadline = Date.now() + timeoutMs
+	while (Date.now() < deadline) {
+		if (await isPortInUse(port)) return true
+		await delay(250)
+	}
+	return false
+}
+
+// --- Server startup ---
+
+async function preflight(target: string): Promise<void> {
 	if (!existsSync(target)) fail(`Directory not found: ${target}`)
 	if (!lstatSync(target).isDirectory()) fail(`Not a directory: ${target}`)
 
@@ -348,6 +377,10 @@ async function main() {
 
 	// Rotate large logs (>10 MB) before they grow further this session
 	rotateLogs(target)
+}
+
+async function startServer(target: string, opts: { openPath?: string } = {}): Promise<void> {
+	await preflight(target)
 
 	// Write .beads-cwd and start server
 	writeFileSync(join(APP_DIR, '.beads-cwd'), target, 'utf-8')
@@ -371,12 +404,22 @@ async function main() {
 		})
 	}
 
+	const port = await findFreePort()
 	const launcher = typeof Bun !== 'undefined' ? 'bunx' : 'npx'
-	const child = spawn(launcher, ['vite', 'dev', '--host', '--port', String(await findFreePort())], {
+	const child = spawn(launcher, ['vite', 'dev', '--host', '--port', String(port)], {
 		cwd: APP_DIR,
 		stdio: 'inherit',
 		env: childEnv,
 	})
+
+	// Once the dev server is listening, open the requested deep link (vite uses HTTPS).
+	if (opts.openPath) {
+		const url = `https://localhost:${port}${opts.openPath}`
+		waitForPort(port).then((up) => {
+			if (up) { console.log(`Opening ${url}`); openBrowser(url) }
+			else console.log(`Server not ready in time. Open manually: ${url}`)
+		})
+	}
 
 	let shuttingDown = false
 	const shutdown = (sig: NodeJS.Signals | null) => {
@@ -397,6 +440,67 @@ async function main() {
 	;(['SIGINT', 'SIGTERM'] as const).forEach((sig) =>
 		process.on(sig, () => shutdown(sig))
 	)
+}
+
+// --- zen subcommand ---
+
+function parseIds(args: string[]): string[] {
+	return args.flatMap((a) => a.split(',')).map((s) => s.trim()).filter(Boolean)
+}
+
+async function runZen(args: string[]): Promise<void> {
+	if (args.includes('-h') || args.includes('--help')) {
+		console.log(`Usage: bdk zen <id[,id ...]>
+
+  Starts the board against the current directory and opens distraction-free
+  focus review for the given issue ids. Ids may be comma- or space-separated:
+    bdk zen pm-1,pm-2
+    bdk zen pm-1 pm-2 pm-3`)
+		return
+	}
+	const ids = parseIds(args)
+	if (ids.length === 0) {
+		fail('zen requires at least one issue id. Usage: bdk zen <id[,id ...]>')
+	}
+	const target = resolve(process.cwd())
+	const openPath = `/?zen=${ids.map(encodeURIComponent).join(',')}`
+	await startServer(target, { openPath })
+}
+
+// --- dispatch ---
+
+function printHelp(): void {
+	console.log(`bdk — Kanban board for the Beads issue tracker
+
+Usage:
+  bdk [path]            Start the board against [path] (default: current directory)
+  bdk zen <ids>         Open distraction-free focus review for the given issue ids
+  bdk reap [opts]       Reap orphan 'dolt sql-server' processes (see 'bdk reap --help')
+  bdk help              Show this help
+
+Examples:
+  bdk                   Start against the current directory
+  bdk ~/code/myproject  Start against another project
+  bdk zen pm-1,pm-2     Review issues pm-1 and pm-2`)
+}
+
+async function main() {
+	const [cmd, ...rest] = process.argv.slice(2)
+	switch (cmd) {
+		case 'reap':
+			process.exit(await runReap(rest))
+		case 'zen':
+			await runZen(rest)
+			return
+		case 'help':
+		case '-h':
+		case '--help':
+			printHelp()
+			return
+		default:
+			// No subcommand → cmd is an optional [path] (defaults to cwd).
+			await startServer(resolve(cmd ?? process.cwd()))
+	}
 }
 
 main()

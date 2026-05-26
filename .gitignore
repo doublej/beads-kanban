@@ -11,8 +11,8 @@ build/
 .env
 
 # Compiled CLI artifacts
-bin/beads-kanban.js
-bin/beads-kanban.js.map
+bin/bdk.js
+bin/bdk.js.map
 
 # Manager agent memory
 CLAUDE-MANAGER.md

@@ -414,14 +414,14 @@
 					<span class="step-num">3</span>
 					<div class="step-content">
 						<strong>Add the shell function</strong>
-						<p>Add this to your <code>~/.zshrc</code>: <code>beads-kanban() &#123; bun /path/to/beads-kanban/bin/beads-kanban.ts "$@"; &#125;</code></p>
+						<p>Add this to your <code>~/.zshrc</code>: <code>bdk() &#123; bun /path/to/beads-kanban/bin/bdk.ts "$@"; &#125;</code></p>
 					</div>
 				</li>
 				<li>
 					<span class="step-num">4</span>
 					<div class="step-content">
 						<strong>Launch</strong>
-						<p>Run <code>beads-kanban /path/to/your/project</code>. It handles <code>.beads/</code> init automatically if needed.</p>
+						<p>Run <code>bdk /path/to/your/project</code>. It handles <code>.beads/</code> init automatically if needed.</p>
 					</div>
 				</li>
 			</ol>

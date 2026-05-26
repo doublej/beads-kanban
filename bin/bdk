@@ -2,7 +2,7 @@
 # Detects Bun vs Node and runs compiled CLI
 DIR="$(cd "$(dirname "$0")" && pwd)"
 if command -v bun >/dev/null 2>&1; then
-  exec bun "$DIR/beads-kanban.js" "$@"
+  exec bun "$DIR/bdk.js" "$@"
 else
-  exec node "$DIR/beads-kanban.js" "$@"
+  exec node "$DIR/bdk.js" "$@"
 fi

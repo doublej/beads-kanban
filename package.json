@@ -4,7 +4,7 @@
   "description": "Kanban board UI for the Beads issue tracker with drag-and-drop and agent integration",
   "type": "module",
   "bin": {
-    "beads-kanban": "./bin/beads-kanban"
+    "bdk": "./bin/bdk"
   },
   "scripts": {
     "dev": "vite dev --host",
