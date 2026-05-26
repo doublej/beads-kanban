@@ -143,16 +143,18 @@
 <style>
 	.zen {
 		--zen-accent: var(--project-color, var(--accent-primary));
-		--zen-vignette: rgba(0, 0, 0, 0.42);
+		--zen-vignette: rgba(0, 0, 0, 0.55);
 		position: fixed;
 		inset: 0;
 		z-index: 1000;
 		display: flex;
 		flex-direction: column;
-		background:
-			radial-gradient(150% 110% at 50% -15%, color-mix(in srgb, var(--zen-accent) 16%, transparent), transparent 55%),
-			radial-gradient(120% 90% at 50% 120%, color-mix(in srgb, var(--zen-accent) 7%, transparent), transparent 50%),
-			var(--surface-app);
+		/* Solid fill is its own property so it always paints, even if a
+		   gradient/color-mix layer below is rejected by the parser. */
+		background-color: var(--surface-app, #18181b);
+		background-image:
+			radial-gradient(125% 90% at 50% -10%, color-mix(in srgb, var(--zen-accent) 24%, transparent), transparent 60%),
+			radial-gradient(110% 85% at 50% 118%, color-mix(in srgb, var(--zen-accent) 11%, transparent), transparent 55%);
 		animation: zen-in 320ms cubic-bezier(0.22, 1, 0.36, 1);
 	}
 	.zen.reduced {
