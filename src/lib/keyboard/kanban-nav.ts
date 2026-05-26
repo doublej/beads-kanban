@@ -20,6 +20,7 @@ export interface KeyboardNavContext {
 	deleteIssue: (id: string) => void;
 	toggleTheme: () => void;
 	closePanel: () => void;
+	openZenReview: () => void;
 }
 
 function getCardGrid(filteredIssues: Issue[]): Issue[][] {
@@ -122,6 +123,11 @@ function handleNonInputShortcuts(e: KeyboardEvent, ctx: KeyboardNavContext): boo
 	if (e.key === 'n' || e.key === 'N') {
 		e.preventDefault();
 		ctx.openCreatePanel();
+		return true;
+	}
+	if (e.key === 'z' || e.key === 'Z') {
+		e.preventDefault();
+		ctx.openZenReview();
 		return true;
 	}
 	if (e.key === 't' || e.key === 'T') {

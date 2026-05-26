@@ -25,6 +25,7 @@
 	import KeyboardHelp from '$lib/components/KeyboardHelp.svelte';
 	import KanbanColumn from '$lib/components/KanbanColumn.svelte';
 	import DetailPanel from '$lib/components/DetailPanel.svelte';
+	import ZenReview from '$lib/components/ZenReview.svelte';
 	import FlyingCardComponent from '$lib/components/FlyingCard.svelte';
 	import AgentBar from '$lib/components/AgentBar.svelte';
 	import InitialLoader from '$lib/components/InitialLoader.svelte';
@@ -105,6 +106,9 @@
 	let flyingCards = $state<Map<string, {from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; issue: Issue}>>(new Map());
 	let shrinkingSourceIds = $state<Set<string>>(new Set());
 	let viewMode = $state<ViewMode>('kanban');
+	let zenOpen = $state(false);
+	let zenIds = $state<string[]>([]);
+	let zenIndex = $state(0);
 	let lastAppliedDefaultView = $state<ViewMode | null>(null);
 	let lastAppliedDefaultSort = $state<SortBy | null>(null);
 	let showMutationLog = $state(false);
@@ -301,6 +305,16 @@
 	const availableLabels = $derived([...new Set(issues.flatMap(i => i.labels || []))].sort());
 	const filteredIssues = $derived(issues.filter((issue) => issueMatchesFilters(issue)));
 
+	// --- Zen focus review ---
+	function openZenReview(ids?: string[], startIndex?: number) {
+		const list = ids && ids.length ? ids : filteredIssues.map((i) => i.id);
+		if (!list.length) return;
+		zenIds = list;
+		const seeded = startIndex ?? (selectedId ? list.indexOf(selectedId) : -1);
+		zenIndex = seeded >= 0 ? seeded : 0;
+		zenOpen = true;
+	}
+
 	// --- Keyboard Nav ---
 	const keyboardNav = createKeyboardNav({
 		getFilteredIssues: () => filteredIssues,
@@ -320,7 +334,8 @@
 		openEditPanel: ops.openEditPanel,
 		deleteIssue: ops.deleteIssue,
 		toggleTheme,
-		closePanel: ops.closePanel
+		closePanel: ops.closePanel,
+		openZenReview: () => openZenReview()
 	});
 	const { handleKeydown, handleKeyup, handleWindowBlur } = keyboardNav;
 
@@ -941,6 +956,17 @@
 <FlyingCardComponent {teleports} />
 
 <InitialLoader status={loadingStatus} visible={!initialLoaded} />
+
+{#if zenOpen}
+	<ZenReview
+		ids={zenIds}
+		index={zenIndex}
+		{issues}
+		onnav={(i) => (zenIndex = i)}
+		onclose={() => (zenOpen = false)}
+		onopendetail={(issue) => { zenOpen = false; ops.openEditPanel(issue); }}
+	/>
+{/if}
 </div>
 
 
