@@ -129,8 +129,10 @@ export function getDueInfo(dueAt?: string): { label: string; level: DueLevel; ab
 	const dayMs = 86400000;
 	const startToday = new Date();
 	startToday.setHours(0, 0, 0, 0);
-	const dueDay = new Date(dueMs);
-	dueDay.setHours(0, 0, 0, 0);
+	// bd stores date-only due dates as UTC midnight; read the calendar day in UTC so
+	// the badge doesn't shift back a day for users west of UTC (and stays consistent
+	// with the YYYY-MM-DD shown in the date input).
+	const dueDay = new Date(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate());
 	const dayDiff = Math.round((dueDay.getTime() - startToday.getTime()) / dayMs);
 
 	const level: DueLevel = dayDiff < 0 ? 'overdue' : dayDiff <= 2 ? 'soon' : 'normal';
@@ -140,9 +142,9 @@ export function getDueInfo(dueAt?: string): { label: string; level: DueLevel; ab
 	else if (dayDiff === -1) label = '1d late';
 	else if (dayDiff < 0) label = `${-dayDiff}d late`;
 	else if (dayDiff < 7) label = `${dayDiff}d`;
-	else label = due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+	else label = dueDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-	const absolute = due.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	const absolute = dueDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 	return { label, level, absolute };
 }
 
