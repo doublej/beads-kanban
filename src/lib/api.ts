@@ -13,6 +13,10 @@ export async function closeIssueApi(id: string, reason = 'Completed'): Promise<v
 	await postJSON(`/api/issues/${id}/close`, { reason });
 }
 
+export async function setIssueStateApi(id: string, dimension: string, value: string, reason?: string): Promise<void> {
+	await postJSON(`/api/issues/${id}/state`, { dimension, value, reason });
+}
+
 export async function createIssueApi(form: { title: string; description: string; priority: number; issue_type: string }): Promise<{ id: string; issue: unknown }> {
 	return postJSON<{ id: string; issue: unknown }>('/api/issues', form);
 }

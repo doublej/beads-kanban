@@ -195,6 +195,16 @@ export async function removeLabel(issueId: string, label: string, cwd?: string):
 	return run(`bd label remove ${issueId} ${label}`, cwd)
 }
 
+/**
+ * Set an operational-state dimension on an issue via `bd set-state`.
+ * Creates an event bead + updates the `<dimension>:<value>` label atomically.
+ */
+export async function setIssueState(id: string, dimension: string, value: string, reason?: string, cwd?: string): Promise<BdResult> {
+	let cmd = `bd set-state ${id} "${escapeArg(dimension)}=${escapeArg(value)}"`
+	if (reason) cmd += ` --reason "${escapeArg(reason)}"`
+	return run(cmd, cwd)
+}
+
 export async function setMetadata(id: string, key: string, value: string, cwd?: string): Promise<BdResult> {
 	return run(`bd update ${id} --set-metadata ${key}=${value}`, cwd)
 }

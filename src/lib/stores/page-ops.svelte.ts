@@ -8,7 +8,8 @@ import {
 	loadComments as loadCommentsApi,
 	loadAttachmentsApi,
 	uploadAttachmentApi,
-	deleteAttachmentApi
+	deleteAttachmentApi,
+	setIssueStateApi
 } from '$lib/api';
 import { formatTicketDelivery as formatTicketDeliveryFn } from '$lib/agent/ticket-delivery';
 import type { TicketDeliveryData } from '$lib/agent/ticket-delivery';
@@ -261,6 +262,18 @@ export function createPageOps(ctx: PageOpsContext) {
 	function removeLabelFromEditing(label: string) {
 		if (!editingIssue) return;
 		editingIssue.labels = (editingIssue.labels || []).filter(l => l !== label);
+	}
+
+	// --- Operational state (bd set-state) ---
+
+	/** Set a `dimension:value` operational state on the open issue (immediate write + event bead). */
+	async function setIssueState(dimension: string, value: string, reason?: string) {
+		if (!editingIssue) return;
+		const id = editingIssue.id;
+		// Optimistic: replace any existing label for this dimension with the new value.
+		const others = (editingIssue.labels || []).filter(l => !l.startsWith(`${dimension}:`));
+		editingIssue.labels = [...others, `${dimension}:${value}`];
+		await setIssueStateApi(id, dimension, value, reason);
 	}
 
 	// --- Comments ---
@@ -625,6 +638,7 @@ export function createPageOps(ctx: PageOpsContext) {
 		setEditingColumn,
 		addLabelToEditing,
 		removeLabelFromEditing,
+		setIssueState,
 		loadComments,
 		addComment,
 		loadAttachments,

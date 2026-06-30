@@ -45,6 +45,7 @@
 		onsetcolumn: (columnKey: string) => void;
 		onaddlabel: (label: string) => void;
 		onremovelabel: (label: string) => void;
+		onsetstate?: (dimension: string, value: string, reason?: string) => void;
 		onremovedep: (issueId: string, depId: string) => void;
 		onpaneltouchstart: (e: TouchEvent) => void;
 		onpaneltouchmove: (e: TouchEvent) => void;
@@ -86,6 +87,7 @@
 		onsetcolumn,
 		onaddlabel,
 		onremovelabel,
+		onsetstate,
 		onremovedep,
 		onpaneltouchstart,
 		onpaneltouchmove,
@@ -99,6 +101,21 @@
 	const dueInfo = $derived(editingIssue ? getDueInfo(editingIssue.due_at) : null);
 	const parsedLabels = $derived(parseStateLabels(editingIssue?.labels));
 	const stale = $derived(editingIssue ? isStale(editingIssue) : false);
+
+	// Operational-state inline editor
+	let showStateEditor = $state(false);
+	let stateDim = $state('');
+	let stateVal = $state('');
+	const STATE_TOKEN = /^[a-zA-Z0-9_-]+$/;
+	const canSubmitState = $derived(STATE_TOKEN.test(stateDim.trim()) && STATE_TOKEN.test(stateVal.trim()));
+
+	function submitState() {
+		if (!canSubmitState || !onsetstate) return;
+		onsetstate(stateDim.trim(), stateVal.trim());
+		stateDim = '';
+		stateVal = '';
+		showStateEditor = false;
+	}
 
 	function handlePaste(e: ClipboardEvent) {
 		const items = e.clipboardData?.items;
@@ -325,12 +342,23 @@
 					<section class="section"><span class="section-label">Notes</span><div class="prose"><MarkdownContent content={editingIssue.notes} /></div></section>
 				{/if}
 
-				{#if parsedLabels.states.length > 0}
+				{#if parsedLabels.states.length > 0 || onsetstate}
 					<div class="state-row">
 						{#each parsedLabels.states as st (st.dimension)}
 							<span class="state-badge" title="Operational state"><span class="state-dim">{st.dimension}</span><span class="state-val">{st.value}</span></span>
 						{/each}
+						{#if onsetstate}
+							<button class="state-add" onclick={() => showStateEditor = !showStateEditor} title="Set operational state"><Icon name={showStateEditor ? 'close' : 'plus'} size={11} /><span>state</span></button>
+						{/if}
 					</div>
+					{#if showStateEditor && onsetstate}
+						<div class="state-editor">
+							<input class="state-input" placeholder="dimension" bind:value={stateDim} onkeydown={(e) => e.key === 'Enter' && submitState()} />
+							<span class="state-eq">=</span>
+							<input class="state-input" placeholder="value" bind:value={stateVal} onkeydown={(e) => e.key === 'Enter' && submitState()} />
+							<button class="state-set" disabled={!canSubmitState} onclick={submitState}>Set</button>
+						</div>
+					{/if}
 				{/if}
 				{#if editingIssue.external_ref || editingIssue.spec_id}
 					<div class="facet-row">
@@ -595,6 +623,26 @@
 	}
 	.state-badge .state-dim { padding: 0.125rem 0.375rem; background: rgba(20, 184, 166, 0.16); color: #14b8a6; text-transform: uppercase; letter-spacing: 0.03em; }
 	.state-badge .state-val { padding: 0.125rem 0.375rem; background: rgba(20, 184, 166, 0.28); color: #0d9488; }
+	.state-add {
+		display: inline-flex; align-items: center; gap: 3px;
+		padding: 0.125rem 0.4rem; border-radius: var(--radius-xs);
+		background: transparent; border: 1px dashed var(--border-default);
+		color: var(--text-tertiary); font-size: 0.625rem; font-weight: 600; cursor: pointer;
+	}
+	.state-add:hover { color: #14b8a6; border-color: #14b8a6; }
+	.state-editor { display: flex; align-items: center; gap: 0.375rem; margin-top: 0.375rem; }
+	.state-eq { color: var(--text-tertiary); font-weight: 700; }
+	.state-input {
+		flex: 1; min-width: 0; padding: 0.25rem 0.5rem; border-radius: var(--radius-xs);
+		background: rgba(255,255,255,0.04); border: 1px solid var(--border-subtle);
+		color: var(--text-primary); font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 0.6875rem;
+	}
+	.state-input:focus { outline: none; border-color: #14b8a6; }
+	.state-set {
+		padding: 0.25rem 0.625rem; border-radius: var(--radius-xs);
+		background: #14b8a6; border: none; color: #fff; font-size: 0.6875rem; font-weight: 600; cursor: pointer;
+	}
+	.state-set:disabled { opacity: 0.4; cursor: not-allowed; }
 	.facet-chip {
 		display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
 		padding: 0.1875rem 0.4rem; border-radius: var(--radius-xs);
