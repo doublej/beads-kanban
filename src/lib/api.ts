@@ -26,6 +26,18 @@ export async function lintIssueApi(id: string): Promise<string[]> {
 	return data.missing ?? [];
 }
 
+export interface IssueHistoryEntry {
+	hash: string;
+	date: string;
+	committer: string;
+	changes: string[];
+}
+
+export async function loadIssueHistoryApi(id: string): Promise<IssueHistoryEntry[]> {
+	const data = await fetchJSON<{ entries: IssueHistoryEntry[] }>(`/api/issues/${id}/history`);
+	return data.entries ?? [];
+}
+
 export async function createIssueApi(form: { title: string; description: string; priority: number; issue_type: string }): Promise<{ id: string; issue: unknown }> {
 	return postJSON<{ id: string; issue: unknown }>('/api/issues', form);
 }

@@ -11,7 +11,7 @@
 	import DetailPanelFooter from './DetailPanelFooter.svelte';
 	import MarkdownContent from './MarkdownContent.svelte';
 	import { appendProjectParam } from '$lib/project';
-	import { lintIssueApi } from '$lib/api';
+	import { lintIssueApi, loadIssueHistoryApi, type IssueHistoryEntry } from '$lib/api';
 
 	let isEditMode = $state(false);
 
@@ -160,6 +160,31 @@
 		}
 		lintIssueApi(id).then((missing) => { lintMissing = missing; }).catch(() => { lintMissing = []; });
 	});
+
+	// Per-issue version history (lazy-loaded on expand)
+	let historyEntries = $state<IssueHistoryEntry[]>([]);
+	let historyOpen = $state(false);
+	let loadingHistory = $state(false);
+	$effect(() => {
+		// Reset when switching issues.
+		void editingIssue?.id;
+		historyOpen = false;
+		historyEntries = [];
+	});
+
+	async function toggleHistory() {
+		if (historyOpen) { historyOpen = false; return; }
+		historyOpen = true;
+		if (historyEntries.length > 0 || !editingIssue) return;
+		loadingHistory = true;
+		try {
+			historyEntries = await loadIssueHistoryApi(editingIssue.id);
+		} catch {
+			historyEntries = [];
+		} finally {
+			loadingHistory = false;
+		}
+	}
 
 	$effect(() => {
 		const id = editingIssue?.id;
@@ -467,6 +492,32 @@
 					{/if}
 				</section>
 			{/if}
+
+				<section class="section">
+					<button class="history-toggle" onclick={toggleHistory}>
+						<Icon name={historyOpen ? 'chevron-down' : 'chevron-right'} size={11} />
+						<span class="section-label">History</span>
+					</button>
+					{#if historyOpen}
+						{#if loadingHistory}
+							<div class="related-empty">Loading…</div>
+						{:else if historyEntries.length === 0}
+							<div class="related-empty">No version history.</div>
+						{:else}
+							<ul class="history-list">
+								{#each historyEntries as entry (entry.hash)}
+									<li class="history-item">
+										<span class="history-dot"></span>
+										<div class="history-meta">
+											<div class="history-changes">{entry.changes.join(' · ')}</div>
+											<div class="history-time">{formatRelTime(entry.date)}{#if entry.committer} · {entry.committer}{/if}</div>
+										</div>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					{/if}
+				</section>
 		</div>
 
 		<DetailPanelFooter mode="edit" {agentEnabled} {onclose} {editingIssue} {originalLabels} {onstartagent} {onsave} {ondelete} />
@@ -892,6 +943,22 @@
 		color: var(--text-tertiary);
 		padding: 0.5rem 0.625rem;
 	}
+
+	/* Per-issue history timeline */
+	.history-toggle {
+		display: flex; align-items: center; gap: 0.375rem;
+		background: none; border: none; padding: 0; cursor: pointer; color: inherit;
+	}
+	.history-toggle .section-label { margin: 0; }
+	.history-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+	.history-item { display: flex; align-items: flex-start; gap: 0.5rem; }
+	.history-dot {
+		flex-shrink: 0; width: 6px; height: 6px; margin-top: 0.3rem; border-radius: 50%;
+		background: var(--accent-primary, #6366f1);
+	}
+	.history-meta { display: flex; flex-direction: column; gap: 0.0625rem; min-width: 0; }
+	.history-changes { font-size: 0.6875rem; color: var(--text-secondary); }
+	.history-time { font-size: 0.5625rem; color: var(--text-tertiary); }
 	.related-history {
 		border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
 		padding: 0.5rem 0.625rem;

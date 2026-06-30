@@ -217,6 +217,11 @@ export async function lintIssue(id: string, cwd?: string): Promise<BdResult> {
 	return run(`bd lint ${id} --json`, cwd)
 }
 
+/** Fetch an issue's Dolt version history via `bd history <id> --json`. */
+export async function historyIssue(id: string, limit = 20, cwd?: string): Promise<BdResult> {
+	return run(`bd history ${id} --json --limit ${Math.max(0, Math.floor(limit))}`, cwd)
+}
+
 export async function setMetadata(id: string, key: string, value: string, cwd?: string): Promise<BdResult> {
 	return run(`bd update ${id} --set-metadata ${key}=${value}`, cwd)
 }
