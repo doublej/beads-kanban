@@ -13,6 +13,8 @@ export interface ChatMessage {
 	timestamp?: string;
 	notificationType?: NotificationType;
 	systemSubtype?: SystemMessageSubtype;
+	/** Extended-thinking (reasoning) content, rendered as a collapsible block. */
+	thinking?: boolean;
 }
 
 export interface TokenUsage {
@@ -75,6 +77,7 @@ export interface AgentSession {
 	messages: ChatMessage[];
 	currentDelta: string;
 	cost?: number;
+	currentThinking?: string;
 	diffs?: FileDiff[];
 	serverId?: string;
 	sdkSessionId?: string;
@@ -104,12 +107,12 @@ export interface FileDiff {
 
 export interface StreamEvent {
 	type: 'stream_event';
-	event: { type: string; delta?: { type: string; text?: string } };
+	event: { type: string; delta?: { type: string; text?: string; thinking?: string } };
 }
 
 export interface AssistantMessage {
 	type: 'assistant';
-	message?: { content: Array<{ type: string; name?: string; text?: string; input?: Record<string, unknown>; id?: string }> };
+	message?: { content: Array<{ type: string; name?: string; text?: string; thinking?: string; input?: Record<string, unknown>; id?: string }> };
 }
 
 export interface ToolResult {

@@ -292,6 +292,7 @@ export function createMessageHandler(sessionName: string) {
 				updateSession(sessionName, {
 					messages: [],
 					currentDelta: '',
+					currentThinking: '',
 					sdkSessionId: undefined,
 					compacted: false
 				});
@@ -304,6 +305,9 @@ export function createMessageHandler(sessionName: string) {
 
 			case 'done': {
 				let messages = session.messages;
+				if (session.currentThinking) {
+					messages = [...messages, makeMsg('assistant', session.currentThinking, { thinking: true })];
+				}
 				if (session.currentDelta) {
 					messages = [...messages, makeMsg('assistant', session.currentDelta)];
 				}
@@ -311,6 +315,7 @@ export function createMessageHandler(sessionName: string) {
 					streaming: false,
 					messages,
 					currentDelta: '',
+					currentThinking: '',
 					cost: msg.result.total_cost_usd,
 					diffs: msg.diffs
 				});
@@ -350,6 +355,8 @@ function handleStream(
 		const ev = (data as StreamEvent).event;
 		if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) {
 			updateSession(name, { currentDelta: session.currentDelta + ev.delta.text });
+		} else if (ev.type === 'content_block_delta' && ev.delta?.type === 'thinking_delta' && ev.delta.thinking) {
+			updateSession(name, { currentThinking: (session.currentThinking ?? '') + ev.delta.thinking });
 		}
 	} else if (data.type === 'tool_call') {
 		const toolCall = data as ToolCallEvent;
@@ -375,18 +382,24 @@ function handleStream(
 		const msg = data as AssistantMessage;
 		const content = msg.message?.content;
 		if (Array.isArray(content)) {
+			// Accumulate all blocks into a single update so a multi-block message
+			// (e.g. thinking + text + tool_use) doesn't clobber itself via stale state.
+			const newMessages: ChatMessage[] = [];
 			for (const block of content) {
-				if (block.type === 'text' && block.text) {
-					updateSession(name, {
-						messages: [...session.messages, makeMsg('assistant', block.text)],
-						currentDelta: ''
-					});
+				if (block.type === 'thinking' && block.thinking) {
+					newMessages.push(makeMsg('assistant', block.thinking, { thinking: true }));
+				} else if (block.type === 'text' && block.text) {
+					newMessages.push(makeMsg('assistant', block.text));
 				} else if (block.type === 'tool_use' && block.name) {
-					updateSession(name, {
-						messages: [...session.messages, makeMsg('tool', `Using ${block.name}`, { toolName: block.name, toolInput: block.input })],
-						currentDelta: ''
-					});
+					newMessages.push(makeMsg('tool', `Using ${block.name}`, { toolName: block.name, toolInput: block.input }));
 				}
+			}
+			if (newMessages.length > 0) {
+				updateSession(name, {
+					messages: [...session.messages, ...newMessages],
+					currentDelta: '',
+					currentThinking: ''
+				});
 			}
 		}
 	} else if (data.type === 'user') {

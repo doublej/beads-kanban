@@ -50,6 +50,28 @@
 				<span class="marker-line"></span>
 			</div>
 		{/if}
+		{#if msg.thinking}
+			{@const thinkKey = `${pane.name}-think-${i}`}
+			{@const thinkCollapsed = isToolCollapsed(thinkKey)}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<div class="msg thinking clickable" class:collapsed={thinkCollapsed} class:unread={isUnread} onclick={() => toggleToolCollapse(thinkKey)}>
+				<span class="collapse-icon thinking-icon">
+					{#if thinkCollapsed}
+						<svg viewBox="0 0 8 8" width="8" height="8"><path d="M2 1l4 3-4 3z" fill="currentColor"/></svg>
+					{:else}
+						<svg viewBox="0 0 8 8" width="8" height="8"><path d="M1 2l3 4 3-4z" fill="currentColor"/></svg>
+					{/if}
+				</span>
+				{#if thinkCollapsed}
+					<pre class="content collapsed-preview"><span class="thinking-label">Thinking</span></pre>
+				{:else}
+					<div class="content thinking-content">
+						<MarkdownContent content={msg.content} maxLength={size === 'large' ? undefined : 3000} />
+					</div>
+				{/if}
+			</div>
+		{:else}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<div
@@ -148,7 +170,17 @@
 				</div>
 			{/if}
 		</div>
+		{/if}
 	{/each}
+	{#if pane.currentThinking}
+		<div class="msg thinking streaming">
+			<span class="role-tag thinking-tag">✻</span>
+			<div class="content thinking-content streaming-content">
+				<MarkdownContent content={pane.currentThinking} />
+				<span class="cursor"></span>
+			</div>
+		</div>
+	{/if}
 	{#if pane.currentDelta}
 		<div class="msg assistant streaming">
 			<span class="role-tag">&lt;</span>
@@ -158,7 +190,7 @@
 			</div>
 		</div>
 	{/if}
-	{#if pane.messages.length === 0 && !pane.currentDelta}
+	{#if pane.messages.length === 0 && !pane.currentDelta && !pane.currentThinking}
 		<div class="empty-state">awaiting input</div>
 	{/if}
 </div>
@@ -349,6 +381,14 @@
 	.system-content.subagent_start { color: #818cf8; }
 	.system-content.subagent_end { color: #a5b4fc; }
 
+	/* Extended-thinking (reasoning) blocks */
+	.msg.thinking { background: rgba(168, 85, 247, 0.06); opacity: 0.85; }
+	.msg.thinking:hover { opacity: 1; }
+	:global(.app.light) .msg.thinking { background: rgba(168, 85, 247, 0.05); }
+	.thinking-icon { color: #c084fc; }
+	.thinking-tag { color: #c084fc; }
+	.thinking-label { color: #c084fc; font-weight: 500; font-style: italic; }
+	.thinking-content { color: var(--text-secondary, #aaa); font-style: italic; }
 	.role-tag { color: var(--text-tertiary); flex-shrink: 0; width: 1ch; user-select: none; }
 	.msg.user .role-tag { color: #6366f1; }
 	.msg.tool .role-tag { color: #22d3ee; }
