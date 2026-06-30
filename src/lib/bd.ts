@@ -92,7 +92,7 @@ async function run(cmd: string, cwd?: string, timeoutMs?: number): Promise<BdRes
 
 export async function createIssue(
 	title: string,
-	opts?: { description?: string; priority?: number; issue_type?: string; deps?: string[] },
+	opts?: { description?: string; priority?: number; issue_type?: string; deps?: string[]; due?: string; estimate?: number; external_ref?: string },
 	cwd?: string
 ): Promise<BdResult & { id?: string; issue?: unknown }> {
 	let cmd = `bd create "${escapeArg(title)}" --json`
@@ -100,6 +100,9 @@ export async function createIssue(
 	if (opts?.priority !== undefined) cmd += ` --priority ${opts.priority}`
 	if (opts?.issue_type) cmd += ` --type ${opts.issue_type}`
 	if (opts?.deps?.length) cmd += ` --deps ${opts.deps.join(',')}`
+	if (opts?.due) cmd += ` --due "${escapeArg(opts.due)}"`
+	if (opts?.estimate !== undefined) cmd += ` --estimate ${Math.round(opts.estimate)}`
+	if (opts?.external_ref) cmd += ` --external-ref "${escapeArg(opts.external_ref)}"`
 
 	const result = await run(cmd, cwd)
 	if (result.success && result.stdout) {
@@ -122,6 +125,11 @@ export async function updateIssue(
 		assignee?: string
 		appendNotes?: string
 		ephemeral?: boolean
+		due?: string
+		defer?: string
+		external_ref?: string
+		spec_id?: string
+		estimate?: number
 	},
 	cwd?: string
 ): Promise<BdResult> {
@@ -149,6 +157,11 @@ export async function updateIssue(
 	if (updates.appendNotes) { cmd += ` --append-notes "${escapeArg(updates.appendNotes)}"`; hasUpdates = true }
 	if (updates.ephemeral === true) { cmd += ' --ephemeral'; hasUpdates = true }
 	if (updates.ephemeral === false) { cmd += ' --persistent'; hasUpdates = true }
+	if (updates.due !== undefined) { cmd += ` --due "${escapeArg(updates.due)}"`; hasUpdates = true }
+	if (updates.defer !== undefined) { cmd += ` --defer "${escapeArg(updates.defer)}"`; hasUpdates = true }
+	if (updates.external_ref !== undefined) { cmd += ` --external-ref "${escapeArg(updates.external_ref)}"`; hasUpdates = true }
+	if (updates.spec_id !== undefined) { cmd += ` --spec-id "${escapeArg(updates.spec_id)}"`; hasUpdates = true }
+	if (updates.estimate !== undefined) { cmd += ` --estimate ${Math.round(updates.estimate)}`; hasUpdates = true }
 
 	if (!hasUpdates) return { success: true }
 	return run(cmd, cwd)

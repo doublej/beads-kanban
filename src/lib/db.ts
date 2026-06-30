@@ -93,6 +93,36 @@ interface DbIssue {
 	updated_at: string;
 	closed_at: string | null;
 	metadata: string | null;
+	estimated_minutes: number | null;
+	external_ref: string | null;
+	spec_id: string | null;
+	ephemeral: number | null;
+	wisp_type: string | null;
+	due_at: string | null;
+	defer_until: string | null;
+	started_at: string | null;
+	agent_state: string | null;
+}
+
+/** Columns shared by getAllIssues / getIssueById selects (bd 1.0 issue schema). */
+const ISSUE_COLUMNS =
+	`title, description, design, acceptance_criteria, notes,
+	 status, priority, issue_type, assignee, created_at, updated_at, closed_at, metadata,
+	 estimated_minutes, external_ref, spec_id, ephemeral, wisp_type, due_at, defer_until, started_at, agent_state`;
+
+/** Map shared bd-1.0 issue columns onto the Issue shape. */
+function mapIssueFields(row: DbIssue) {
+	return {
+		estimated_minutes: row.estimated_minutes ?? undefined,
+		external_ref: row.external_ref || undefined,
+		spec_id: row.spec_id || undefined,
+		ephemeral: row.ephemeral ? true : undefined,
+		wisp_type: row.wisp_type || undefined,
+		due_at: row.due_at || undefined,
+		defer_until: row.defer_until || undefined,
+		started_at: row.started_at || undefined,
+		agent_state: row.agent_state || undefined,
+	};
 }
 
 interface IssueMetadata {
@@ -125,8 +155,7 @@ interface DbLabel {
 export function getAllIssues(cwd?: string): Issue[] {
 	const issues = bdSql<DbIssue>(`
 		SELECT id, ROW_NUMBER() OVER (ORDER BY created_at) as seq,
-		       title, description, design, acceptance_criteria, notes,
-		       status, priority, issue_type, assignee, created_at, updated_at, closed_at, metadata
+		       ${ISSUE_COLUMNS}
 		FROM issues
 		WHERE status <> 'tombstone'
 		ORDER BY priority DESC, created_at DESC
@@ -179,7 +208,8 @@ export function getAllIssues(cwd?: string): Issue[] {
 			attachments: attachmentsMap.get(row.id) ?? [],
 			comments: commentsMap.get(row.id) ?? [],
 			agent_model: meta.agent_model,
-			agent_effort: meta.agent_effort
+			agent_effort: meta.agent_effort,
+			...mapIssueFields(row)
 		};
 	});
 }
@@ -187,8 +217,7 @@ export function getAllIssues(cwd?: string): Issue[] {
 export function getIssueById(id: string, cwd?: string): Issue | null {
 	const sid = safeId(id);
 	const issues = bdSql<DbIssue>(`
-		SELECT id, seq, title, description, design, acceptance_criteria, notes,
-		       status, priority, issue_type, assignee, created_at, updated_at, closed_at, metadata
+		SELECT id, seq, ${ISSUE_COLUMNS}
 		FROM (
 			SELECT *, ROW_NUMBER() OVER (ORDER BY created_at) as seq
 			FROM issues
@@ -254,7 +283,8 @@ export function getIssueById(id: string, cwd?: string): Issue | null {
 		attachments: attachmentsMap.get(id) ?? [],
 		comments: commentsMap.get(id) ?? [],
 		agent_model: meta.agent_model,
-		agent_effort: meta.agent_effort
+		agent_effort: meta.agent_effort,
+		...mapIssueFields(issue)
 	};
 }
 

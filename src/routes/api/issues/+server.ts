@@ -23,6 +23,9 @@ export const POST: RequestHandler = wrap(async ({ request, url }) => {
 			priority: body.priority,
 			issue_type: body.issue_type,
 			deps: body.deps ?? body.dependencies,
+			due: body.due_at,
+			estimate: body.estimated_minutes,
+			external_ref: body.external_ref,
 		},
 		cwd,
 	);

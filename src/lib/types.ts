@@ -23,6 +23,16 @@ export interface Issue {
 	updated_at?: string;
 	closed_at?: string;
 	assignee?: string;
+	// bd 1.0 scheduling / metadata fields
+	estimated_minutes?: number;
+	external_ref?: string;
+	spec_id?: string;
+	ephemeral?: boolean;
+	wisp_type?: string;
+	due_at?: string;
+	defer_until?: string;
+	started_at?: string;
+	agent_state?: string;
 	labels?: string[];
 	dependencies?: Dependency[];
 	dependents?: Dependency[];

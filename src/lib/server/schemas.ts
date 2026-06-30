@@ -19,6 +19,9 @@ export const CreateIssueSchema = z.object({
 	labels: z.array(z.string()).optional(),
 	deps: z.array(z.string()).optional(),
 	dependencies: z.array(z.string()).optional(),
+	due_at: z.string().optional(),
+	estimated_minutes: z.number().int().min(0).optional(),
+	external_ref: z.string().optional(),
 });
 
 export const UpdateIssueSchema = z.object({
@@ -35,6 +38,12 @@ export const UpdateIssueSchema = z.object({
 	removeLabels: z.array(z.string()).optional(),
 	agent_model: z.string().nullable().optional(),
 	agent_effort: z.string().nullable().optional(),
+	// bd 1.0 scheduling fields (empty string clears due_at/defer_until/external_ref/spec_id)
+	due_at: z.string().optional(),
+	defer_until: z.string().optional(),
+	external_ref: z.string().optional(),
+	spec_id: z.string().optional(),
+	estimated_minutes: z.number().int().min(0).optional(),
 });
 
 export const AddCommentSchema = z.object({

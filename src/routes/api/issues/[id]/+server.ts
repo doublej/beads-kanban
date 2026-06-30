@@ -13,6 +13,7 @@ export const PATCH: RequestHandler = wrap(async ({ params, request, url }) => {
 		status, title, description, priority, design,
 		acceptance_criteria, notes, assignee, addLabels, removeLabels,
 		agent_model, agent_effort,
+		due_at, defer_until, external_ref, spec_id, estimated_minutes,
 	} = body;
 
 	const cwd = requireProjectCwd(url);
@@ -20,7 +21,8 @@ export const PATCH: RequestHandler = wrap(async ({ params, request, url }) => {
 
 	const updateRes = await updateIssue(
 		params.id,
-		{ status, title, description, priority, design, acceptance_criteria, notes, assignee: assignee ?? undefined },
+		{ status, title, description, priority, design, acceptance_criteria, notes, assignee: assignee ?? undefined,
+		  due: due_at, defer: defer_until, external_ref, spec_id, estimate: estimated_minutes },
 		cwd,
 	);
 	if (!updateRes.success) throw new ApiError(updateRes.error || 'Update failed');
