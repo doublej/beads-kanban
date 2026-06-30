@@ -239,17 +239,17 @@
 		<div class="field-row scheduling">
 			<div class="field field-half">
 				<label class="field-label" for="issue-due">Due</label>
-				<input id="issue-due" type="date" class="input input-sm" value={toDateInput(editingIssue.due_at)} oninput={(e) => editingIssue.due_at = e.currentTarget.value || undefined} />
+				<input id="issue-due" type="date" class="input input-sm" value={toDateInput(editingIssue.due_at)} oninput={(e) => editingIssue.due_at = e.currentTarget.value} />
 			</div>
 			<div class="field field-half">
 				<label class="field-label" for="issue-defer">Defer until</label>
-				<input id="issue-defer" type="date" class="input input-sm" value={toDateInput(editingIssue.defer_until)} oninput={(e) => editingIssue.defer_until = e.currentTarget.value || undefined} />
+				<input id="issue-defer" type="date" class="input input-sm" value={toDateInput(editingIssue.defer_until)} oninput={(e) => editingIssue.defer_until = e.currentTarget.value} />
 			</div>
 		</div>
 		<div class="field-row">
 			<div class="field field-half">
 				<label class="field-label" for="issue-estimate">Estimate (min)</label>
-				<input id="issue-estimate" type="number" min="0" step="15" class="input input-sm" value={editingIssue.estimated_minutes ?? ''} oninput={(e) => editingIssue.estimated_minutes = e.currentTarget.value ? Number(e.currentTarget.value) : undefined} placeholder="e.g. 60" />
+				<input id="issue-estimate" type="number" min="0" step="15" class="input input-sm" value={editingIssue.estimated_minutes ?? ''} oninput={(e) => editingIssue.estimated_minutes = e.currentTarget.value === '' ? undefined : Math.round(Number(e.currentTarget.value))} placeholder="e.g. 60" />
 			</div>
 			<div class="field field-half">
 				<label class="field-label" for="issue-spec">Spec ID</label>
