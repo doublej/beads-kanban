@@ -158,16 +158,20 @@
 			lintMissing = [];
 			return;
 		}
-		lintIssueApi(id).then((missing) => { lintMissing = missing; }).catch(() => { lintMissing = []; });
+		// Guard against an out-of-order response from a previously-open issue.
+		lintIssueApi(id).then((missing) => { if (editingIssue?.id === id) lintMissing = missing; }).catch(() => { if (editingIssue?.id === id) lintMissing = []; });
 	});
 
 	// Per-issue version history (lazy-loaded on expand)
 	let historyEntries = $state<IssueHistoryEntry[]>([]);
 	let historyOpen = $state(false);
 	let loadingHistory = $state(false);
+	let lastHistoryId: string | undefined;
 	$effect(() => {
-		// Reset when switching issues.
-		void editingIssue?.id;
+		// Reset only when the issue id actually changes (not on same-id object replacement).
+		const id = editingIssue?.id;
+		if (id === lastHistoryId) return;
+		lastHistoryId = id;
 		historyOpen = false;
 		historyEntries = [];
 	});
@@ -176,13 +180,15 @@
 		if (historyOpen) { historyOpen = false; return; }
 		historyOpen = true;
 		if (historyEntries.length > 0 || !editingIssue) return;
+		const id = editingIssue.id;
 		loadingHistory = true;
 		try {
-			historyEntries = await loadIssueHistoryApi(editingIssue.id);
+			const entries = await loadIssueHistoryApi(id);
+			if (editingIssue?.id === id) historyEntries = entries;
 		} catch {
-			historyEntries = [];
+			if (editingIssue?.id === id) historyEntries = [];
 		} finally {
-			loadingHistory = false;
+			if (editingIssue?.id === id) loadingHistory = false;
 		}
 	}
 
@@ -197,9 +203,9 @@
 		loadingRelated = true;
 		fetch(appendProjectParam(`/api/issues/${encodeURIComponent(id)}/agent-sessions`))
 			.then((r) => (r.ok ? r.json() : null))
-			.then((payload) => { relatedSessions = payload?.ok ? (payload.data?.sessions ?? []) : []; })
-			.catch(() => { relatedSessions = []; })
-			.finally(() => { loadingRelated = false; });
+			.then((payload) => { if (editingIssue?.id === id) relatedSessions = payload?.ok ? (payload.data?.sessions ?? []) : []; })
+			.catch(() => { if (editingIssue?.id === id) relatedSessions = []; })
+			.finally(() => { if (editingIssue?.id === id) loadingRelated = false; });
 	});
 
 	async function toggleRelatedChat(sessionId: string) {
@@ -398,7 +404,7 @@
 
 				{#if parsedLabels.states.length > 0 || onsetstate}
 					<div class="state-row">
-						{#each parsedLabels.states as st (st.dimension)}
+						{#each parsedLabels.states as st (st.dimension + ':' + st.value)}
 							<span class="state-badge" title="Operational state"><span class="state-dim">{st.dimension}</span><span class="state-val">{st.value}</span></span>
 						{/each}
 						{#if onsetstate}
