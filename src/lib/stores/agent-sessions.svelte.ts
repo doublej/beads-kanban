@@ -232,6 +232,37 @@ export function createMessageHandler(sessionName: string) {
 				persistSdkSessionId(sessionName, msg.sdkSessionId);
 				break;
 
+			case 'agent_capabilities':
+				updateSession(sessionName, {
+					capabilities: {
+						models: msg.models ?? [],
+						mcpServers: msg.mcpServers ?? [],
+						currentModel: msg.currentModel,
+						permissionMode: msg.permissionMode,
+						tools: msg.tools,
+						plugins: msg.plugins,
+					},
+					permissionMode: msg.permissionMode ?? session.permissionMode,
+				});
+				break;
+
+			case 'model_changed':
+				updateSession(sessionName, {
+					capabilities: session.capabilities
+						? { ...session.capabilities, currentModel: msg.model }
+						: undefined,
+				});
+				break;
+
+			case 'permission_mode_changed':
+				updateSession(sessionName, {
+					permissionMode: msg.mode,
+					capabilities: session.capabilities
+						? { ...session.capabilities, permissionMode: msg.mode }
+						: undefined,
+				});
+				break;
+
 			case 'compacted':
 				updateSession(sessionName, { compacted: true });
 				break;

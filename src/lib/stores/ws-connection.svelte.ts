@@ -327,6 +327,14 @@ function compactSessionInternal(name: string) {
 	sendToSocket(name, { type: 'compact' });
 }
 
+function setModelInternal(name: string, model?: string) {
+	sendToSocket(name, { type: 'set_model', model });
+}
+
+function setPermissionModeInternal(name: string, mode: string) {
+	sendToSocket(name, { type: 'set_permission_mode', mode });
+}
+
 function injectNotificationInternal(name: string, content: string, notificationType: NotificationType) {
 	const session = getSessions().get(name);
 	if (!session) return;
@@ -353,6 +361,8 @@ export const internalActions = {
 	clearSessionInternal,
 	continueSessionInternal,
 	compactSessionInternal,
+	setModelInternal,
+	setPermissionModeInternal,
 	injectNotificationInternal,
 };
 
@@ -462,6 +472,8 @@ export function startSession(name: string, cwd: string, briefing: string, system
 
 export const sendMessage = leaderOrForward('sendMessage', sendMessageInternal);
 export const interrupt = leaderOrForward('interrupt', interruptInternal);
+export const setModel = leaderOrForward('setModel', setModelInternal);
+export const setPermissionMode = leaderOrForward('setPermissionMode', setPermissionModeInternal);
 
 export function addPane(name: string, cwd: string, firstMessage?: string, systemPrompt?: string, resumeSessionId?: string, ticketId?: string, model?: string) {
 	const briefing = firstMessage ? firstMessage.replace('{name}', name) : `You are an agent named "${name}". Await further instructions.`;

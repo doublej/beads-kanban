@@ -28,6 +28,33 @@ export interface SlashCommandInfo {
 	argumentHint: string;
 }
 
+export interface ModelInfo {
+	value: string;
+	displayName: string;
+	description: string;
+}
+
+export interface McpServerInfo {
+	name: string;
+	/** 'connected' | 'failed' | 'needs-auth' | 'pending' */
+	status: string;
+}
+
+export interface PluginInfo {
+	name: string;
+	path: string;
+}
+
+/** SDK-reported session capabilities, surfaced from the init message + supportedModels(). */
+export interface AgentCapabilities {
+	models: ModelInfo[];
+	mcpServers: McpServerInfo[];
+	currentModel?: string;
+	permissionMode?: string;
+	tools?: string[];
+	plugins?: PluginInfo[];
+}
+
 export interface ActiveRemoteSession {
 	sessionId: string;
 	name: string;
@@ -54,6 +81,9 @@ export interface AgentSession {
 	compacted?: boolean;
 	usage?: TokenUsage;
 	slashCommands?: SlashCommandInfo[];
+	capabilities?: AgentCapabilities;
+	/** Effective permission mode for this session (e.g. 'bypassPermissions', 'plan'). */
+	permissionMode?: string;
 	pane_type: string;
 	backend: string;
 	lastReadCount?: number;
@@ -104,6 +134,9 @@ export type ServerMessage =
 	| { type: 'session_started'; sessionId: string; resuming?: boolean }
 	| { type: 'session_resumed'; sessionId: string; sdkSessionId?: string; isRunning?: boolean }
 	| { type: 'sdk_session'; sdkSessionId: string; source: 'new' | 'resume'; slashCommands?: SlashCommandInfo[] }
+	| { type: 'agent_capabilities'; models: ModelInfo[]; mcpServers: McpServerInfo[]; currentModel?: string; permissionMode?: string; tools?: string[]; plugins?: PluginInfo[] }
+	| { type: 'model_changed'; model?: string }
+	| { type: 'permission_mode_changed'; mode: string }
 	| { type: 'compacted'; metadata?: unknown }
 	| { type: 'system_message'; subtype: SystemMessageSubtype; content: string; agentName?: string }
 	| { type: 'usage'; inputTokens: number; outputTokens: number; cacheRead: number; cacheCreation: number }

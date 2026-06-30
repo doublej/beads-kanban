@@ -37,6 +37,8 @@ export {
 	clearSession,
 	continueSession,
 	compactSession,
+	setModel,
+	setPermissionMode,
 	injectNotification,
 	getRunningSessionsForCwd,
 } from './stores/ws-connection.svelte';

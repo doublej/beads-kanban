@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Pane, SdkSessionInfo } from '$lib/wsStore.svelte';
+	import { setModel, setPermissionMode } from '$lib/wsStore.svelte';
 
 	interface Props {
 		pane: Pane;
@@ -28,6 +29,10 @@
 		onOpenSessionPicker,
 		onClose
 	}: Props = $props();
+
+	const caps = $derived(pane.capabilities);
+	const currentMode = $derived(pane.permissionMode ?? caps?.permissionMode ?? 'bypassPermissions');
+	const currentModel = $derived(caps?.currentModel);
 </script>
 
 <div class="menu-dropdown" role="menu" tabindex="0" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
@@ -88,6 +93,44 @@
 			</button>
 		{/if}
 	</div>
+	{#if caps}
+		<div class="menu-divider"></div>
+		<div class="menu-section">
+			<span class="menu-label">Permissions</span>
+			<button class="menu-item" class:active={currentMode === 'bypassPermissions'} onclick={(e) => { e.stopPropagation(); setPermissionMode(pane.name, 'bypassPermissions'); }}>
+				<svg class="menu-icon" viewBox="0 0 14 14" width="12" height="12">
+					<path d="M7 1l5 2v4c0 3-2 5-5 6-3-1-5-3-5-6V3l5-2z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+					<path d="M4.5 7l1.8 1.8L9.5 5.3" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+				</svg>
+				<span>Auto</span>
+				{#if currentMode === 'bypassPermissions'}<span class="menu-badge">on</span>{/if}
+			</button>
+			<button class="menu-item" class:active={currentMode === 'plan'} onclick={(e) => { e.stopPropagation(); setPermissionMode(pane.name, 'plan'); }}>
+				<svg class="menu-icon" viewBox="0 0 14 14" width="12" height="12">
+					<path d="M3 2h6l2 2v8H3V2z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+					<path d="M5 6h4M5 8.5h4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+				</svg>
+				<span>Plan only</span>
+				{#if currentMode === 'plan'}<span class="menu-badge">on</span>{/if}
+			</button>
+		</div>
+		{#if caps.models && caps.models.length > 0}
+			<div class="menu-divider"></div>
+			<div class="menu-section">
+				<span class="menu-label">Model</span>
+				{#each caps.models as m (m.value)}
+					<button class="menu-item" class:active={m.value === currentModel} title={m.description} onclick={(e) => { e.stopPropagation(); setModel(pane.name, m.value); }}>
+						<svg class="menu-icon" viewBox="0 0 14 14" width="12" height="12">
+							<rect x="3.5" y="3.5" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/>
+							<path d="M5.5 1.5v2M8.5 1.5v2M5.5 10.5v2M8.5 10.5v2M1.5 5.5h2M1.5 8.5h2M10.5 5.5h2M10.5 8.5h2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+						</svg>
+						<span>{m.displayName}</span>
+						{#if m.value === currentModel}<span class="menu-badge">on</span>{/if}
+					</button>
+				{/each}
+			</div>
+		{/if}
+	{/if}
 	<div class="menu-divider"></div>
 	<button class="menu-item danger" onclick={() => { onRemovePane(pane.name); onClose(); }}>
 		<svg class="menu-icon" viewBox="0 0 14 14" width="12" height="12">

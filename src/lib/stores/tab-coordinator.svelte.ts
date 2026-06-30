@@ -90,6 +90,12 @@ function handleActionRequest(request: ActionRequest) {
 			case 'compactSession':
 				internalActions.compactSessionInternal(sessionName);
 				break;
+			case 'setModel':
+				internalActions.setModelInternal(sessionName, args[0] as string | undefined);
+				break;
+			case 'setPermissionMode':
+				internalActions.setPermissionModeInternal(sessionName, args[0] as string);
+				break;
 			case 'injectNotification':
 				internalActions.injectNotificationInternal(sessionName, args[0] as string, args[1] as NotificationType);
 				break;

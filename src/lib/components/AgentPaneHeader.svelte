@@ -78,6 +78,9 @@
 		{#if pane.worktreePath}
 			<span class="worktree-badge" title="Running in worktree: {pane.worktreePath}">worktree</span>
 		{/if}
+		{#if pane.permissionMode === 'plan'}
+			<span class="mode-badge" title="Plan mode — agent plans but does not execute tools">PLAN</span>
+		{/if}
 		{#if pane.usage}
 			{@const total = pane.usage.inputTokens + pane.usage.outputTokens}
 			{@const cached = pane.usage.cacheRead}
@@ -262,6 +265,16 @@
 		color: rgba(251, 146, 60, 0.9);
 	}
 	:global(.app.light) .worktree-badge { background: rgba(234, 88, 12, 0.1); color: rgb(194, 65, 12); }
+
+	.mode-badge {
+		font: 700 8px/1 'IBM Plex Mono', monospace;
+		letter-spacing: 0.06em;
+		padding: 2px 5px;
+		border-radius: 3px;
+		background: rgba(56, 189, 248, 0.16);
+		color: rgb(56, 189, 248);
+	}
+	:global(.app.light) .mode-badge { background: rgba(2, 132, 199, 0.12); color: rgb(2, 132, 199); }
 
 	/* Context meter */
 	.context-meter {
