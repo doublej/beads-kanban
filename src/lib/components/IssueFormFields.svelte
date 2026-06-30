@@ -43,6 +43,13 @@
 		return allIssues.find(i => i.id === id);
 	}
 
+	/** Extract a YYYY-MM-DD value for <input type="date"> from a bd timestamp/ISO string. */
+	function toDateInput(s?: string): string {
+		if (!s) return '';
+		const m = s.match(/^\d{4}-\d{2}-\d{2}/);
+		return m ? m[0] : '';
+	}
+
 	const modelOptions: { value: AgentModel; label: string; hint: string }[] = [
 		{ value: '', label: 'Default', hint: 'Use global setting' },
 		{ value: 'haiku', label: 'Haiku', hint: 'Fast & lightweight' },
@@ -227,6 +234,32 @@
 			</div>
 		</div>
 	</div>
+
+		<!-- Scheduling & references -->
+		<div class="field-row scheduling">
+			<div class="field field-half">
+				<label class="field-label" for="issue-due">Due</label>
+				<input id="issue-due" type="date" class="input input-sm" value={toDateInput(editingIssue.due_at)} oninput={(e) => editingIssue.due_at = e.currentTarget.value || undefined} />
+			</div>
+			<div class="field field-half">
+				<label class="field-label" for="issue-defer">Defer until</label>
+				<input id="issue-defer" type="date" class="input input-sm" value={toDateInput(editingIssue.defer_until)} oninput={(e) => editingIssue.defer_until = e.currentTarget.value || undefined} />
+			</div>
+		</div>
+		<div class="field-row">
+			<div class="field field-half">
+				<label class="field-label" for="issue-estimate">Estimate (min)</label>
+				<input id="issue-estimate" type="number" min="0" step="15" class="input input-sm" value={editingIssue.estimated_minutes ?? ''} oninput={(e) => editingIssue.estimated_minutes = e.currentTarget.value ? Number(e.currentTarget.value) : undefined} placeholder="e.g. 60" />
+			</div>
+			<div class="field field-half">
+				<label class="field-label" for="issue-spec">Spec ID</label>
+				<input id="issue-spec" type="text" class="input input-sm" bind:value={editingIssue.spec_id} placeholder="spec ref" />
+			</div>
+		</div>
+		<div class="field">
+			<label class="field-label" for="issue-extref">External ref</label>
+			<input id="issue-extref" type="text" class="input input-sm" bind:value={editingIssue.external_ref} placeholder="gh-9, jira-ABC, URL" />
+		</div>
 {/if}
 
 <style>
