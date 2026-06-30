@@ -11,6 +11,7 @@ interface Snapshot {
 	issue_type: string;
 	assignee?: string;
 	owner?: string;
+	updated_at?: string;
 }
 
 interface RawEntry {
@@ -38,6 +39,7 @@ function diffSnapshots(newer: Snapshot, older: Snapshot): string[] {
 	if (newer.issue_type !== older.issue_type) changes.push(`type ${older.issue_type} → ${newer.issue_type}`);
 	if (newer.title !== older.title) changes.push('title edited');
 	if ((newer.assignee ?? '') !== (older.assignee ?? '')) changes.push(`assignee ${older.assignee || 'none'} → ${newer.assignee || 'none'}`);
+	if ((newer.owner ?? '') !== (older.owner ?? '')) changes.push(`owner ${older.owner || 'none'} → ${newer.owner || 'none'}`);
 	return changes;
 }
 
@@ -62,6 +64,12 @@ export const GET: RequestHandler = wrap(async ({ params, url }) => {
 			entries.push({ ...base, changes: ['created'] });
 		} else {
 			const changes = diffSnapshots(raw[i].Issue, raw[i + 1].Issue);
+			// Fields like due/defer/description/estimate aren't in bd's history snapshot, so an
+			// edit to one yields an empty diff. updated_at still bumps, so surface a generic
+			// "updated" rather than dropping the commit (avoids an incomplete timeline).
+			if (changes.length === 0 && raw[i].Issue.updated_at !== raw[i + 1].Issue.updated_at) {
+				changes.push('updated');
+			}
 			if (changes.length > 0) entries.push({ ...base, changes });
 		}
 	}
