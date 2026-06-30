@@ -128,6 +128,10 @@
 						<svg viewBox="0 0 16 16" width="10" height="10"><circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
 					{:else if msg.systemSubtype === 'subagent_end'}
 						<svg viewBox="0 0 16 16" width="10" height="10"><circle cx="8" cy="8" r="5" fill="currentColor" opacity="0.8"/></svg>
+					{:else if msg.systemSubtype === 'tool_failure'}
+						<svg viewBox="0 0 16 16" width="10" height="10"><path d="M8 2l6 11H2L8 2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 7v3M8 11.5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+					{:else if msg.systemSubtype === 'notification'}
+						<svg viewBox="0 0 16 16" width="10" height="10"><path d="M8 2a3 3 0 013 3v3l1.5 2H3.5L5 8V5a3 3 0 013-3zM6.5 12.5a1.5 1.5 0 003 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
 					{:else}
 						<svg viewBox="0 0 16 16" width="10" height="10"><circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="2" fill="currentColor"/></svg>
 					{/if}
@@ -348,6 +352,8 @@
 	.msg.system.compact_done { background: rgba(16, 185, 129, 0.08); border-left-color: rgba(16, 185, 129, 0.4); }
 	.msg.system.subagent_start { background: rgba(99, 102, 241, 0.08); border-left-color: rgba(99, 102, 241, 0.4); }
 	.msg.system.subagent_end { background: rgba(99, 102, 241, 0.06); border-left-color: rgba(99, 102, 241, 0.3); }
+	.msg.system.tool_failure { background: rgba(245, 158, 11, 0.08); border-left-color: rgba(245, 158, 11, 0.4); }
+	.msg.system.notification { background: rgba(56, 189, 248, 0.07); border-left-color: rgba(56, 189, 248, 0.4); }
 
 	:global(.app.light) .msg.system { background: rgba(16, 185, 129, 0.04); }
 	:global(.app.light) .msg.system.compact_start { background: rgba(251, 191, 36, 0.06); }
@@ -412,6 +418,8 @@
 	.system-icon.compact_done { color: #10b981; }
 	.system-icon.subagent_start { color: #6366f1; }
 	.system-icon.subagent_end { color: #818cf8; }
+	.system-icon.tool_failure { color: #f59e0b; }
+	.system-icon.notification { color: #38bdf8; }
 
 	.system-content {
 		flex: 1;
@@ -423,6 +431,8 @@
 	.system-content.compact_done { color: #10b981; }
 	.system-content.subagent_start { color: #818cf8; }
 	.system-content.subagent_end { color: #a5b4fc; }
+	.system-content.tool_failure { color: #fbbf24; }
+	.system-content.notification { color: #7dd3fc; }
 
 	/* Extended-thinking (reasoning) blocks */
 	.msg.thinking { background: rgba(168, 85, 247, 0.06); opacity: 0.85; }

@@ -158,6 +158,34 @@ export async function runAgent(session: AgentSession, briefing: string, opts: Ru
           return { continue: true };
         }],
       }],
+      PostToolUseFailure: [{
+        hooks: [async (input) => {
+          const hook = input as any;
+          // Interrupts aren't real failures — the user stopped the tool.
+          if (!hook.is_interrupt) {
+            sendToClient(session, {
+              type: "system_message",
+              subtype: "tool_failure",
+              content: `${hook.tool_name} failed: ${String(hook.error ?? "").slice(0, 300)}`,
+            });
+          }
+          return { continue: true };
+        }],
+      }],
+      Notification: [{
+        hooks: [async (input) => {
+          const hook = input as any;
+          const text = hook.title ? `${hook.title}: ${hook.message}` : hook.message;
+          if (text) {
+            sendToClient(session, {
+              type: "system_message",
+              subtype: "notification",
+              content: String(text).slice(0, 300),
+            });
+          }
+          return { continue: true };
+        }],
+      }],
     },
   };
 
