@@ -29,6 +29,7 @@ export interface Issue {
 	spec_id?: string;
 	ephemeral?: boolean;
 	wisp_type?: string;
+	pinned?: boolean;
 	due_at?: string;
 	defer_until?: string;
 	started_at?: string;

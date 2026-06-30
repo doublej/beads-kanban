@@ -117,6 +117,55 @@ export function formatDuration(startDate?: string, endDate?: string): string {
 	return `${Math.floor(diff / 60000)}m`;
 }
 
+export type DueLevel = 'overdue' | 'soon' | 'normal';
+
+/** Classify and label a due date for compact badges. Returns null if unset/invalid. */
+export function getDueInfo(dueAt?: string): { label: string; level: DueLevel; absolute: string } | null {
+	if (!dueAt) return null;
+	const due = new Date(dueAt);
+	const dueMs = due.getTime();
+	if (Number.isNaN(dueMs)) return null;
+
+	const dayMs = 86400000;
+	const startToday = new Date();
+	startToday.setHours(0, 0, 0, 0);
+	const dueDay = new Date(dueMs);
+	dueDay.setHours(0, 0, 0, 0);
+	const dayDiff = Math.round((dueDay.getTime() - startToday.getTime()) / dayMs);
+
+	const level: DueLevel = dayDiff < 0 ? 'overdue' : dayDiff <= 2 ? 'soon' : 'normal';
+	let label: string;
+	if (dayDiff === 0) label = 'today';
+	else if (dayDiff === 1) label = 'tomorrow';
+	else if (dayDiff === -1) label = '1d late';
+	else if (dayDiff < 0) label = `${-dayDiff}d late`;
+	else if (dayDiff < 7) label = `${dayDiff}d`;
+	else label = due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+	const absolute = due.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	return { label, level, absolute };
+}
+
+/** Format a minute estimate as a compact "2h 30m" / "45m" / "3d" string. */
+export function formatMinutes(minutes?: number): string {
+	if (!minutes || minutes <= 0) return '';
+	const days = Math.floor(minutes / 1440);
+	const hours = Math.floor((minutes % 1440) / 60);
+	const mins = minutes % 60;
+	if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
+	if (hours > 0) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+	return `${mins}m`;
+}
+
+/** True when an open issue hasn't been updated within `days` (default 30). */
+export function isStale(issue: Issue, days = 30): boolean {
+	if (issue.status === 'closed') return false;
+	if (!issue.updated_at) return false;
+	const updated = new Date(issue.updated_at).getTime();
+	if (Number.isNaN(updated)) return false;
+	return Date.now() - updated > days * 86400000;
+}
+
 export function sortIssues(issues: Issue[], sortBy: SortBy): Issue[] {
 	return [...issues].sort((a, b) => {
 		if (sortBy === 'priority') return a.priority - b.priority;

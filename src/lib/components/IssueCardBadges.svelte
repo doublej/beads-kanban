@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Issue } from '$lib/types';
-	import { getPriorityConfig, calculateImpactScore, getImpactLevel } from '$lib/utils';
+	import { getPriorityConfig, calculateImpactScore, getImpactLevel, getDueInfo, formatMinutes } from '$lib/utils';
 	import Icon from './Icon.svelte';
 	import { copyState } from '$lib/stores/copy-state.svelte';
 
@@ -18,6 +18,7 @@
 	const priorityConfig = $derived(getPriorityConfig(issue.priority));
 	const impactScore = $derived(calculateImpactScore(issue));
 	const impactLevel = $derived(getImpactLevel(impactScore));
+	const dueInfo = $derived(getDueInfo(issue.due_at));
 </script>
 
 <div class="card-header">
@@ -56,6 +57,21 @@
 			<Icon name="link" size={10} />
 			<span class="count">{totalDeps}</span>
 		</span>
+	{/if}
+	{#if dueInfo}
+		<span class="due-badge {dueInfo.level}" title="Due {dueInfo.absolute}">
+			<svg viewBox="0 0 14 14" width="10" height="10"><rect x="2" y="3" width="10" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2 5.5h10M4.5 1.5v2M9.5 1.5v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+			<span>{dueInfo.label}</span>
+		</span>
+	{/if}
+	{#if issue.estimated_minutes}
+		<span class="est-badge" title="Estimate: {formatMinutes(issue.estimated_minutes)}">
+			<svg viewBox="0 0 14 14" width="10" height="10"><circle cx="7" cy="7.5" r="5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M7 4.8v2.7l1.8 1.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/></svg>
+			<span>{formatMinutes(issue.estimated_minutes)}</span>
+		</span>
+	{/if}
+	{#if issue.ephemeral}
+		<span class="wisp-badge" title="Ephemeral wisp{issue.wisp_type ? ' · ' + issue.wisp_type : ''}">wisp</span>
 	{/if}
 </div>
 {#if issue.assignee && isAgentAssignee}
@@ -235,6 +251,24 @@
 		font-weight: 500;
 	}
 
+	/* bd 1.0 field badges */
+	.due-badge, .est-badge {
+		display: flex; align-items: center; gap: 0.125rem;
+		padding: 0.125rem 0.3rem; border-radius: 4px;
+		font-family: ui-monospace, "SF Mono", monospace;
+		font-size: 0.5625rem; font-weight: 600; cursor: help; white-space: nowrap;
+	}
+	.due-badge :global(svg), .est-badge :global(svg) { width: 10px; height: 10px; opacity: 0.85; }
+	.est-badge { background: rgba(148, 163, 184, 0.14); color: var(--text-tertiary); }
+	.due-badge.normal { background: rgba(99, 102, 241, 0.12); color: #6366f1; }
+	.due-badge.soon { background: rgba(245, 158, 11, 0.14); color: #f59e0b; }
+	.due-badge.overdue { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+	.wisp-badge {
+		padding: 0.0625rem 0.3rem; border-radius: 4px;
+		font-family: ui-monospace, "SF Mono", monospace; font-size: 0.5rem; font-weight: 600;
+		text-transform: uppercase; letter-spacing: 0.04em;
+		background: rgba(168, 85, 247, 0.14); color: #a855f7; cursor: help; white-space: nowrap;
+	}
 	/* Agent Chip */
 	.agent-chip {
 		display: inline-flex;

@@ -98,6 +98,7 @@ interface DbIssue {
 	spec_id: string | null;
 	ephemeral: number | null;
 	wisp_type: string | null;
+	pinned: number | null;
 	due_at: string | null;
 	defer_until: string | null;
 	started_at: string | null;
@@ -108,7 +109,7 @@ interface DbIssue {
 const ISSUE_COLUMNS =
 	`title, description, design, acceptance_criteria, notes,
 	 status, priority, issue_type, assignee, created_at, updated_at, closed_at, metadata,
-	 estimated_minutes, external_ref, spec_id, ephemeral, wisp_type, due_at, defer_until, started_at, agent_state`;
+	 estimated_minutes, external_ref, spec_id, ephemeral, wisp_type, pinned, due_at, defer_until, started_at, agent_state`;
 
 /** Map shared bd-1.0 issue columns onto the Issue shape. */
 function mapIssueFields(row: DbIssue) {
@@ -118,6 +119,7 @@ function mapIssueFields(row: DbIssue) {
 		spec_id: row.spec_id || undefined,
 		ephemeral: row.ephemeral ? true : undefined,
 		wisp_type: row.wisp_type || undefined,
+		pinned: row.pinned ? true : undefined,
 		due_at: row.due_at || undefined,
 		defer_until: row.defer_until || undefined,
 		started_at: row.started_at || undefined,
