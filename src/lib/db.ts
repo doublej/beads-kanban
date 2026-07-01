@@ -50,27 +50,24 @@ function safeId(id: string): string {
 	return id;
 }
 
-function buildMap<T, V>(rows: T[], key: (r: T) => string, val: (r: T) => V): Map<string, V[]> {
-	const map = new Map<string, V[]>();
-	for (const r of rows) {
-		const list = map.get(key(r)) ?? [];
-		list.push(val(r));
-		map.set(key(r), list);
-	}
-	return map;
-}
-
-/** Timeout for a single `bd sql` read. Generous default so a project's first-time JSONL
- *  auto-import can finish instead of being SIGTERM-killed mid-import. Override via env. */
+/** Timeout for a single `bd` read (sql/export). Generous default so a large JSONL
+ *  auto-import isn't SIGTERM-killed mid-import. Override via env. */
 const BD_SQL_TIMEOUT_MS = (() => {
 	const n = Number(process.env.BEADS_KANBAN_BD_SQL_TIMEOUT_MS);
 	return Number.isFinite(n) && n > 0 ? n : 30000;
 })();
 
-/** Run a SELECT query via `bd sql --json`. Uses spawnSync to avoid shell-quoting issues. */
+/**
+ * Run a SELECT via `bd sql --json`. Backend-agnostic and always correct (bd manages the
+ * Dolt server / SQLite and loads the JSONL), but rebuilds a throwaway database from the
+ * JSONL on every call, so it is O(JSONL size). Hot read paths use `bdExport` instead;
+ * this remains for the events feed and single-purpose queries. Uses spawnSync to avoid
+ * shell-quoting issues.
+ */
 function bdSql<T>(query: string, cwd?: string): T[] {
 	const effectiveCwd = cwd ?? getStoredCwd();
 	recordTouchedCwd(effectiveCwd);
+
 	const result = spawnSync('bd', ['sql', '--json', query], {
 		cwd: effectiveCwd,
 		encoding: 'utf-8',
@@ -86,8 +83,8 @@ function bdSql<T>(query: string, cwd?: string): T[] {
 	if (timedOut) {
 		throw new Error(
 			`bd sql timed out after ${BD_SQL_TIMEOUT_MS}ms in ${effectiveCwd} — bd is likely ` +
-				`re-importing the JSONL on every query (empty/unhealthy Dolt db). Repair the ` +
-				`project's bd database, or raise BEADS_KANBAN_BD_SQL_TIMEOUT_MS.`
+				`re-importing the JSONL on every query. Ensure the project's Dolt server is running, ` +
+				`or raise BEADS_KANBAN_BD_SQL_TIMEOUT_MS.`
 		);
 	}
 	if (result.status !== 0 || result.error) {
@@ -97,43 +94,23 @@ function bdSql<T>(query: string, cwd?: string): T[] {
 	return unwrapBdJson<T[]>(result.stdout.trim());
 }
 
-interface DbIssue {
-	id: string;
-	seq: number;
-	title: string;
-	description: string;
-	design: string;
-	acceptance_criteria: string;
-	notes: string;
-	status: string;
-	priority: number;
-	issue_type: string;
-	assignee: string | null;
-	created_at: string;
-	updated_at: string;
-	closed_at: string | null;
-	close_reason: string | null;
-	metadata: string | null;
-	estimated_minutes: number | null;
-	external_ref: string | null;
-	spec_id: string | null;
-	ephemeral: number | null;
-	wisp_type: string | null;
-	pinned: number | null;
-	due_at: string | null;
-	defer_until: string | null;
-	started_at: string | null;
-	agent_state: string | null;
+/** Scalar issue fields shared by the `bd sql` and `bd export` (ExportIssue) shapes. */
+interface IssueScalarFields {
+	estimated_minutes?: number | null;
+	external_ref?: string | null;
+	spec_id?: string | null;
+	ephemeral?: number | boolean | null;
+	wisp_type?: string | null;
+	pinned?: number | boolean | null;
+	due_at?: string | null;
+	defer_until?: string | null;
+	started_at?: string | null;
+	agent_state?: string | null;
+	close_reason?: string | null;
 }
 
-/** Columns shared by getAllIssues / getIssueById selects (bd 1.0 issue schema). */
-const ISSUE_COLUMNS =
-	`title, description, design, acceptance_criteria, notes,
-	 status, priority, issue_type, assignee, created_at, updated_at, closed_at, close_reason, metadata,
-	 estimated_minutes, external_ref, spec_id, ephemeral, wisp_type, pinned, due_at, defer_until, started_at, agent_state`;
-
 /** Map shared bd-1.0 issue columns onto the Issue shape. */
-function mapIssueFields(row: DbIssue) {
+function mapIssueFields(row: IssueScalarFields) {
 	return {
 		estimated_minutes: row.estimated_minutes ?? undefined,
 		external_ref: row.external_ref || undefined,
@@ -154,8 +131,9 @@ interface IssueMetadata {
 	agent_effort?: AgentEffort;
 }
 
-function parseMetadata(raw: string | null): IssueMetadata {
+function parseMetadata(raw: string | object | null | undefined): IssueMetadata {
 	if (!raw) return {};
+	if (typeof raw === 'object') return raw as IssueMetadata;
 	try {
 		return JSON.parse(raw) as IssueMetadata;
 	} catch {
@@ -163,153 +141,179 @@ function parseMetadata(raw: string | null): IssueMetadata {
 	}
 }
 
-interface DbDependency {
+interface ExportDep {
 	issue_id: string;
 	depends_on_id: string;
 	type: string;
-	dep_title: string;
-	dep_status: string;
 }
 
-interface DbLabel {
-	issue_id: string;
-	label: string;
+interface ExportComment {
+	id: string;
+	author: string;
+	text: string;
+	created_at: string;
+}
+
+/** One issue line from `bd export` (JSONL). bd omits empty/null fields, so most are optional. */
+interface ExportIssue extends IssueScalarFields {
+	_type?: string;
+	id: string;
+	title: string;
+	description?: string;
+	design?: string;
+	acceptance_criteria?: string;
+	notes?: string;
+	status: string;
+	priority: number;
+	issue_type: string;
+	assignee?: string;
+	created_at: string;
+	updated_at?: string;
+	closed_at?: string;
+	metadata?: string | object;
+	labels?: string[];
+	dependencies?: ExportDep[];
+	comments?: ExportComment[];
+}
+
+/**
+ * Read all issues via `bd export` (JSONL). Unlike `bd sql` — which rebuilds a throwaway
+ * database from the JSONL on every call (O(size), seconds) — bd serves this from the live
+ * database it manages, so it is fast (~0.5s) and correct. Full-fidelity: dependencies,
+ * labels and comments are inline. Empty/null columns are omitted, mapping to `undefined`.
+ */
+function bdExport(cwd?: string): ExportIssue[] {
+	const effectiveCwd = cwd ?? getStoredCwd();
+	recordTouchedCwd(effectiveCwd);
+
+	const result = spawnSync('bd', ['export'], {
+		cwd: effectiveCwd,
+		encoding: 'utf-8',
+		timeout: BD_SQL_TIMEOUT_MS,
+		maxBuffer: 256 * 1024 * 1024,
+		env: bdEnv()
+	});
+	const timedOut =
+		result.signal === 'SIGTERM' ||
+		(result.error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT';
+	if (timedOut) {
+		throw new Error(
+			`bd export timed out after ${BD_SQL_TIMEOUT_MS}ms in ${effectiveCwd}. Ensure the ` +
+				`project's bd database is healthy, or raise BEADS_KANBAN_BD_SQL_TIMEOUT_MS.`
+		);
+	}
+	if (result.status !== 0 || result.error) {
+		const msg = result.stderr?.trim() || result.error?.message || 'bd export failed';
+		throw new Error(msg);
+	}
+
+	const issues: ExportIssue[] = [];
+	for (const line of result.stdout.split('\n')) {
+		const t = line.trim();
+		if (t[0] !== '{') continue; // skip blanks / any stray banner line
+		let obj: ExportIssue;
+		try {
+			obj = JSON.parse(t);
+		} catch {
+			continue;
+		}
+		if (obj._type === 'memory' || !obj.id || !obj.title) continue; // memories aren't issues
+		issues.push(obj);
+	}
+	return issues;
+}
+
+interface DepView {
+	id: string;
+	title: string;
+	status: string;
+	dependency_type: string;
+}
+
+/** Lexical string compare (ISO-8601 timestamps sort chronologically this way). */
+function cmp(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function pushInto<V>(map: Map<string, V[]>, key: string, val: V): void {
+	const list = map.get(key);
+	if (list) list.push(val);
+	else map.set(key, [val]);
+}
+
+function mapExportIssue(
+	r: ExportIssue,
+	seqMap: Map<string, number>,
+	depsMap: Map<string, DepView[]>,
+	dependentsMap: Map<string, DepView[]>,
+	attachmentsMap: Map<string, Attachment[]>
+): Issue {
+	const meta = parseMetadata(r.metadata);
+	const dependencies = depsMap.get(r.id) ?? [];
+	const dependents = dependentsMap.get(r.id) ?? [];
+	return {
+		id: r.id,
+		seq: seqMap.get(r.id) ?? 0,
+		title: r.title,
+		description: r.description ?? '',
+		design: r.design || undefined,
+		acceptance_criteria: r.acceptance_criteria || undefined,
+		notes: r.notes || undefined,
+		status: r.status as Issue['status'],
+		priority: r.priority as Issue['priority'],
+		issue_type: r.issue_type,
+		assignee: r.assignee || undefined,
+		created_at: r.created_at,
+		updated_at: r.updated_at,
+		closed_at: r.closed_at || undefined,
+		labels: r.labels ?? [],
+		dependencies,
+		dependents,
+		dependency_count: dependencies.length,
+		dependent_count: dependents.length,
+		attachments: attachmentsMap.get(r.id) ?? [],
+		comments: [...(r.comments ?? [])]
+			.sort((a, b) => cmp(a.created_at, b.created_at))
+			.map((c) => ({ id: c.id, author: c.author, text: c.text, created_at: c.created_at })),
+		agent_model: meta.agent_model,
+		agent_effort: meta.agent_effort,
+		...mapIssueFields(r)
+	};
 }
 
 export function getAllIssues(cwd?: string): Issue[] {
-	const issues = bdSql<DbIssue>(`
-		SELECT id, ROW_NUMBER() OVER (ORDER BY created_at) as seq,
-		       ${ISSUE_COLUMNS}
-		FROM issues
-		WHERE status <> 'tombstone'
-		ORDER BY priority DESC, created_at DESC
-	`, cwd);
+	const rows = bdExport(cwd).filter((r) => r.status !== 'tombstone');
+	const byId = new Map(rows.map((r) => [r.id, r]));
 
-	const deps = bdSql<DbDependency>(`
-		SELECT d.issue_id, d.depends_on_id, d.type, i.title as dep_title, i.status as dep_status
-		FROM dependencies d
-		JOIN issues i ON i.id = d.depends_on_id
-	`, cwd);
+	// seq mirrors `ROW_NUMBER() OVER (ORDER BY created_at)`: the oldest issue is 1.
+	const seqMap = new Map<string, number>();
+	[...rows]
+		.sort((a, b) => cmp(a.created_at, b.created_at) || cmp(a.id, b.id))
+		.forEach((r, i) => seqMap.set(r.id, i + 1));
 
-	const dependents = bdSql<{ issue_id: string; dependent_id: string; type: string; title: string; status: string }>(`
-		SELECT d.depends_on_id as issue_id, d.issue_id as dependent_id, d.type, i.title, i.status
-		FROM dependencies d
-		JOIN issues i ON i.id = d.issue_id
-	`, cwd);
-
-	const labels = bdSql<DbLabel>(`SELECT issue_id, label FROM labels`, cwd);
-
-	// Build lookup maps
-	const depsMap = buildMap(deps, d => d.issue_id, d => ({ id: d.depends_on_id, title: d.dep_title, status: d.dep_status, dependency_type: d.type }));
-	const dependentsMap = buildMap(dependents, d => d.issue_id, d => ({ id: d.dependent_id, title: d.title, status: d.status, dependency_type: d.type }));
-	const labelsMap = buildMap(labels, l => l.issue_id, l => l.label);
+	// Outgoing deps (this issue depends on X) and their reverse (dependents), keeping only
+	// edges whose other endpoint still exists — matching the INNER JOINs of the sql path.
+	const depsMap = new Map<string, DepView[]>();
+	const dependentsMap = new Map<string, DepView[]>();
+	for (const r of rows) {
+		for (const d of r.dependencies ?? []) {
+			const target = byId.get(d.depends_on_id);
+			if (target) pushInto(depsMap, d.issue_id, { id: d.depends_on_id, title: target.title, status: target.status, dependency_type: d.type });
+			const source = byId.get(d.issue_id);
+			if (source) pushInto(dependentsMap, d.depends_on_id, { id: d.issue_id, title: source.title, status: source.status, dependency_type: d.type });
+		}
+	}
 
 	const attachmentsMap = getAllAttachments(cwd);
-	const commentsMap = getAllComments(cwd);
 
-	return issues.map((row) => {
-		const meta = parseMetadata(row.metadata);
-		return {
-			id: row.id,
-			seq: row.seq,
-			title: row.title,
-			description: row.description,
-			design: row.design || undefined,
-			acceptance_criteria: row.acceptance_criteria || undefined,
-			notes: row.notes || undefined,
-			status: row.status as Issue['status'],
-			priority: row.priority as Issue['priority'],
-			issue_type: row.issue_type,
-			assignee: row.assignee ?? undefined,
-			created_at: row.created_at,
-			updated_at: row.updated_at,
-			closed_at: row.closed_at ?? undefined,
-			labels: labelsMap.get(row.id) ?? [],
-			dependencies: depsMap.get(row.id) ?? [],
-			dependents: dependentsMap.get(row.id) ?? [],
-			dependency_count: depsMap.get(row.id)?.length ?? 0,
-			dependent_count: dependentsMap.get(row.id)?.length ?? 0,
-			attachments: attachmentsMap.get(row.id) ?? [],
-			comments: commentsMap.get(row.id) ?? [],
-			agent_model: meta.agent_model,
-			agent_effort: meta.agent_effort,
-			...mapIssueFields(row)
-		};
-	});
+	return rows
+		.sort((a, b) => b.priority - a.priority || cmp(b.created_at, a.created_at))
+		.map((r) => mapExportIssue(r, seqMap, depsMap, dependentsMap, attachmentsMap));
 }
 
 export function getIssueById(id: string, cwd?: string): Issue | null {
 	const sid = safeId(id);
-	const issues = bdSql<DbIssue>(`
-		SELECT id, seq, ${ISSUE_COLUMNS}
-		FROM (
-			SELECT *, ROW_NUMBER() OVER (ORDER BY created_at) as seq
-			FROM issues
-			WHERE status <> 'tombstone'
-		) t WHERE id = '${sid}'
-	`, cwd);
-
-	const issue = issues[0];
-	if (!issue) return null;
-
-	const deps = bdSql<DbDependency>(`
-		SELECT d.depends_on_id, d.type, i.title as dep_title, i.status as dep_status
-		FROM dependencies d
-		JOIN issues i ON i.id = d.depends_on_id
-		WHERE d.issue_id = '${sid}'
-	`, cwd);
-
-	const dependents = bdSql<{ dependent_id: string; type: string; title: string; status: string }>(`
-		SELECT d.issue_id as dependent_id, d.type, i.title, i.status
-		FROM dependencies d
-		JOIN issues i ON i.id = d.issue_id
-		WHERE d.depends_on_id = '${sid}'
-	`, cwd);
-
-	const labels = bdSql<{ label: string }>(`
-		SELECT label FROM labels WHERE issue_id = '${sid}'
-	`, cwd);
-
-	const attachmentsMap = getAllAttachments(cwd);
-	const commentsMap = getAllComments(cwd);
-	const meta = parseMetadata(issue.metadata);
-
-	return {
-		id: issue.id,
-		seq: issue.seq,
-		title: issue.title,
-		description: issue.description,
-		design: issue.design || undefined,
-		acceptance_criteria: issue.acceptance_criteria || undefined,
-		notes: issue.notes || undefined,
-		status: issue.status as Issue['status'],
-		priority: issue.priority as Issue['priority'],
-		issue_type: issue.issue_type,
-		assignee: issue.assignee || undefined,
-		created_at: issue.created_at,
-		updated_at: issue.updated_at || undefined,
-		closed_at: issue.closed_at || undefined,
-		labels: labels.map(l => l.label),
-		dependencies: deps.map(d => ({
-			id: d.depends_on_id,
-			title: d.dep_title,
-			status: d.dep_status,
-			dependency_type: d.type
-		})),
-		dependents: dependents.map(d => ({
-			id: d.dependent_id,
-			title: d.title,
-			status: d.status,
-			dependency_type: d.type
-		})),
-		dependency_count: deps.length,
-		dependent_count: dependents.length,
-		attachments: attachmentsMap.get(id) ?? [],
-		comments: commentsMap.get(id) ?? [],
-		agent_model: meta.agent_model,
-		agent_effort: meta.agent_effort,
-		...mapIssueFields(issue)
-	};
+	return getAllIssues(cwd).find((issue) => issue.id === sid) ?? null;
 }
 
 interface DbEvent {
@@ -383,7 +387,7 @@ export function getRecentEvents(limit = 100, cwd?: string): MutationEntry[] {
 }
 
 interface DbComment {
-	id: number;
+	id: string;
 	issue_id: string;
 	author: string;
 	text: string;
@@ -391,13 +395,8 @@ interface DbComment {
 }
 
 export function getComments(issueId: string, cwd?: string): Comment[] {
-	const sid = safeId(issueId);
-	const rows = bdSql<DbComment>(`
-		SELECT id, issue_id, author, text, created_at
-		FROM comments WHERE issue_id = '${sid}' ORDER BY created_at ASC
-	`, cwd);
-
-	return rows.map(c => ({ id: c.id, author: c.author, text: c.text, created_at: c.created_at }));
+	// Comments are inline in `bd export`; reuse the fast issue read (sorted created_at ASC).
+	return getIssueById(issueId, cwd)?.comments ?? [];
 }
 
 export function getAllComments(cwd?: string): Map<string, Comment[]> {

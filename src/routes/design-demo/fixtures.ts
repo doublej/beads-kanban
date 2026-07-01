@@ -30,13 +30,13 @@ export const demoIssues: Issue[] = [
 		dependent_count: 2,
 		comments: [
 			{
-				id: 1,
+				id: '1',
 				author: 'jurre',
 				text: "Confirmed in the staging env. Same issue with the trial signup form.",
 				created_at: ago(120)
 			},
 			{
-				id: 2,
+				id: '2',
 				author: 'agent-claude-1',
 				text: "Located the stale-token branch in `auth/challenge.ts:142`. Patching now — will push a draft PR for review within the hour.",
 				created_at: ago(48)

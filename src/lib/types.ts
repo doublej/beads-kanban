@@ -52,7 +52,7 @@ export interface Issue {
 }
 
 export interface Comment {
-	id: number;
+	id: string;
 	author: string;
 	text: string;
 	created_at: string;
