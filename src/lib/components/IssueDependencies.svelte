@@ -65,9 +65,9 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.5rem 0.75rem;
+		padding: 0.4375rem 0.75rem;
 		border-bottom: 1px solid var(--border-subtle);
-		font-size: 0.8125rem;
+		font-size: 0.75rem;
 		transition: background var(--transition-fast);
 	}
 	.relation:last-child { border-bottom: none; }
@@ -97,7 +97,7 @@
 
 	.rel-id {
 		font-family: var(--font-mono);
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		color: var(--text-muted);
 		flex-shrink: 0;
 	}
