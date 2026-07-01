@@ -1,6 +1,7 @@
 import { browser } from '$app/environment';
 import type { NotificationMode, NotificationEventSettings } from '$lib/notifications/types';
-import type { ViewRecipe, ViewMode, SortBy } from '$lib/types';
+import type { ViewRecipe, ViewMode, SortBy, TableColumnConfig, TableSortState } from '$lib/types';
+import { defaultTableColumns, reconcileTableColumns } from '$lib/table-columns';
 
 const DEFAULT_AGENT_FIRST_MESSAGE = 'You are an agent named "{name}". Await further instructions.';
 
@@ -157,6 +158,10 @@ function createSettings() {
 	// View Recipes
 	let viewRecipes = $state<ViewRecipe[]>([]);
 
+	// Table view
+	let tableColumns = $state<TableColumnConfig[]>(defaultTableColumns());
+	let tableSort = $state<TableSortState | null>(null);
+
 	const combinedSystemPrompt = $derived(
 		[agentSystemPrompt, agentWorkflow].filter(Boolean).join('\n\n')
 	);
@@ -196,6 +201,8 @@ function createSettings() {
 		showColumnCounts = loadBool('showColumnCounts', showColumnCounts);
 		alwaysShowHotkeys = loadBool('alwaysShowHotkeys', alwaysShowHotkeys);
 		sidebarCollapsed = loadBool('sidebarCollapsed', sidebarCollapsed);
+		tableColumns = reconcileTableColumns(loadObject<TableColumnConfig[] | null>('tableColumns', null));
+		tableSort = loadObject<TableSortState | null>('tableSort', null);
 	}
 
 	function toggleColumnCollapse(key: string) {
@@ -287,6 +294,10 @@ function createSettings() {
 		get mcpBatchDelay() { return mcpBatchDelay; },
 		set mcpBatchDelay(v: number) { mcpBatchDelay = v; persist('mcpBatchDelay', String(v)); },
 		get viewRecipes() { return viewRecipes; },
+		get tableColumns() { return tableColumns; },
+		set tableColumns(v: TableColumnConfig[]) { tableColumns = v; persist('tableColumns', JSON.stringify(v)); },
+		get tableSort() { return tableSort; },
+		set tableSort(v: TableSortState | null) { tableSort = v; persist('tableSort', JSON.stringify(v)); },
 		load,
 		toggleColumnCollapse,
 		saveRecipe,

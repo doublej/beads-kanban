@@ -68,6 +68,7 @@
 
 	const viewModes: { key: ViewMode; label: string }[] = [
 		{ key: 'kanban', label: 'board' },
+		{ key: 'table', label: 'table' },
 		{ key: 'tree', label: 'tree' },
 		{ key: 'graph', label: 'dependency graph' },
 		{ key: 'stats', label: 'stats' },

@@ -4,7 +4,7 @@
 	import { pushState as svelteKitPushState, replaceState as svelteKitReplaceState } from '$app/navigation';
 	import { setCurrentProject, appendProjectParam } from '$lib/project';
 	import { connect, disconnect, getPanes, getSessions, isConnected, addPane, removePane, sendToPane, killSession, clearAllSessions, endSession, clearSession, continueSession, compactSession, interrupt, getPersistedSdkSessionId, getAllPersistedSessions, deletePersistedSession, fetchSdkSessions, markPaneAsRead, getTotalUnreadCount, getUnreadCount, notifyAgentOfTicketUpdate, type Pane, type SdkSessionInfo } from '$lib/wsStore.svelte';
-	import type { Issue, Attachment, CardPosition, FlyingCard, SortBy, PaneSize, ViewMode, Project, ViewRecipe } from '$lib/types';
+	import type { Issue, Attachment, CardPosition, FlyingCard, SortBy, PaneSize, ViewMode, Project, ViewRecipe, TableColumnConfig, TableSortState } from '$lib/types';
 	import {
 		columns,
 		getPriorityConfig,
@@ -54,6 +54,8 @@
 	import { createPageOps } from '$lib/stores/page-ops.svelte';
 	import { issueMatchesFilters as matchesFilters, hasActiveFilters as checkActiveFilters, countActiveFilters, emptyFilterState, normalizeFilterState, type FilterState } from '$lib/filters';
 	import FilterSidebar from '$lib/components/FilterSidebar.svelte';
+	import TableView from '$lib/components/TableView.svelte';
+	import { reconcileTableColumns } from '$lib/table-columns';
 	import { getManagerVisible, getManagerSessionName, isManagerSession } from '$lib/stores/manager.svelte';
 	import { startManager, switchManagerProject, setServerProject } from '$lib/stores/ws-connection.svelte';
 	import { getQueueItems, getQueuedTicketIds, fetchInitialQueue } from '$lib/stores/queue.svelte';
@@ -596,12 +598,14 @@
 		ops.handlePopState(e);
 	}
 
-	function captureCurrentViewState(): { filters: FilterState; columnSort: Record<string, SortBy>; collapsedColumns: string[]; viewMode: ViewMode } {
+	function captureCurrentViewState(): { filters: FilterState; columnSort: Record<string, SortBy>; collapsedColumns: string[]; viewMode: ViewMode; table: TableColumnConfig[]; tableSort: TableSortState | null } {
 		return {
 			filters: normalizeFilterState(filters),
 			columnSort: { ...columnSortBy },
 			collapsedColumns: [...settings.collapsedColumns],
-			viewMode
+			viewMode,
+			table: settings.tableColumns.map((c) => ({ ...c })),
+			tableSort: settings.tableSort ? { ...settings.tableSort } : null
 		};
 	}
 
@@ -614,6 +618,8 @@
 			columnSort: state.columnSort,
 			collapsedColumns: state.collapsedColumns,
 			viewMode: state.viewMode,
+			table: state.table,
+			tableSort: state.tableSort,
 			createdAt: new Date().toISOString()
 		};
 		settings.saveRecipe(recipe);
@@ -625,6 +631,8 @@
 		filters = normalizeFilterState(recipe.filters);
 		columnSortBy = { ...recipe.columnSort };
 		viewMode = recipe.viewMode;
+		if (recipe.table) settings.tableColumns = reconcileTableColumns(recipe.table);
+		if (recipe.tableSort !== undefined) settings.tableSort = recipe.tableSort;
 
 		const savedCollapsed = new Set(recipe.collapsedColumns);
 		for (const col of [...settings.collapsedColumns]) {
@@ -873,6 +881,22 @@
 			{/key}
 		{/if}
 	</div>
+	{:else if viewMode === 'table'}
+		<div class="list-view-layout" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
+			<TableView
+				issues={filteredIssues}
+				columnConfig={settings.tableColumns}
+				sort={settings.tableSort}
+				{selectedId}
+				onselect={(issue) => ops.openEditPanel(issue)}
+				oncreate={ops.openCreatePanel}
+				oncolumnschange={(cols) => settings.tableColumns = cols}
+				onsortchange={(s) => settings.tableSort = s}
+			/>
+			{#if ops.panelOpen}
+				{@render detailPanel()}
+			{/if}
+		</div>
 	{:else if viewMode === 'tree'}
 		<div class="list-view-layout" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
 			<TreeView {issues} {selectedId} onselect={(issue) => ops.openEditPanel(issue)} oncreate={ops.openCreatePanel} />
