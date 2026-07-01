@@ -164,6 +164,47 @@
 		onsortchange(null);
 	}
 
+	// --- Reorder columns by dragging their headers ---
+	let dragColKey = $state<string | null>(null);
+	let dragOverKey = $state<string | null>(null);
+
+	function startColDrag(e: DragEvent, key: TableColumnKey) {
+		// Don't start a column drag from the resize handle.
+		if ((e.target as HTMLElement)?.classList.contains('resize-handle')) {
+			e.preventDefault();
+			return;
+		}
+		dragColKey = key;
+		if (e.dataTransfer) {
+			e.dataTransfer.setData('text/plain', key);
+			e.dataTransfer.effectAllowed = 'move';
+		}
+	}
+	function onColDragOver(e: DragEvent, key: TableColumnKey) {
+		if (!dragColKey || dragColKey === key) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		dragOverKey = key;
+	}
+	function onColDrop(e: DragEvent, key: TableColumnKey) {
+		e.preventDefault();
+		const from = dragColKey;
+		dragColKey = null;
+		dragOverKey = null;
+		if (!from || from === key) return;
+		const fromIdx = columnConfig.findIndex((c) => c.key === from);
+		const toIdx = columnConfig.findIndex((c) => c.key === key);
+		if (fromIdx === -1 || toIdx === -1) return;
+		const next = [...columnConfig];
+		const [moved] = next.splice(fromIdx, 1);
+		next.splice(toIdx, 0, moved);
+		oncolumnschange(next);
+	}
+	function endColDrag() {
+		dragColKey = null;
+		dragOverKey = null;
+	}
+
 	function onRowKey(e: KeyboardEvent, issue: Issue) {
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
@@ -211,14 +252,26 @@
 		<div class="thead">
 			{#each visibleCols as c (c.key)}
 				{@const def = TABLE_COLUMN_MAP[c.key]}
-				<div class="th" style="flex: {widthOf(c.key)} 1 0;" class:num={def.align === 'right'}>
+				<div
+					class="th"
+					style="flex: {widthOf(c.key)} 1 0;"
+					class:num={def.align === 'right'}
+					class:dragging={dragColKey === c.key}
+					class:drag-over={dragOverKey === c.key}
+					draggable="true"
+					ondragstart={(e) => startColDrag(e, c.key)}
+					ondragover={(e) => onColDragOver(e, c.key)}
+					ondragleave={() => { if (dragOverKey === c.key) dragOverKey = null; }}
+					ondrop={(e) => onColDrop(e, c.key)}
+					ondragend={endColDrag}
+				>
 					<button class="th-label" class:sortable={def.sortable} class:sorted={sort?.field === c.key} onclick={() => toggleSort(c.key)}>
 						<span>{def.label}</span>
 						{#if sort?.field === c.key}
 							<Icon name={sort.dir === 'asc' ? 'sort-asc' : 'sort-desc'} size={12} />
 						{/if}
 					</button>
-					<button class="resize-handle" type="button" tabindex="-1" aria-label="Resize {def.label}" onpointerdown={(e) => startResize(e, c.key)}></button>
+					<button class="resize-handle" type="button" tabindex="-1" draggable="false" aria-label="Resize {def.label}" onpointerdown={(e) => startResize(e, c.key)}></button>
 				</div>
 			{/each}
 		</div>
@@ -497,9 +550,19 @@
 		min-width: 0;
 		padding: 0 0.75rem;
 		height: 2.25rem;
+		cursor: grab;
+	}
+	.th:active {
+		cursor: grabbing;
 	}
 	.th.num {
 		justify-content: flex-end;
+	}
+	.th.dragging {
+		opacity: 0.4;
+	}
+	.th.drag-over {
+		box-shadow: inset 2px 0 0 var(--accent-primary);
 	}
 
 	.th-label {
