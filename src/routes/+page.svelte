@@ -13,6 +13,7 @@
 		hasOpenBlockers,
 		formatDate,
 		sortIssues,
+		sortIssuesBy,
 		getIssueColumn,
 		getColumnMoveUpdates
 	} from '$lib/utils';
@@ -300,6 +301,11 @@
 	const availableAssignees = $derived([...new Set(issues.map(i => i.assignee).filter((a): a is string => !!a))].sort());
 	const availableTypes = $derived([...new Set(issues.map(i => i.issue_type).filter(Boolean))].sort());
 	const filteredIssues = $derived(issues.filter((issue) => issueMatchesFilters(issue)));
+	// Ordered rows for the table view — the single source of order shared by the
+	// table display AND keyboard next/prev, so "next" is always the next visible row.
+	const orderedTableIssues = $derived(
+		settings.tableSort ? sortIssuesBy(filteredIssues, settings.tableSort.field, settings.tableSort.dir) : filteredIssues
+	);
 
 	// --- Zen focus review ---
 	function openZenReview(ids?: string[], startIndex?: number) {
@@ -328,6 +334,8 @@
 	// --- Keyboard Nav ---
 	const keyboardNav = createKeyboardNav({
 		getFilteredIssues: () => filteredIssues,
+		getViewMode: () => viewMode,
+		getOrderedVisibleIssues: () => (viewMode === 'table' ? orderedTableIssues : filteredIssues),
 		getSelectedId: () => selectedId,
 		setSelectedId: (id) => { selectedId = id; },
 		getPanelOpen: () => ops.panelOpen,
@@ -887,7 +895,7 @@
 				{@render detailPanel()}
 			{/if}
 			<TableView
-				issues={filteredIssues}
+				issues={orderedTableIssues}
 				columnConfig={settings.tableColumns}
 				sort={settings.tableSort}
 				{selectedId}

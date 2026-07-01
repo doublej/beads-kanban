@@ -1,8 +1,11 @@
-import type { Issue } from '$lib/types';
+import type { Issue, ViewMode } from '$lib/types';
 import { columns, getIssueColumn } from '$lib/utils';
 
 export interface KeyboardNavContext {
 	getFilteredIssues: () => Issue[];
+	getViewMode: () => ViewMode;
+	/** Flat, ordered list of visible issues for the current view (for linear nav). */
+	getOrderedVisibleIssues: () => Issue[];
 	getSelectedId: () => string | null;
 	setSelectedId: (id: string | null) => void;
 	getPanelOpen: () => boolean;
@@ -16,7 +19,7 @@ export interface KeyboardNavContext {
 	getProjectCount: () => number;
 	createIssue: () => void;
 	openCreatePanel: () => void;
-	openEditPanel: (issue: Issue) => void;
+	openEditPanel: (issue: Issue, pushState?: boolean) => void;
 	deleteIssue: (id: string) => void;
 	toggleTheme: () => void;
 	closePanel: () => void;
@@ -212,6 +215,61 @@ function findFirstInDirection(
 	return null;
 }
 
+const LINEAR_NAV_KEYS = ['ArrowUp', 'ArrowDown', 'j', 'k'];
+
+/**
+ * Linear next/prev over the current view's ordered visible list (used by the
+ * table view). "Next" is always the next visible row in the active sort order.
+ * Works with the detail panel open — it pages the panel to the new issue.
+ */
+function handleListNavigation(e: KeyboardEvent, ctx: KeyboardNavContext): boolean {
+	const list = ctx.getOrderedVisibleIssues();
+	if (!list.length) return false;
+	const selectedId = ctx.getSelectedId();
+	const panelOpen = ctx.getPanelOpen();
+
+	const reveal = (issue: Issue) => {
+		ctx.setSelectedId(issue.id);
+		if (panelOpen) ctx.openEditPanel(issue, false);
+	};
+
+	if (!selectedId) {
+		if (!LINEAR_NAV_KEYS.includes(e.key)) return false;
+		reveal(list[0]);
+		e.preventDefault();
+		return true;
+	}
+
+	const idx = list.findIndex(i => i.id === selectedId);
+
+	if (e.key === 'Enter' || e.key === 'o') {
+		ctx.openEditPanel(idx !== -1 ? list[idx] : list[0]);
+		e.preventDefault();
+		return true;
+	}
+	if (e.key === 'Delete' || e.key === 'Backspace' || e.key === 'x') {
+		ctx.deleteIssue(selectedId);
+		e.preventDefault();
+		return true;
+	}
+	if (!LINEAR_NAV_KEYS.includes(e.key)) return false;
+
+	if (idx === -1) {
+		reveal(list[0]);
+		e.preventDefault();
+		return true;
+	}
+	let ni = idx;
+	if (e.key === 'ArrowDown' || e.key === 'j') ni = Math.min(idx + 1, list.length - 1);
+	else if (e.key === 'ArrowUp' || e.key === 'k') ni = Math.max(idx - 1, 0);
+	if (ni !== idx) {
+		reveal(list[ni]);
+		e.preventDefault();
+		return true;
+	}
+	return false;
+}
+
 export function createKeyboardNav(ctx: KeyboardNavContext) {
 	function handleKeydown(e: KeyboardEvent) {
 		if (handleGlobalShortcuts(e, ctx)) return;
@@ -219,6 +277,10 @@ export function createKeyboardNav(ctx: KeyboardNavContext) {
 		if (isInputElement(e.target)) return;
 		if (handleNonInputShortcuts(e, ctx)) return;
 		if (handleColumnJump(e, ctx)) return;
+		if (ctx.getViewMode() === 'table') {
+			handleListNavigation(e, ctx);
+			return;
+		}
 		if (ctx.getPanelOpen()) return;
 		handleCardNavigation(e, ctx);
 	}

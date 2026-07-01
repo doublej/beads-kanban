@@ -10,8 +10,7 @@
 		formatTimestamp,
 		calculateImpactScore,
 		getImpactLevel,
-		isAgentAssignee,
-		sortIssuesBy
+		isAgentAssignee
 	} from '$lib/utils';
 	import Icon from './Icon.svelte';
 
@@ -38,7 +37,9 @@
 	}: Props = $props();
 
 	const visibleCols = $derived(columnConfig.filter((c) => c.visible));
-	const rows = $derived(sort ? sortIssuesBy(issues, sort.field, sort.dir) : issues);
+	// Parent (+page) pre-sorts `issues` by `sort`, so the row order here matches
+	// keyboard next/prev navigation. `sort` is used only for the header indicator.
+	const rows = $derived(issues);
 
 	// --- Column resize (live width while dragging, committed on release) ---
 	let liveWidths = $state<Record<string, number>>({});
