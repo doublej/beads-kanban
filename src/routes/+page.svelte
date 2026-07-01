@@ -38,7 +38,6 @@
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
 	import SetupWizard from '$lib/components/SetupWizard.svelte';
 	import { fetchMutations } from '$lib/mutationStore.svelte';
-	import HealthBadge from '$lib/components/HealthBadge.svelte';
 	import ThemeTransition from '$lib/components/ThemeTransition.svelte';
 	import ProjectSwitcher from '$lib/components/ProjectSwitcher.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
@@ -828,8 +827,6 @@
 		</div>
 	{/if}
 
-	<div class="health-row"><HealthBadge /></div>
-
 	<div class="workspace">
 	<FilterSidebar
 		{filters}
@@ -1115,12 +1112,6 @@
 		background: rgba(245, 158, 11, 0.2);
 		padding: 1px 5px;
 		border-radius: 3px;
-	}
-
-	.health-row {
-		display: flex;
-		justify-content: flex-end;
-		padding: 4px 16px 0;
 	}
 
 	.app {
