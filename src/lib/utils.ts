@@ -186,12 +186,54 @@ export function parseStateLabels(labels?: string[]): { states: { dimension: stri
 	return { states, plain };
 }
 
-export function sortIssues(issues: Issue[], sortBy: SortBy): Issue[] {
+/** Fields any issue list can be sorted by (superset of the kanban `SortBy`). */
+export type IssueSortField =
+	| 'seq' | 'title' | 'status' | 'priority' | 'type' | 'assignee'
+	| 'labels' | 'due' | 'estimate' | 'created' | 'updated' | 'dependents' | 'impact';
+
+const STATUS_SORT_ORDER: Record<string, number> = {
+	open: 0, in_progress: 1, hooked: 2, blocked: 3, closed: 4
+};
+
+/** Extract a comparable primitive for a given sort field. Missing values sort last. */
+function issueSortValue(issue: Issue, field: IssueSortField): string | number {
+	switch (field) {
+		case 'seq': return issue.seq ?? 0;
+		case 'title': return issue.title.toLowerCase();
+		case 'status': return STATUS_SORT_ORDER[issue.status] ?? 99;
+		case 'priority': return issue.priority;
+		case 'type': return issue.issue_type ?? '';
+		case 'assignee': return (issue.assignee || '').toLowerCase();
+		case 'labels': return issue.labels?.length ?? 0;
+		case 'due': return issue.due_at ? new Date(issue.due_at).getTime() : Infinity;
+		case 'estimate': return issue.estimated_minutes ?? Infinity;
+		case 'created': return issue.created_at ? new Date(issue.created_at).getTime() : 0;
+		case 'updated': return issue.updated_at ? new Date(issue.updated_at).getTime() : 0;
+		case 'dependents': return issue.dependent_count ?? issue.dependents?.length ?? 0;
+		case 'impact': return calculateImpactScore(issue);
+		default: return 0;
+	}
+}
+
+/** Generalized sort by any field + direction; ties broken by newest seq. */
+export function sortIssuesBy(issues: Issue[], field: IssueSortField, dir: 'asc' | 'desc' = 'asc'): Issue[] {
+	const sign = dir === 'asc' ? 1 : -1;
 	return [...issues].sort((a, b) => {
-		if (sortBy === 'priority') return a.priority - b.priority;
-		if (sortBy === 'created') return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-		return a.title.localeCompare(b.title);
+		const av = issueSortValue(a, field);
+		const bv = issueSortValue(b, field);
+		let cmp: number;
+		if (typeof av === 'string' && typeof bv === 'string') cmp = av.localeCompare(bv);
+		else cmp = av < bv ? -1 : av > bv ? 1 : 0;
+		if (cmp !== 0) return cmp * sign;
+		return (b.seq ?? 0) - (a.seq ?? 0);
 	});
+}
+
+/** Kanban column sort — thin wrapper over {@link sortIssuesBy}. */
+export function sortIssues(issues: Issue[], sortBy: SortBy): Issue[] {
+	if (sortBy === 'priority') return sortIssuesBy(issues, 'priority', 'asc');
+	if (sortBy === 'created') return sortIssuesBy(issues, 'created', 'desc');
+	return sortIssuesBy(issues, 'title', 'asc');
 }
 
 

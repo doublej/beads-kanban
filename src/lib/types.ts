@@ -105,7 +105,24 @@ export interface RopeDragState {
 
 export type SortBy = 'priority' | 'created' | 'title';
 export type PaneSize = 'compact' | 'medium' | 'large';
-export type ViewMode = 'kanban' | 'tree' | 'graph' | 'stats' | 'diff';
+export type ViewMode = 'kanban' | 'tree' | 'graph' | 'stats' | 'diff' | 'table';
+
+/** Columns available in the table view (keys match the sort accessor in utils). */
+export type TableColumnKey =
+	| 'seq' | 'title' | 'status' | 'priority' | 'type' | 'assignee'
+	| 'labels' | 'due' | 'estimate' | 'created' | 'updated' | 'dependents' | 'impact';
+
+/** Persisted per-column state for the table view (order is array position). */
+export interface TableColumnConfig {
+	key: TableColumnKey;
+	visible: boolean;
+	width: number;
+}
+
+export interface TableSortState {
+	field: TableColumnKey;
+	dir: 'asc' | 'desc';
+}
 
 export interface DiffChange {
 	issue: { id: string; title: string; status: string; priority: number; issue_type: string };
