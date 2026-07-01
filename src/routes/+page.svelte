@@ -1181,6 +1181,13 @@
 		overflow: hidden;
 	}
 
+	/* Wider detail panel in table view — more room than the 420px kanban panel */
+	.table-layout :global(.panel) {
+		flex: 0 0 clamp(480px, 40%, 760px);
+		min-width: 480px;
+		max-width: 760px;
+	}
+
 	.board::-webkit-scrollbar {
 		display: none;
 	}
