@@ -254,6 +254,8 @@
 				{@const def = TABLE_COLUMN_MAP[c.key]}
 				<div
 					class="th"
+					role="columnheader"
+					tabindex="-1"
 					style="flex: {widthOf(c.key)} 1 0;"
 					class:num={def.align === 'right'}
 					class:dragging={dragColKey === c.key}
