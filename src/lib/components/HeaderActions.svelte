@@ -84,10 +84,10 @@
 		gap: 0.375rem;
 		height: 1.75rem;
 		min-width: 1.75rem;
-		padding: 0 0.5rem;
+		padding: 0 0.625rem;
 		background: transparent;
 		border: none;
-		border-radius: 0.25rem;
+		border-radius: var(--radius-full);
 		color: var(--text-tertiary);
 		font-family: inherit;
 		font-size: 0.75rem;
@@ -123,7 +123,7 @@
 		height: 1rem;
 		padding: 0 0.25rem;
 		background: var(--text-tertiary);
-		border-radius: 0.25rem;
+		border-radius: var(--radius-full);
 		color: var(--bg-primary);
 		font-size: 0.625rem;
 		font-weight: 600;

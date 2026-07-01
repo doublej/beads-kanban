@@ -1,7 +1,38 @@
-import { existsSync, readdirSync, readFileSync } from "fs";
+import { existsSync, readdirSync, readFileSync, openSync, readSync, closeSync, statSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import type { SdkSessionInfo } from "./session-types";
+
+// Only the first HEAD_LINES of each session file are inspected below, so read
+// just enough bytes to cover them instead of loading multi-MB files whole.
+const HEAD_LINES = 50;
+const HEAD_CHUNK = 64 * 1024;
+const HEAD_MAX_BYTES = 1024 * 1024;
+
+function readHead(fullPath: string, maxLines: number): string {
+  const fd = openSync(fullPath, "r");
+  try {
+    const buf = Buffer.allocUnsafe(HEAD_CHUNK);
+    let acc = "";
+    let pos = 0;
+    while (pos < HEAD_MAX_BYTES) {
+      const bytes = readSync(fd, buf, 0, HEAD_CHUNK, pos);
+      if (bytes === 0) break;
+      acc += buf.toString("utf8", 0, bytes);
+      pos += bytes;
+      let newlines = 0;
+      for (let i = 0; i < acc.length; i++) if (acc.charCodeAt(i) === 10) newlines++;
+      if (newlines >= maxLines) break;
+    }
+    return acc;
+  } finally {
+    closeSync(fd);
+  }
+}
+
+// Cache parsed session metadata keyed by path; invalidated when mtime changes,
+// so repeated /sessions polls only re-read files that actually changed.
+const sessionCache = new Map<string, { mtimeMs: number; info: SdkSessionInfo }>();
 
 type ChatMessage = {
   role: "user" | "assistant" | "tool";
@@ -49,7 +80,7 @@ export function calculateSessionUsage(cwd: string, sessionId: string): { inputTo
 
 function parseSessionFile(fullPath: string, filename: string): SdkSessionInfo | null {
   try {
-    const content = readFileSync(fullPath, "utf8");
+    const content = readHead(fullPath, HEAD_LINES);
     const lines = content.split("\n").filter((l: string) => l.trim());
     if (lines.length === 0) return null;
 
@@ -117,16 +148,24 @@ function parseSessionFile(fullPath: string, filename: string): SdkSessionInfo | 
 export function listSdkSessions(cwd: string): SdkSessionInfo[] {
   const sessionsDir = getProjectDir(cwd);
 
-  console.log(`[sessions] Searching: ${sessionsDir}`);
-
-  if (!existsSync(sessionsDir)) {
-    console.log(`[sessions] Directory not found`);
-    return [];
-  }
+  if (!existsSync(sessionsDir)) return [];
 
   const files = readdirSync(sessionsDir)
     .filter(f => f.endsWith(".jsonl"))
-    .map(f => parseSessionFile(join(sessionsDir, f), f))
+    .map(f => {
+      const fullPath = join(sessionsDir, f);
+      let mtimeMs: number;
+      try {
+        mtimeMs = statSync(fullPath).mtimeMs;
+      } catch {
+        return null;
+      }
+      const cached = sessionCache.get(fullPath);
+      if (cached && cached.mtimeMs === mtimeMs) return cached.info;
+      const info = parseSessionFile(fullPath, f);
+      if (info) sessionCache.set(fullPath, { mtimeMs, info });
+      return info;
+    })
     .filter((s): s is SdkSessionInfo => s !== null)
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 

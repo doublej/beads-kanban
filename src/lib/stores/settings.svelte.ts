@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 import type { NotificationMode, NotificationEventSettings } from '$lib/notifications/types';
-import type { ViewRecipe, ViewMode, SortBy, TableColumnConfig, TableSortState } from '$lib/types';
+import { coerceViewMode, type ViewRecipe, type ViewMode, type SortBy, type TableColumnConfig, type TableSortState } from '$lib/types';
 import { defaultTableColumns, reconcileTableColumns } from '$lib/table-columns';
 
 const DEFAULT_AGENT_FIRST_MESSAGE = 'You are an agent named "{name}". Await further instructions.';
@@ -196,7 +196,7 @@ function createSettings() {
 		notificationEvents = loadObject('notificationEvents', notificationEvents);
 		mcpBatchDelay = loadNumber('mcpBatchDelay', mcpBatchDelay);
 		viewRecipes = loadObject('viewRecipes', viewRecipes);
-		defaultViewMode = loadString('defaultViewMode', defaultViewMode) === 'table' ? 'table' : 'kanban';
+		defaultViewMode = coerceViewMode(loadString('defaultViewMode', defaultViewMode));
 		defaultColumnSort = loadString('defaultColumnSort', defaultColumnSort) as SortBy;
 		showColumnCounts = loadBool('showColumnCounts', showColumnCounts);
 		alwaysShowHotkeys = loadBool('alwaysShowHotkeys', alwaysShowHotkeys);

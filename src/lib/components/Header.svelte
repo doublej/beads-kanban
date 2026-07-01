@@ -68,7 +68,8 @@
 
 	const viewModes: { key: ViewMode; label: string }[] = [
 		{ key: 'kanban', label: 'board' },
-		{ key: 'table', label: 'table' }
+		{ key: 'table', label: 'table' },
+		{ key: 'flow', label: 'graph' }
 	];
 
 	const activeViewLabel = $derived(viewModes.find(m => m.key === viewMode)?.label ?? 'board');
@@ -151,7 +152,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0.5rem 1rem;
+		padding: 0.875rem 1.5rem 0.5rem;
 		gap: 1rem;
 	}
 
@@ -180,10 +181,10 @@
 		gap: 0.375rem;
 		height: 1.75rem;
 		min-width: 1.75rem;
-		padding: 0 0.5rem;
+		padding: 0 0.625rem;
 		background: transparent;
 		border: none;
-		border-radius: 0.25rem;
+		border-radius: var(--radius-full);
 		color: var(--text-tertiary);
 		font-family: inherit;
 		font-size: 0.75rem;
@@ -215,14 +216,15 @@
 	}
 
 	.filter-toggle-badge {
-		min-width: 1rem;
-		height: 1rem;
+		min-width: 1.25rem;
+		height: 1.25rem;
 		padding: 0 0.25rem;
+		margin-right: -0.375rem;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		background: var(--accent-primary);
-		border-radius: 0.25rem;
+		border-radius: var(--radius-full);
 		color: #fff;
 		font-size: 0.625rem;
 		font-weight: 600;

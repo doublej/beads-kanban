@@ -7,7 +7,8 @@ export const ALL_STATUSES = ['open', 'in_progress', 'hooked', 'blocked', 'closed
 
 /**
  * Multi-select filter state. Empty arrays mean "no constraint" (match all).
- * `time` is single-select ('all' = inactive); `labelMode` picks any-of vs all-of.
+ * `time`/`created`/`due` are single-select ('all' = inactive); `labelMode` picks
+ * any-of vs all-of. `excludeLabels` hides issues carrying any listed label.
  */
 export interface FilterState {
 	search: string;
@@ -17,8 +18,14 @@ export interface FilterState {
 	assignees: string[];
 	labels: string[];
 	labelMode: 'any' | 'all';
+	excludeLabels: string[];
 	time: string;
+	created: string;
+	due: string;
 	actionable: boolean;
+	pinned: boolean;
+	deferred: boolean;
+	started: boolean;
 }
 
 export function emptyFilterState(): FilterState {
@@ -30,8 +37,14 @@ export function emptyFilterState(): FilterState {
 		assignees: [],
 		labels: [],
 		labelMode: 'any',
+		excludeLabels: [],
 		time: 'all',
-		actionable: false
+		created: 'all',
+		due: 'all',
+		actionable: false,
+		pinned: false,
+		deferred: false,
+		started: false
 	};
 }
 
@@ -45,27 +58,71 @@ export function isIssueActionable(issue: Issue): boolean {
 	return true;
 }
 
-export function issueMatchesTimeFilter(issue: Issue, filterTime: string): boolean {
-	if (filterTime === 'all') return true;
+/** Shared "how recently" bucket matcher for a timestamp (updated/created). */
+function matchesRecencyBucket(date: Date, bucket: string): boolean {
+	if (bucket === 'all') return true;
 	const now = new Date();
-	const updated = issue.updated_at ? new Date(issue.updated_at) : issue.created_at ? new Date(issue.created_at) : now;
-	const diffMs = now.getTime() - updated.getTime();
-	const diffHours = diffMs / (1000 * 60 * 60);
-	switch (filterTime) {
+	const diffHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+	switch (bucket) {
 		case '1h': return diffHours <= 1;
 		case '24h': return diffHours <= 24;
 		case 'today': {
 			const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-			return updated >= startOfDay;
+			return date >= startOfDay;
 		}
 		case 'week': {
 			const startOfWeek = new Date(now);
 			startOfWeek.setDate(now.getDate() - now.getDay());
 			startOfWeek.setHours(0, 0, 0, 0);
-			return updated >= startOfWeek;
+			return date >= startOfWeek;
 		}
 		default: return true;
 	}
+}
+
+export function issueMatchesTimeFilter(issue: Issue, filterTime: string): boolean {
+	if (filterTime === 'all') return true;
+	const updated = issue.updated_at ? new Date(issue.updated_at) : issue.created_at ? new Date(issue.created_at) : new Date();
+	return matchesRecencyBucket(updated, filterTime);
+}
+
+export function issueMatchesCreatedFilter(issue: Issue, filterCreated: string): boolean {
+	if (filterCreated === 'all') return true;
+	if (!issue.created_at) return false;
+	return matchesRecencyBucket(new Date(issue.created_at), filterCreated);
+}
+
+/**
+ * Due-date bucket matcher. Any bucket other than 'all' requires `due_at` to be set,
+ * so it doubles as a "has a due date" gate. 'overdue' excludes already-closed issues.
+ */
+export function issueMatchesDueFilter(issue: Issue, filterDue: string): boolean {
+	if (filterDue === 'all') return true;
+	if (!issue.due_at) return false;
+	if (filterDue === 'has') return true;
+	const now = new Date();
+	const due = new Date(issue.due_at);
+	switch (filterDue) {
+		case 'overdue': return due < now && issue.status !== 'closed';
+		case 'today': {
+			const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+			const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+			return due >= startOfDay && due <= endOfDay;
+		}
+		case 'week': {
+			const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+			const in7 = new Date(now);
+			in7.setDate(now.getDate() + 7);
+			return due >= startOfDay && due <= in7;
+		}
+		default: return true;
+	}
+}
+
+/** True when the issue is deferred to a future time (defer_until in the future). */
+export function isIssueDeferred(issue: Issue): boolean {
+	if (!issue.defer_until) return false;
+	return new Date(issue.defer_until) > new Date();
 }
 
 export function issueMatchesFilters(issue: Issue, f: FilterState): boolean {
@@ -89,18 +146,27 @@ export function issueMatchesFilters(issue: Issue, f: FilterState): boolean {
 			? f.labels.every(l => issueLabels.includes(l))
 			: f.labels.some(l => issueLabels.includes(l))
 	);
+	const matchesExcludeLabel = f.excludeLabels.length === 0 || !f.excludeLabels.some(l => issueLabels.includes(l));
 
 	const matchesTime = issueMatchesTimeFilter(issue, f.time);
+	const matchesCreated = issueMatchesCreatedFilter(issue, f.created);
+	const matchesDue = issueMatchesDueFilter(issue, f.due);
 	const matchesActionable = !f.actionable || isIssueActionable(issue);
+	const matchesPinned = !f.pinned || !!issue.pinned;
+	const matchesDeferred = !f.deferred || isIssueDeferred(issue);
+	const matchesStarted = !f.started || !!issue.started_at;
 
 	return matchesSearch && matchesStatus && matchesPriority && matchesType &&
-		matchesAssignee && matchesLabel && matchesTime && matchesActionable;
+		matchesAssignee && matchesLabel && matchesExcludeLabel && matchesTime &&
+		matchesCreated && matchesDue && matchesActionable && matchesPinned &&
+		matchesDeferred && matchesStarted;
 }
 
 export function hasActiveFilters(f: FilterState): boolean {
 	return f.search.trim() !== '' || f.statuses.length > 0 || f.priorities.length > 0 ||
 		f.types.length > 0 || f.assignees.length > 0 || f.labels.length > 0 ||
-		f.time !== 'all' || f.actionable;
+		f.excludeLabels.length > 0 || f.time !== 'all' || f.created !== 'all' ||
+		f.due !== 'all' || f.actionable || f.pinned || f.deferred || f.started;
 }
 
 /** Count of active filter dimensions, for badges. */
@@ -111,8 +177,14 @@ export function countActiveFilters(f: FilterState): number {
 		(f.types.length > 0 ? 1 : 0) +
 		(f.assignees.length > 0 ? 1 : 0) +
 		(f.labels.length > 0 ? 1 : 0) +
+		(f.excludeLabels.length > 0 ? 1 : 0) +
 		(f.time !== 'all' ? 1 : 0) +
-		(f.actionable ? 1 : 0);
+		(f.created !== 'all' ? 1 : 0) +
+		(f.due !== 'all' ? 1 : 0) +
+		(f.actionable ? 1 : 0) +
+		(f.pinned ? 1 : 0) +
+		(f.deferred ? 1 : 0) +
+		(f.started ? 1 : 0);
 }
 
 /**
@@ -135,8 +207,14 @@ export function normalizeFilterState(raw: unknown): FilterState {
 			assignees: Array.isArray(r.assignees) ? [...(r.assignees as string[])] : [],
 			labels: Array.isArray(r.labels) ? [...(r.labels as string[])] : [],
 			labelMode: r.labelMode === 'all' ? 'all' : 'any',
+			excludeLabels: Array.isArray(r.excludeLabels) ? [...(r.excludeLabels as string[])] : [],
 			time: typeof r.time === 'string' ? r.time : 'all',
-			actionable: !!r.actionable
+			created: typeof r.created === 'string' ? r.created : 'all',
+			due: typeof r.due === 'string' ? r.due : 'all',
+			actionable: !!r.actionable,
+			pinned: !!r.pinned,
+			deferred: !!r.deferred,
+			started: !!r.started
 		};
 	}
 

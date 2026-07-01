@@ -59,7 +59,7 @@
 		padding: 0 2.5rem 0 2rem;
 		background: rgba(255, 255, 255, 0.04);
 		border: none;
-		border-radius: 0.25rem;
+		border-radius: var(--radius-full);
 		color: var(--text-primary);
 		font-family: inherit;
 		font-size: 0.75rem;
@@ -84,31 +84,54 @@
 
 	.search-clear {
 		position: absolute;
-		right: 0.375rem;
-		width: 1rem;
-		height: 1rem;
+		right: 4px;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 1.25rem;
+		height: 1.25rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: transparent;
+		background: rgba(255, 255, 255, 0.06);
 		border: none;
-		border-radius: 0.125rem;
+		border-radius: 50%;
 		color: var(--text-tertiary);
 		font-size: 0.75rem;
 		cursor: pointer;
 	}
 
 	.search-clear:hover {
+		background: rgba(255, 255, 255, 0.12);
 		color: var(--text-primary);
 	}
 
 	.hotkey-hint {
 		position: absolute;
-		right: 0.375rem;
+		right: 4px;
+		top: 50%;
+		transform: translateY(-50%);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.25rem;
+		height: 1.25rem;
+		border-radius: 50%;
+		background: rgba(255, 255, 255, 0.06);
 		font-family: ui-monospace, monospace;
-		font-size: 0.625rem;
+		font-size: 0.5rem;
 		color: var(--text-tertiary);
-		opacity: 0.5;
+	}
+
+	:global(.app.light) .search-clear {
+		background: rgba(0, 0, 0, 0.05);
+	}
+
+	:global(.app.light) .search-clear:hover {
+		background: rgba(0, 0, 0, 0.1);
+	}
+
+	:global(.app.light) .hotkey-hint {
+		background: rgba(0, 0, 0, 0.05);
 	}
 
 	.btn-create {
@@ -116,10 +139,10 @@
 		align-items: center;
 		gap: 0.375rem;
 		height: 1.75rem;
-		padding: 0 0.625rem;
+		padding: 0 0.25rem 0 0.75rem;
 		background: rgba(59, 130, 246, 0.12);
 		border: none;
-		border-radius: 0.25rem;
+		border-radius: var(--radius-full);
 		font-family: inherit;
 		font-size: 0.75rem;
 		font-weight: 500;
@@ -146,9 +169,19 @@
 	}
 
 	.create-hotkey {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.25rem;
+		height: 1.25rem;
+		border-radius: 50%;
+		background: rgba(96, 165, 250, 0.16);
 		font-family: ui-monospace, monospace;
 		font-size: 0.5625rem;
-		opacity: 0.5;
+	}
+
+	:global(.app.light) .create-hotkey {
+		background: rgba(37, 99, 235, 0.12);
 	}
 
 	@media (max-width: 768px) {
