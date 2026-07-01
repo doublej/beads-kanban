@@ -1,9 +1,15 @@
+import { watch, type FSWatcher } from 'node:fs';
+import { join } from 'node:path';
 import type { RequestHandler } from './$types';
 import { requireProjectCwd } from '$lib/server/cwd';
 import { notificationEmitter } from '$lib/notifications/event-emitter';
 import type { NotificationEventType } from '$lib/notifications/types';
 
 const HEARTBEAT_MS = 25_000;
+// `bd` rewrites these direct children of .beads on every write (its own auto-export),
+// so watching them catches external CLI/agent changes the in-process emitter never sees.
+const WATCH_FILES = new Set(['issues.jsonl', 'last-touched']);
+const WATCH_DEBOUNCE_MS = 300;
 
 const NAME_MAP: Record<NotificationEventType, string> = {
 	issue_created: 'issue.created',
@@ -25,6 +31,8 @@ export const GET: RequestHandler = async ({ url }) => {
 	let closed = false;
 	let unsubscribe: (() => void) | null = null;
 	let heartbeat: ReturnType<typeof setInterval> | null = null;
+	let watcher: FSWatcher | null = null;
+	let watchDebounce: ReturnType<typeof setTimeout> | null = null;
 
 	const stream = new ReadableStream({
 		start(controller) {
@@ -54,11 +62,27 @@ export const GET: RequestHandler = async ({ url }) => {
 			});
 
 			heartbeat = setInterval(() => send({ type: 'heartbeat', timestamp: Date.now() }), HEARTBEAT_MS);
+
+			// Watch .beads for external writes (bd CLI, agents) the emitter can't observe.
+			try {
+				watcher = watch(join(cwd, '.beads'), (_event, filename) => {
+					if (!filename || !WATCH_FILES.has(filename)) return;
+					if (watchDebounce) clearTimeout(watchDebounce);
+					watchDebounce = setTimeout(
+						() => send({ type: 'event', name: 'issue.updated', source: 'fs', timestamp: Date.now() }),
+						WATCH_DEBOUNCE_MS
+					);
+				});
+			} catch {
+				// .beads may not exist yet; in-app writes still flow via the emitter.
+			}
 		},
 		cancel() {
 			closed = true;
 			unsubscribe?.();
 			if (heartbeat) clearInterval(heartbeat);
+			if (watchDebounce) clearTimeout(watchDebounce);
+			watcher?.close();
 		},
 	});
 
