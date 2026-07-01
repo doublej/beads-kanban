@@ -331,9 +331,21 @@ const priorityLabels: Record<number, string> = {
 	0: 'Critical', 1: 'High', 2: 'Medium', 3: 'Low', 4: 'Backlog'
 };
 
+/** Parse an event's old/new value JSON. bd sometimes stores a plain (non-JSON) string
+ *  such as a close reason, so this must tolerate parse failures instead of throwing. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function safeParseVal(raw: string | null): any {
+	if (!raw) return null;
+	try {
+		return JSON.parse(raw);
+	} catch {
+		return null;
+	}
+}
+
 function parseEventToMutation(ev: DbEvent): MutationEntry | null {
-	const oldVal = ev.old_value ? JSON.parse(ev.old_value) : null;
-	const newVal = ev.new_value ? JSON.parse(ev.new_value) : null;
+	const oldVal = safeParseVal(ev.old_value);
+	const newVal = safeParseVal(ev.new_value);
 	const title = newVal?.title || oldVal?.title || ev.issue_id;
 	const ts = new Date(ev.created_at.replace(' ', 'T')).getTime();
 
