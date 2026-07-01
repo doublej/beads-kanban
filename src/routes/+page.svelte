@@ -666,6 +666,14 @@
 		settings.renameRecipe(id, newName);
 	}
 
+	// --- Table bulk actions ---
+	async function bulkUpdateIssues(ids: string[], updates: Partial<Issue>) {
+		for (const id of ids) await ops.updateIssue(id, updates);
+	}
+	async function bulkDeleteIssues(ids: string[]) {
+		for (const id of ids) await ops.deleteIssue(id);
+	}
+
 	const hasUnsavedRecipeChanges = $derived(() => {
 		if (!currentRecipeId) return false;
 		const current = JSON.stringify(captureCurrentViewState());
@@ -903,6 +911,8 @@
 				oncreate={ops.openCreatePanel}
 				oncolumnschange={(cols) => settings.tableColumns = cols}
 				onsortchange={(s) => settings.tableSort = s}
+				onbulkupdate={bulkUpdateIssues}
+				onbulkdelete={bulkDeleteIssues}
 			/>
 		</div>
 	{:else if viewMode === 'tree'}

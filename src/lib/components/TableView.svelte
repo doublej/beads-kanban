@@ -2,6 +2,7 @@
 	import type { Issue, TableColumnConfig, TableColumnKey, TableSortState } from '$lib/types';
 	import { TABLE_COLUMN_MAP, defaultTableColumns } from '$lib/table-columns';
 	import {
+		columns as statusColumns,
 		getIssueColumn,
 		getPriorityConfig,
 		getTypeIcon,
@@ -22,6 +23,8 @@
 		onselect: (issue: Issue) => void;
 		oncolumnschange: (cols: TableColumnConfig[]) => void;
 		onsortchange: (sort: TableSortState | null) => void;
+		onbulkupdate: (ids: string[], updates: Partial<Issue>) => void;
+		onbulkdelete: (ids: string[]) => void;
 		oncreate?: () => void;
 	}
 
@@ -33,13 +36,76 @@
 		onselect,
 		oncolumnschange,
 		onsortchange,
+		onbulkupdate,
+		onbulkdelete,
 		oncreate
 	}: Props = $props();
+
+	const PRIORITY_OPTS = [0, 1, 2, 3, 4].map((p) => ({ value: p, label: getPriorityConfig(p).label }));
 
 	const visibleCols = $derived(columnConfig.filter((c) => c.visible));
 	// Parent (+page) pre-sorts `issues` by `sort`, so the row order here matches
 	// keyboard next/prev navigation. `sort` is used only for the header indicator.
 	const rows = $derived(issues);
+
+	// --- Multi-select for bulk actions (shift-click range, ctrl/cmd-click toggle) ---
+	let selectedIds = $state<Set<string>>(new Set());
+	let anchorId: string | null = null;
+
+	// Drop selections that scroll out of the current filtered/sorted view.
+	$effect(() => {
+		const present = new Set(issues.map((i) => i.id));
+		if ([...selectedIds].some((id) => !present.has(id))) {
+			selectedIds = new Set([...selectedIds].filter((id) => present.has(id)));
+		}
+	});
+
+	function onRowClick(e: MouseEvent, issue: Issue, index: number) {
+		if (e.shiftKey) {
+			const anchorIdx = anchorId ? rows.findIndex((r) => r.id === anchorId) : -1;
+			if (anchorIdx === -1) {
+				selectedIds = new Set([issue.id]);
+				anchorId = issue.id;
+			} else {
+				const [lo, hi] = anchorIdx <= index ? [anchorIdx, index] : [index, anchorIdx];
+				const next = new Set<string>();
+				for (let k = lo; k <= hi; k++) next.add(rows[k].id);
+				selectedIds = next;
+			}
+			return;
+		}
+		if (e.metaKey || e.ctrlKey) {
+			const next = new Set(selectedIds);
+			if (next.has(issue.id)) next.delete(issue.id);
+			else next.add(issue.id);
+			selectedIds = next;
+			anchorId = issue.id;
+			return;
+		}
+		selectedIds = new Set();
+		anchorId = issue.id;
+		onselect(issue);
+	}
+
+	function clearSelection() {
+		selectedIds = new Set();
+		anchorId = null;
+	}
+	function applyBulkStatus(e: Event) {
+		const el = e.currentTarget as HTMLSelectElement;
+		if (el.value) onbulkupdate([...selectedIds], { status: el.value as Issue['status'] });
+		el.value = '';
+	}
+	function applyBulkPriority(e: Event) {
+		const el = e.currentTarget as HTMLSelectElement;
+		if (el.value !== '') onbulkupdate([...selectedIds], { priority: Number(el.value) as Issue['priority'] });
+		el.value = '';
+	}
+	function bulkDelete() {
+		if (selectedIds.size === 0) return;
+		onbulkdelete([...selectedIds]);
+		clearSelection();
+	}
 
 	// --- Column resize (live width while dragging, committed on release) ---
 	let liveWidths = $state<Record<string, number>>({});
@@ -163,14 +229,15 @@
 				{#if oncreate}<button class="create-btn" onclick={oncreate}><Icon name="plus" size={13} /> New issue</button>{/if}
 			</div>
 		{:else}
-			{#each rows as issue (issue.id)}
+			{#each rows as issue, i (issue.id)}
 				<div
 					class="tr"
 					class:selected={issue.id === selectedId}
+					class:bulk-selected={selectedIds.has(issue.id)}
 					class:closed={issue.status === 'closed'}
 					role="button"
 					tabindex="0"
-					onclick={() => onselect(issue)}
+					onclick={(e) => onRowClick(e, issue, i)}
 					onkeydown={(e) => onRowKey(e, issue)}
 				>
 					{#each visibleCols as c (c.key)}
@@ -229,6 +296,24 @@
 			{/each}
 		{/if}
 	</div>
+
+	{#if selectedIds.size > 0}
+		<div class="bulk-bar">
+			<span class="bulk-count">{selectedIds.size} selected</span>
+			<div class="bulk-actions">
+				<select class="bulk-select" onchange={applyBulkStatus} aria-label="Set status for selected">
+					<option value="">Set status…</option>
+					{#each statusColumns as c (c.key)}<option value={c.status}>{c.label}</option>{/each}
+				</select>
+				<select class="bulk-select" onchange={applyBulkPriority} aria-label="Set priority for selected">
+					<option value="">Set priority…</option>
+					{#each PRIORITY_OPTS as p (p.value)}<option value={p.value}>{p.label}</option>{/each}
+				</select>
+				<button class="bulk-btn danger" onclick={bulkDelete}><Icon name="trash" size={13} /> Delete</button>
+				<button class="bulk-btn" onclick={clearSelection}>Clear</button>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <svelte:window onclick={(e) => { if (showConfig && !(e.target as HTMLElement)?.closest('.config-wrap')) showConfig = false; }} />
@@ -479,16 +564,83 @@
 		border: none;
 		border-bottom: 1px solid var(--border-subtle);
 		cursor: pointer;
+		user-select: none;
 		transition: background var(--transition-fast);
 	}
 	.tr:hover {
 		background: var(--bg-elevated);
 	}
+	.tr.bulk-selected {
+		background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+		box-shadow: inset 2px 0 0 var(--accent-primary);
+	}
 	.tr.selected {
 		background: var(--accent-glow);
 	}
+	.tr.bulk-selected.selected {
+		background: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+	}
 	.tr.closed {
 		opacity: 0.55;
+	}
+
+	.bulk-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+		flex-shrink: 0;
+		padding: 0.5rem 0.75rem;
+		border-top: 1px solid var(--border-default);
+		background: var(--surface-elevated);
+	}
+	.bulk-count {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: var(--text-primary);
+	}
+	.bulk-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		flex-wrap: wrap;
+	}
+	.bulk-select {
+		height: 1.75rem;
+		padding: 0 0.375rem;
+		background: var(--bg-elevated);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-xs);
+		color: var(--text-secondary);
+		font-family: inherit;
+		font-size: 0.75rem;
+		cursor: pointer;
+	}
+	.bulk-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		height: 1.75rem;
+		padding: 0 0.5rem;
+		background: var(--bg-elevated);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-xs);
+		color: var(--text-secondary);
+		font-family: inherit;
+		font-size: 0.75rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background var(--transition-fast), color var(--transition-fast);
+	}
+	.bulk-btn:hover {
+		background: var(--surface-elevated);
+		color: var(--text-primary);
+	}
+	.bulk-btn.danger:hover {
+		background: color-mix(in srgb, var(--state-blocked) 15%, transparent);
+		color: var(--state-blocked);
+		border-color: color-mix(in srgb, var(--state-blocked) 40%, transparent);
 	}
 
 	.td {
