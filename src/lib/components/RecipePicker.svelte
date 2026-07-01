@@ -182,10 +182,10 @@
 		justify-content: center;
 		gap: 0.375rem;
 		height: 1.75rem;
-		padding: 0 0.5rem;
+		padding: 0 0.625rem;
 		background: transparent;
 		border: none;
-		border-radius: 0.25rem;
+		border-radius: var(--radius-full);
 		color: var(--text-tertiary);
 		font-family: inherit;
 		font-size: 0.75rem;

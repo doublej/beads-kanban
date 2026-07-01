@@ -46,7 +46,7 @@
 		padding: 0 0.5rem;
 		background: transparent;
 		border: none;
-		border-radius: 0.25rem;
+		border-radius: var(--radius-full);
 		color: var(--text-tertiary);
 		font-family: inherit;
 		font-size: 0.75rem;

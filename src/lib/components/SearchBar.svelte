@@ -59,7 +59,7 @@
 		padding: 0 2.5rem 0 2rem;
 		background: rgba(255, 255, 255, 0.04);
 		border: none;
-		border-radius: 0.25rem;
+		border-radius: var(--radius-full);
 		color: var(--text-primary);
 		font-family: inherit;
 		font-size: 0.75rem;
@@ -116,10 +116,10 @@
 		align-items: center;
 		gap: 0.375rem;
 		height: 1.75rem;
-		padding: 0 0.625rem;
+		padding: 0 0.75rem;
 		background: rgba(59, 130, 246, 0.12);
 		border: none;
-		border-radius: 0.25rem;
+		border-radius: var(--radius-full);
 		font-family: inherit;
 		font-size: 0.75rem;
 		font-weight: 500;
