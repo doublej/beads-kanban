@@ -412,11 +412,17 @@
 	}
 
 	// --- Settings sync (load once, bind directly to settings store) ---
+	// settings.load() both reads and writes settings $state (e.g.
+	// `viewRecipes = loadObject('viewRecipes', viewRecipes)`), so it must run
+	// untracked — otherwise this effect self-triggers once localStorage holds a
+	// value that parses to a fresh reference each run (infinite loop / freeze).
 	$effect(() => {
-		settings.load();
-		notificationStore.init();
-		isDarkMode = settings.isDarkMode;
-		colorScheme = settings.colorScheme;
+		untrack(() => {
+			settings.load();
+			notificationStore.init();
+			isDarkMode = settings.isDarkMode;
+			colorScheme = settings.colorScheme;
+		});
 	});
 
 	$effect(() => {
