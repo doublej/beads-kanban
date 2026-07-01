@@ -200,7 +200,12 @@ function createSettings() {
 		defaultColumnSort = loadString('defaultColumnSort', defaultColumnSort) as SortBy;
 		showColumnCounts = loadBool('showColumnCounts', showColumnCounts);
 		alwaysShowHotkeys = loadBool('alwaysShowHotkeys', alwaysShowHotkeys);
-		sidebarCollapsed = loadBool('sidebarCollapsed', sidebarCollapsed);
+		// Default the filter sidebar to collapsed on small viewports (first load only),
+		// so the overlay drawer never covers the board before the user opens it.
+		const storedSidebar = localStorage.getItem('sidebarCollapsed');
+		sidebarCollapsed = storedSidebar !== null
+			? storedSidebar === 'true'
+			: window.matchMedia('(max-width: 768px)').matches;
 		tableColumns = reconcileTableColumns(loadObject<TableColumnConfig[] | null>('tableColumns', null));
 		tableSort = loadObject<TableSortState | null>('tableSort', null);
 	}

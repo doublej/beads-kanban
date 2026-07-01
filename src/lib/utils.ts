@@ -195,32 +195,39 @@ const STATUS_SORT_ORDER: Record<string, number> = {
 	open: 0, in_progress: 1, hooked: 2, blocked: 3, closed: 4
 };
 
-/** Extract a comparable primitive for a given sort field. Missing values sort last. */
-function issueSortValue(issue: Issue, field: IssueSortField): string | number {
+/** Extract a comparable primitive for a field; `null` = missing (always sorts last). */
+function issueSortValue(issue: Issue, field: IssueSortField): string | number | null {
 	switch (field) {
 		case 'seq': return issue.seq ?? 0;
 		case 'title': return issue.title.toLowerCase();
 		case 'status': return STATUS_SORT_ORDER[issue.status] ?? 99;
 		case 'priority': return issue.priority;
 		case 'type': return issue.issue_type ?? '';
-		case 'assignee': return (issue.assignee || '').toLowerCase();
+		case 'assignee': return issue.assignee ? issue.assignee.toLowerCase() : null;
 		case 'labels': return issue.labels?.length ?? 0;
-		case 'due': return issue.due_at ? new Date(issue.due_at).getTime() : Infinity;
-		case 'estimate': return issue.estimated_minutes ?? Infinity;
-		case 'created': return issue.created_at ? new Date(issue.created_at).getTime() : 0;
-		case 'updated': return issue.updated_at ? new Date(issue.updated_at).getTime() : 0;
+		case 'due': return issue.due_at ? new Date(issue.due_at).getTime() : null;
+		case 'estimate': return issue.estimated_minutes ?? null;
+		case 'created': return issue.created_at ? new Date(issue.created_at).getTime() : null;
+		case 'updated': return issue.updated_at ? new Date(issue.updated_at).getTime() : null;
 		case 'dependents': return issue.dependent_count ?? issue.dependents?.length ?? 0;
 		case 'impact': return calculateImpactScore(issue);
 		default: return 0;
 	}
 }
 
-/** Generalized sort by any field + direction; ties broken by newest seq. */
+/**
+ * Generalized sort by any field + direction; ties broken by newest seq.
+ * Missing values (null) always sort to the end regardless of direction.
+ */
 export function sortIssuesBy(issues: Issue[], field: IssueSortField, dir: 'asc' | 'desc' = 'asc'): Issue[] {
 	const sign = dir === 'asc' ? 1 : -1;
 	return [...issues].sort((a, b) => {
 		const av = issueSortValue(a, field);
 		const bv = issueSortValue(b, field);
+		if (av === null || bv === null) {
+			if (av === null && bv === null) return (b.seq ?? 0) - (a.seq ?? 0);
+			return av === null ? 1 : -1;
+		}
 		let cmp: number;
 		if (typeof av === 'string' && typeof bv === 'string') cmp = av.localeCompare(bv);
 		else cmp = av < bv ? -1 : av > bv ? 1 : 0;
