@@ -36,6 +36,18 @@
 		{ value: 'today', label: 'Today' },
 		{ value: 'week', label: 'This week' }
 	];
+	const dueOptions = [
+		{ value: 'overdue', label: 'Overdue', dot: '#ef4444' },
+		{ value: 'today', label: 'Due today', dot: '#f59e0b' },
+		{ value: 'week', label: 'Due this week', dot: '#eab308' },
+		{ value: 'has', label: 'Scheduled', dot: '#6366f1' }
+	];
+	const quickToggles = [
+		{ key: 'actionable', label: 'Actionable only' },
+		{ key: 'pinned', label: 'Pinned' },
+		{ key: 'deferred', label: 'Deferred' },
+		{ key: 'started', label: 'Started' }
+	] as const;
 
 	const typeOptions = $derived(availableTypes.length ? availableTypes : KNOWN_TYPES);
 	const assigneeOptions = $derived([UNASSIGNED, ...availableAssignees]);
@@ -161,9 +173,35 @@
 					placeholder="Any label"
 					onchange={(n) => (filters.labels = n)}
 				/>
+				{#if availableLabels.length > 0}
+					<div class="exclude-label">Exclude</div>
+					<MultiSelectFilter
+						options={availableLabels}
+						selected={filters.excludeLabels}
+						placeholder="Hide labels…"
+						onchange={(n) => (filters.excludeLabels = n)}
+					/>
+				{/if}
 			</section>
 
-			<!-- Time -->
+			<!-- Due -->
+			<section class="section">
+				<div class="section-label">Due date</div>
+				<div class="chips">
+					{#each dueOptions as d (d.value)}
+						<button
+							class="chip"
+							class:active={filters.due === d.value}
+							style="--dot: {d.dot}"
+							onclick={() => (filters.due = filters.due === d.value ? 'all' : d.value)}
+						>
+							<span class="chip-dot"></span>{d.label}
+						</button>
+					{/each}
+				</div>
+			</section>
+
+			<!-- Updated -->
 			<section class="section">
 				<div class="section-label">Updated</div>
 				<div class="chips">
@@ -179,17 +217,35 @@
 				</div>
 			</section>
 
+			<!-- Created -->
+			<section class="section">
+				<div class="section-label">Created</div>
+				<div class="chips">
+					{#each timeOptions as t (t.value)}
+						<button
+							class="chip"
+							class:active={filters.created === t.value}
+							onclick={() => (filters.created = filters.created === t.value ? 'all' : t.value)}
+						>
+							{t.label}
+						</button>
+					{/each}
+				</div>
+			</section>
+
 			<!-- Quick -->
 			<section class="section">
 				<div class="section-label">Quick filters</div>
 				<div class="chips">
-					<button
-						class="chip"
-						class:active={filters.actionable}
-						onclick={() => (filters.actionable = !filters.actionable)}
-					>
-						Actionable only
-					</button>
+					{#each quickToggles as q (q.key)}
+						<button
+							class="chip"
+							class:active={filters[q.key]}
+							onclick={() => (filters[q.key] = !filters[q.key])}
+						>
+							{q.label}
+						</button>
+					{/each}
 				</div>
 			</section>
 		</div>
@@ -367,6 +423,15 @@
 
 	.section-label-row .section-label {
 		margin-bottom: 0;
+	}
+
+	.exclude-label {
+		margin: 0.5rem 0 0.375rem;
+		font-size: 0.625rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-tertiary);
 	}
 
 	.segmented {
