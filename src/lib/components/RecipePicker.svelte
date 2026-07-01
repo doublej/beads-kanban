@@ -58,7 +58,7 @@
 		class="toolbar-btn recipe-btn"
 		class:active={showDropdown}
 		class:has-recipe={currentRecipeId !== null}
-		onclick={() => showDropdown = !showDropdown}
+		onclick={(e) => { e.stopPropagation(); showDropdown = !showDropdown; }}
 		title="Saved Views"
 	>
 		<Icon name="folder" size={14} />
@@ -69,7 +69,7 @@
 	</button>
 
 	{#if showDropdown}
-		<div class="dropdown" role="presentation" onkeydown={(e) => e.stopPropagation()}>
+		<div class="dropdown" role="presentation" onkeydown={(e) => e.stopPropagation()} onclick={(e) => e.stopPropagation()}>
 			<div class="dropdown-header">
 				<span class="dropdown-title">Saved Views</span>
 				<button
