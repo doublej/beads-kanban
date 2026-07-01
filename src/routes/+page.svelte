@@ -114,6 +114,8 @@
 	let collapsedColumns = $derived(settings.collapsedColumns);
 	let currentRecipeId = $state<string | null>(null);
 	let lastAppliedRecipeSnapshot = $state<string | null>(null);
+	let hydratedProject = $state<string | null>(null);
+	const PROJECT_VIEW_PREFIX = 'bdk:view:';
 
 	// --- Read project from URL before any effects fire ---
 	if (browser) {
@@ -443,6 +445,41 @@
 		}
 	});
 
+	// --- Per-project view state: hydrate on project change, persist on edit ---
+	$effect(() => {
+		if (!browser) return;
+		const path = currentProjectPath;
+		if (!path) return;
+		untrack(() => {
+			try {
+				const raw = localStorage.getItem(PROJECT_VIEW_PREFIX + path);
+				if (raw) applyViewState(JSON.parse(raw));
+			} catch {
+				/* ignore corrupt/unavailable persisted view state */
+			}
+			// A remembered project view is not a named recipe.
+			currentRecipeId = null;
+			lastAppliedRecipeSnapshot = null;
+			hydratedProject = path;
+		});
+	});
+
+	$effect(() => {
+		if (!browser) return;
+		const state = captureCurrentViewState();
+		const path = currentProjectPath;
+		// Only persist once the active project's state has been hydrated,
+		// so we never overwrite it with defaults during a project switch.
+		if (!path || path !== hydratedProject) return;
+		untrack(() => {
+			try {
+				localStorage.setItem(PROJECT_VIEW_PREFIX + path, JSON.stringify(state));
+			} catch {
+				/* ignore quota / unavailable storage */
+			}
+		});
+	});
+
 	// --- Apply theme to body element ---
 	$effect(() => {
 		if (!browser) return;
@@ -631,21 +668,31 @@
 		lastAppliedRecipeSnapshot = JSON.stringify(captureCurrentViewState());
 	}
 
-	function applyRecipe(recipe: ViewRecipe) {
-		filters = normalizeFilterState(recipe.filters);
-		columnSortBy = { ...recipe.columnSort };
-		viewMode = recipe.viewMode === 'table' ? 'table' : 'kanban';
-		if (recipe.table) settings.tableColumns = reconcileTableColumns(recipe.table);
-		if (recipe.tableSort !== undefined) settings.tableSort = recipe.tableSort;
+	function applyViewState(state: {
+		filters: FilterState;
+		columnSort: Record<string, SortBy>;
+		collapsedColumns: string[];
+		viewMode: ViewMode;
+		table?: TableColumnConfig[];
+		tableSort?: TableSortState | null;
+	}) {
+		filters = normalizeFilterState(state.filters);
+		columnSortBy = { ...state.columnSort };
+		viewMode = state.viewMode === 'table' ? 'table' : 'kanban';
+		if (state.table) settings.tableColumns = reconcileTableColumns(state.table);
+		if (state.tableSort !== undefined) settings.tableSort = state.tableSort;
 
-		const savedCollapsed = new Set(recipe.collapsedColumns);
+		const savedCollapsed = new Set(state.collapsedColumns);
 		for (const col of [...settings.collapsedColumns]) {
 			if (!savedCollapsed.has(col)) settings.toggleColumnCollapse(col);
 		}
-		for (const col of recipe.collapsedColumns) {
+		for (const col of state.collapsedColumns) {
 			if (!settings.collapsedColumns.has(col)) settings.toggleColumnCollapse(col);
 		}
+	}
 
+	function applyRecipe(recipe: ViewRecipe) {
+		applyViewState(recipe);
 		currentRecipeId = recipe.id;
 		lastAppliedRecipeSnapshot = JSON.stringify(captureCurrentViewState());
 	}
