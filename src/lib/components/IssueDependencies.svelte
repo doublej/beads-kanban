@@ -55,26 +55,33 @@
 	.relations {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		background: var(--surface-panel);
+		border: 1px solid var(--border-subtle);
+		border-radius: var(--radius-md);
+		overflow: hidden;
 	}
 
 	.relation {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.4375rem 0.625rem;
-		background: var(--bg-tertiary);
-		border: 1px solid var(--border-subtle);
-		border-radius: 8px;
-		font-size: 0.6875rem;
+		padding: 0.5rem 0.75rem;
+		border-bottom: 1px solid var(--border-subtle);
+		font-size: 0.8125rem;
+		transition: background var(--transition-fast);
 	}
-	.relation.blocked-by { border-left: 3px solid #ef4444; }
-	.relation.blocking { border-left: 3px solid #10b981; }
+	.relation:last-child { border-bottom: none; }
+	.relation:hover { background: var(--bg-elevated); }
+	.relation.blocked-by { box-shadow: inset 2px 0 0 #ef4444; }
+	.relation.blocking { box-shadow: inset 2px 0 0 #10b981; }
 
 	.rel-type {
+		display: inline-flex;
+		align-items: center;
 		padding: 0.125rem 0.25rem;
 		border-radius: 4px;
 		font-size: 0.5625rem;
+		flex-shrink: 0;
 	}
 
 	.rel-status {
@@ -89,14 +96,15 @@
 	.rel-status.closed { background: #10b981; }
 
 	.rel-id {
-		font-family: 'IBM Plex Mono', monospace;
-		font-size: 0.5625rem;
-		color: var(--text-tertiary);
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		flex-shrink: 0;
 	}
 
 	.rel-title {
 		flex: 1;
-		color: var(--text-secondary);
+		color: var(--text-primary);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -115,7 +123,7 @@
 	.relation:hover .rel-x { opacity: 1; }
 	.rel-x:hover { color: #ef4444; }
 
-	:global(.app.light) .relation {
+	:global(.app.light) .relations {
 		background: rgba(0, 0, 0, 0.02);
 		border-color: var(--border-subtle);
 	}
