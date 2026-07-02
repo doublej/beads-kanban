@@ -2,6 +2,7 @@
 	import { fly } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import Icon from '$lib/components/Icon.svelte';
+	import { Button, Kbd } from '$lib/components/ui';
 	import MarkdownContent from '$lib/components/MarkdownContent.svelte';
 	import { getIssueColumn, getPriorityConfig, getTypeIcon } from '$lib/utils';
 	import type { Issue } from '$lib/types';
@@ -71,9 +72,7 @@
 	<header class="zen-top">
 		<span class="zen-eyebrow">Focus review</span>
 		<span class="zen-count mono">{String(safeIndex + 1).padStart(2, '0')} <span class="sep">/</span> {String(total).padStart(2, '0')}</span>
-		<button class="btn btn-ghost btn-icon zen-exit" onclick={onclose} title="Exit (Esc)">
-			<Icon name="close" size={16} />
-		</button>
+		<Button variant="ghost" iconOnly icon="close" class="zen-exit" onclick={onclose} title="Exit (Esc)" />
 		<div class="zen-track"><span class="zen-fill"></span></div>
 	</header>
 
@@ -116,27 +115,27 @@
 	</div>
 
 	<footer class="zen-foot">
-		<button class="btn btn-ghost nav" onclick={() => go(-1)} disabled={atStart}>
+		<Button variant="ghost" class="nav" onclick={() => go(-1)} disabled={atStart}>
 			<Icon name="chevron-left" size={16} />
 			<span>Prev</span>
-		</button>
+		</Button>
 
 		<div class="foot-center">
-			<button class="btn btn-secondary open" onclick={openDetail} disabled={!current}>
+			<Button variant="secondary" class="open" onclick={openDetail} disabled={!current}>
 				<Icon name="external-link" size={14} />
 				<span>Open details</span>
-				<kbd class="kbd">↵</kbd>
-			</button>
+				<Kbd>↵</Kbd>
+			</Button>
 			<div class="hints">
-				<span><kbd class="kbd">←</kbd><kbd class="kbd">→</kbd> cycle</span>
-				<span><kbd class="kbd">Esc</kbd> exit</span>
+				<span><Kbd>←</Kbd><Kbd>→</Kbd> cycle</span>
+				<span><Kbd>Esc</Kbd> exit</span>
 			</div>
 		</div>
 
-		<button class="btn btn-ghost nav" onclick={() => go(1)} disabled={atEnd}>
+		<Button variant="ghost" class="nav" onclick={() => go(1)} disabled={atEnd}>
 			<span>Next</span>
 			<Icon name="chevron-right" size={16} />
-		</button>
+		</Button>
 	</footer>
 </div>
 
@@ -204,7 +203,8 @@
 		color: var(--text-muted);
 		margin: 0 2px;
 	}
-	.zen-exit {
+	/* :global() so the rule reaches the <button> rendered inside the Button atom. */
+	.zen-top :global(.zen-exit) {
 		color: var(--text-tertiary);
 	}
 	.zen-track {
@@ -324,11 +324,11 @@
 		gap: 16px;
 		padding: 16px 24px 24px;
 	}
-	.zen-foot .nav {
+	.zen-foot :global(.nav) {
 		color: var(--text-secondary);
 	}
-	.zen-foot .nav:first-child { justify-self: start; }
-	.zen-foot .nav:last-child { justify-self: end; }
+	.zen-foot :global(.nav):first-child { justify-self: start; }
+	.zen-foot :global(.nav):last-child { justify-self: end; }
 
 	.foot-center {
 		display: flex;
@@ -336,7 +336,7 @@
 		align-items: center;
 		gap: 8px;
 	}
-	.open {
+	.foot-center :global(.open) {
 		gap: 8px;
 	}
 	.hints {
@@ -354,6 +354,6 @@
 	@media (max-width: 640px) {
 		.hints { display: none; }
 		.reader { padding-left: 20px; padding-right: 20px; }
-		.zen-foot .nav span { display: none; }
+		.zen-foot :global(.nav span) { display: none; }
 	}
 </style>
