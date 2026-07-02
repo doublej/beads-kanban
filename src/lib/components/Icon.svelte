@@ -1,3 +1,34 @@
+<script module lang="ts">
+	export type IconName =
+		// Navigation & UI
+		| 'search' | 'close' | 'chevron-left' | 'chevron-right' | 'chevron-down' | 'chevron-up'
+		| 'plus' | 'plus-square' | 'minus' | 'more-h' | 'more-v' | 'menu'
+		// Actions
+		| 'check' | 'copy' | 'clipboard' | 'trash' | 'edit' | 'save' | 'refresh'
+		| 'external-link' | 'link' | 'unlink'
+		// Status & Indicators
+		| 'circle' | 'circle-dot' | 'circle-slash' | 'check-circle' | 'alert-circle'
+		| 'clock' | 'loader' | 'zap'
+		// Issue Types
+		| 'task' | 'bug' | 'feature' | 'epic' | 'chore'
+		// Views
+		| 'view-board' | 'view-tree' | 'view-graph' | 'view-stats' | 'view-diff' | 'view-table'
+		// Dependency Types
+		| 'dep-blocks' | 'dep-related' | 'dep-parent' | 'dep-discovered'
+		// Theme & Settings
+		| 'sun' | 'moon' | 'settings' | 'sliders' | 'filter'
+		// Help & Info
+		| 'help' | 'info' | 'message' | 'keyboard'
+		// Project & Files
+		| 'folder' | 'folder-open' | 'file'
+		// Sorting & Organization
+		| 'sort' | 'sort-asc' | 'sort-desc' | 'list-filter'
+		// Agents & AI
+		| 'agent' | 'cpu' | 'activity'
+		// Misc
+		| 'send' | 'calendar' | 'tag' | 'user' | 'users' | 'bell' | 'pin';
+</script>
+
 <script lang="ts">
 	import {
 		// Navigation & UI
@@ -30,35 +61,6 @@
 		// Diff
 		History
 	} from 'lucide-svelte';
-
-	type IconName =
-		// Navigation & UI
-		| 'search' | 'close' | 'chevron-left' | 'chevron-right' | 'chevron-down' | 'chevron-up'
-		| 'plus' | 'plus-square' | 'minus' | 'more-h' | 'more-v' | 'menu'
-		// Actions
-		| 'check' | 'copy' | 'clipboard' | 'trash' | 'edit' | 'save' | 'refresh'
-		| 'external-link' | 'link' | 'unlink'
-		// Status & Indicators
-		| 'circle' | 'circle-dot' | 'circle-slash' | 'check-circle' | 'alert-circle'
-		| 'clock' | 'loader' | 'zap'
-		// Issue Types
-		| 'task' | 'bug' | 'feature' | 'epic' | 'chore'
-		// Views
-		| 'view-board' | 'view-tree' | 'view-graph' | 'view-stats' | 'view-diff' | 'view-table'
-		// Dependency Types
-		| 'dep-blocks' | 'dep-related' | 'dep-parent' | 'dep-discovered'
-		// Theme & Settings
-		| 'sun' | 'moon' | 'settings' | 'sliders' | 'filter'
-		// Help & Info
-		| 'help' | 'info' | 'message' | 'keyboard'
-		// Project & Files
-		| 'folder' | 'folder-open' | 'file'
-		// Sorting & Organization
-		| 'sort' | 'sort-asc' | 'sort-desc' | 'list-filter'
-		// Agents & AI
-		| 'agent' | 'cpu' | 'activity'
-		// Misc
-		| 'send' | 'calendar' | 'tag' | 'user' | 'users' | 'bell' | 'pin';
 
 	interface Props {
 		name: IconName;
