@@ -48,8 +48,11 @@ echo "Handler:  $BUN_BIN $CLI_ENTRY open <url>"
 echo "App:      $APP_PATH"
 
 # `do shell script` runs with a minimal PATH; the spawn path needs bd/bunx/node.
+# Resolve the real dirs of bun and bd (bd is often in ~/.local/bin) so they're found.
 BUN_DIR="$(dirname "$BUN_BIN")"
-PATH_PREFIX="$BUN_DIR:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+BD_BIN="$(command -v bd || true)"
+BD_DIR="${BD_BIN:+$(dirname "$BD_BIN")}"
+PATH_PREFIX="$BUN_DIR${BD_DIR:+:$BD_DIR}:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 # 1. Compile the AppleScript handler into an .app bundle.
 SCPT="$(mktemp -t bdk-scheme).applescript"
