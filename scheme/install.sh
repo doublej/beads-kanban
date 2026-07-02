@@ -68,7 +68,8 @@ rm -f "$SCPT"
 # 2. Register the bdk:// scheme in the app's Info.plist.
 PLIST="$APP_PATH/Contents/Info.plist"
 PB=/usr/libexec/PlistBuddy
-"$PB" -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST"
+"$PB" -c "Add :CFBundleIdentifier string $BUNDLE_ID" "$PLIST" 2>/dev/null \
+	|| "$PB" -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST"
 "$PB" -c "Add :CFBundleURLTypes array" "$PLIST" 2>/dev/null || true
 "$PB" -c "Add :CFBundleURLTypes:0 dict" "$PLIST"
 "$PB" -c "Add :CFBundleURLTypes:0:CFBundleURLName string Beads Kanban" "$PLIST"
