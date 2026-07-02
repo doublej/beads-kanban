@@ -19,19 +19,34 @@
 
 	let selectedIndex = $state(0);
 
-	// Sort projects by last access, current project first
+	// Most-recent beads activity for a project, falling back to last access.
+	function activityAt(p: Project): number {
+		const iso = p.stats?.lastActivity ?? p.lastAccess;
+		const t = iso ? Date.parse(iso) : NaN;
+		return Number.isFinite(t) ? t : 0;
+	}
+
+	// Sort by most active; pin the current project to the top.
 	const sortedProjects = $derived(() => {
-		const sorted = [...projects].sort((a, b) =>
-			new Date(b.lastAccess).getTime() - new Date(a.lastAccess).getTime()
-		);
-		// Move current project to front
+		const sorted = [...projects].sort((a, b) => activityAt(b) - activityAt(a));
 		const currentIdx = sorted.findIndex(p => p.path === currentPath);
-		if (currentIdx > 0) {
-			const current = sorted.splice(currentIdx, 1)[0];
-			sorted.unshift(current);
-		}
+		if (currentIdx > 0) sorted.unshift(sorted.splice(currentIdx, 1)[0]);
 		return sorted;
 	});
+
+	function relTime(iso: string | null | undefined): string {
+		if (!iso) return '';
+		const t = Date.parse(iso);
+		if (!Number.isFinite(t)) return '';
+		const s = Math.max(0, (Date.now() - t) / 1000);
+		if (s < 90) return 'just now';
+		if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+		if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+		const d = Math.floor(s / 86400);
+		if (d < 30) return `${d}d ago`;
+		if (d < 365) return `${Math.floor(d / 30)}mo ago`;
+		return `${Math.floor(d / 365)}y ago`;
+	}
 
 	// Reset selection when opening
 	$effect(() => {
@@ -105,12 +120,41 @@
 				>
 					<div class="project-dot"></div>
 					<div class="project-info">
-						<span class="project-name">{project.name}</span>
-						<span class="project-path">{project.path}</span>
+						<div class="name-row">
+							<span class="project-name">{project.name}</span>
+							{#if project.meta?.type}
+								<span class="tag">{project.meta.type}</span>
+							{/if}
+							{#if project.meta?.framework}
+								<span class="tag tag-alt">{project.meta.framework}</span>
+							{/if}
+						</div>
+						<span class="project-desc">{project.meta?.description || project.path}</span>
+						<div class="meta-row">
+							{#if project.stats && project.stats.changed > 0 && !isCurrent}
+								<span class="meta-new">+{project.stats.changed} since visit</span>
+							{/if}
+							{#if project.meta?.gitBranch}
+								<span class="meta-item git" class:dirty={project.meta.git === 'dirty'}>
+									<span class="git-dot"></span>{project.meta.gitBranch}
+								</span>
+							{/if}
+							{#if project.stats?.lastActivity}
+								<span class="meta-item muted">{relTime(project.stats.lastActivity)}</span>
+							{/if}
+						</div>
 					</div>
-					{#if isCurrent}
-						<span class="current-badge">current</span>
-					{/if}
+					<div class="project-right">
+						{#if isCurrent}
+							<span class="current-badge">current</span>
+						{/if}
+						{#if project.stats}
+							<span class="ticket-pill" title="{project.stats.active} active · {project.stats.total} total">
+								<span class="ticket-count">{project.stats.active}</span>
+								<span class="ticket-label">active</span>
+							</span>
+						{/if}
+					</div>
 				</div>
 			{/each}
 		</div>
@@ -149,8 +193,8 @@
 	}
 
 	.switcher-modal {
-		width: 320px;
-		max-width: 90vw;
+		width: 480px;
+		max-width: 92vw;
 		max-height: 80vh;
 		background: var(--bg-secondary);
 		border: 1px solid var(--border-subtle);
@@ -200,9 +244,9 @@
 
 	.project-item {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		gap: 0.625rem;
-		padding: 0.5rem 0.625rem;
+		padding: 0.625rem 0.75rem;
 		border-radius: var(--radius-md);
 		cursor: pointer;
 		transition: background 100ms ease;
@@ -230,32 +274,107 @@
 		border-radius: 50%;
 		background: var(--project-color);
 		flex-shrink: 0;
+		margin-top: 0.3rem;
 	}
 
 	.project-info {
 		display: flex;
 		flex-direction: column;
-		gap: 0.0625rem;
+		gap: 0.1875rem;
 		min-width: 0;
 		flex: 1;
 	}
 
+	.name-row {
+		display: flex;
+		align-items: baseline;
+		gap: 0.375rem;
+		min-width: 0;
+	}
+
 	.project-name {
-		font-size: 0.8125rem;
-		font-weight: 500;
+		font-size: 0.875rem;
+		font-weight: 600;
 		color: var(--text-primary);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
 
-	.project-path {
-		font-family: 'IBM Plex Mono', monospace;
-		font-size: 0.625rem;
+	.tag {
+		flex-shrink: 0;
+		font-size: 0.5625rem;
+		font-weight: 500;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		padding: 0.0625rem 0.3125rem;
+		border-radius: 4px;
+		background: var(--bg-tertiary);
 		color: var(--text-tertiary);
+		border: 1px solid var(--border-subtle);
+	}
+
+	.tag-alt {
+		color: var(--text-secondary);
+	}
+
+	.project-desc {
+		font-size: 0.6875rem;
+		line-height: 1.35;
+		color: var(--text-secondary);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.meta-row {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.0625rem;
+	}
+
+	.meta-item {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		font-size: 0.625rem;
+		color: var(--text-tertiary);
+	}
+
+	.meta-item.muted {
+		color: var(--text-tertiary);
+		opacity: 0.75;
+	}
+
+	.meta-new {
+		font-size: 0.625rem;
+		font-weight: 600;
+		color: var(--accent, #6366f1);
+	}
+
+	.git {
+		font-family: 'IBM Plex Mono', monospace;
+	}
+
+	.git-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: var(--text-tertiary);
+	}
+
+	.git.dirty .git-dot {
+		background: #f59e0b;
+	}
+
+	.project-right {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 0.25rem;
+		flex-shrink: 0;
 	}
 
 	.current-badge {
@@ -265,6 +384,30 @@
 		letter-spacing: 0.04em;
 		color: var(--text-tertiary);
 		flex-shrink: 0;
+	}
+
+	.ticket-pill {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.25rem;
+		padding: 0.125rem 0.4375rem;
+		border-radius: 6px;
+		background: var(--bg-tertiary);
+		border: 1px solid var(--border-subtle);
+	}
+
+	.ticket-count {
+		font-size: 0.8125rem;
+		font-weight: 700;
+		color: var(--text-primary);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.ticket-label {
+		font-size: 0.5625rem;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		color: var(--text-tertiary);
 	}
 
 	.switcher-footer {
