@@ -32,7 +32,7 @@
 	import InitialLoader from '$lib/components/InitialLoader.svelte';
 	import MutationLog from '$lib/components/MutationLog.svelte';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
-	import AgentQueueColumn from '$lib/components/AgentQueueColumn.svelte';
+	import QueuePanel from '$lib/components/QueuePanel.svelte';
 	import ManagerPane from '$lib/components/ManagerPane.svelte';
 	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
 	import SettingsPane from '$lib/components/SettingsPane.svelte';
@@ -128,8 +128,7 @@
 		}
 	}
 
-	// Agent queue column state
-	let queueColumnCollapsed = $state(false);
+	// Agent queue state
 	let runningAgents = $derived.by(() => {
 		const sessions = Array.from(getSessions().values());
 		return sessions.filter(s => s.ticketId && !s.ended && (s.projectCwd ?? s.cwd) === currentProjectPath);
@@ -225,7 +224,6 @@
 	let serverQueue = $derived(getQueueItems());
 	let queuedTicketIds = $derived(getQueuedTicketIds());
 	let scopedServerQueue = $derived(serverQueue.filter(item => item.cwd === currentProjectPath));
-	let totalQueueCount = $derived(scopedServerQueue.length + runningAgents.length);
 	let mappedAgentQueue = $derived(scopedServerQueue.map(item => ({
 		ticketId: item.ticketId,
 		title: item.title,
@@ -849,6 +847,7 @@
 		collapsed={settings.sidebarCollapsed}
 		ontogglecollapse={() => settings.sidebarCollapsed = !settings.sidebarCollapsed}
 		onclear={() => filters = emptyFilterState()}
+		queue={queuePanel}
 	/>
 	<div class="workspace-main">
 
@@ -920,22 +919,6 @@
 				/>
 				{#if ops.editingIssue && ops.panelColumnIndex === i && i !== columns.length - 1}
 					{@render detailPanel()}
-				{/if}
-				{#if i === 0}
-					<AgentQueueColumn
-						queue={mappedAgentQueue}
-						runningSessions={runningAgents}
-						isCollapsed={queueColumnCollapsed}
-						{activeColumnIndex}
-						columnIndex={-1}
-						{draggedOverColumn}
-						onCancel={ops.cancelQueueItem}
-						onReorder={ops.reorderQueue}
-						onToggleCollapse={() => queueColumnCollapsed = !queueColumnCollapsed}
-						ondragover={(e) => cardDrag.handleDragOver(e, 'queue')}
-						ondragleave={(e) => cardDrag.handleDragLeave(e, 'queue')}
-						ondrop={(e) => cardDrag.handleDrop(e, 'queue')}
-					/>
 				{/if}
 			{/each}
 		</main>
@@ -1065,6 +1048,19 @@
 {/if}
 </div>
 
+
+{#snippet queuePanel()}
+	<QueuePanel
+		queue={mappedAgentQueue}
+		runningSessions={runningAgents}
+		{draggedOverColumn}
+		onCancel={ops.cancelQueueItem}
+		onReorder={ops.reorderQueue}
+		ondragover={(e) => cardDrag.handleDragOver(e, 'queue')}
+		ondragleave={(e) => cardDrag.handleDragLeave(e, 'queue')}
+		ondrop={(e) => cardDrag.handleDrop(e, 'queue')}
+	/>
+{/snippet}
 
 {#snippet detailPanel()}
 	<DetailPanel

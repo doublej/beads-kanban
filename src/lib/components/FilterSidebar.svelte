@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import type { FilterState } from '$lib/filters';
 	import { UNASSIGNED } from '$lib/filters';
 	import { columns, getPriorityConfig, getTypeIcon } from '$lib/utils';
@@ -14,6 +15,7 @@
 		collapsed: boolean;
 		ontogglecollapse: () => void;
 		onclear: () => void;
+		queue?: Snippet;
 	}
 
 	let {
@@ -24,7 +26,8 @@
 		activeCount,
 		collapsed,
 		ontogglecollapse,
-		onclear
+		onclear,
+		queue
 	}: Props = $props();
 
 	const KNOWN_TYPES = ['task', 'bug', 'feature', 'enhancement', 'epic', 'chore'];
@@ -249,6 +252,8 @@
 				</div>
 			</section>
 		</div>
+
+		{@render queue?.()}
 	</aside>
 {/if}
 
