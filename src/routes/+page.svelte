@@ -355,7 +355,7 @@
 		getProjectCount: () => projects.length,
 		createIssue: ops.createIssue,
 		openCreatePanel: ops.openCreatePanel,
-		openEditPanel: ops.openEditPanel,
+		openEditPanel: (issue) => { tableSelectedIds = []; ops.openEditPanel(issue); },
 		deleteIssue: ops.deleteIssue,
 		toggleTheme,
 		closePanel: ops.closePanel,

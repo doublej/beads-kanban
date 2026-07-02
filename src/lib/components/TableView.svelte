@@ -252,6 +252,9 @@
 	function onRowKey(e: KeyboardEvent, issue: Issue) {
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
+			// Opening one ticket exits multi-select (mirror onRowClick), otherwise the
+			// selection grid would keep preempting the detail panel we just opened.
+			onselectionchange([]);
 			onselect(issue);
 		}
 	}
