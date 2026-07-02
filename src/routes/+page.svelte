@@ -51,6 +51,7 @@
 	import { issueMatchesFilters as matchesFilters, hasActiveFilters as checkActiveFilters, countActiveFilters, emptyFilterState, normalizeFilterState, type FilterState } from '$lib/filters';
 	import FilterSidebar from '$lib/components/FilterSidebar.svelte';
 	import TableView from '$lib/components/TableView.svelte';
+	import SelectionGrid from '$lib/components/SelectionGrid.svelte';
 	import FlowView from '$lib/components/flow/FlowView.svelte';
 	import { reconcileTableColumns } from '$lib/table-columns';
 	import { getManagerVisible, getManagerSessionName, isManagerSession } from '$lib/stores/manager.svelte';
@@ -304,6 +305,12 @@
 	const orderedTableIssues = $derived(
 		settings.tableSort ? sortIssuesBy(filteredIssues, settings.tableSort.field, settings.tableSort.dir) : filteredIssues
 	);
+
+	// Table multi-select (controlled): when >1 rows are selected we show a grid of
+	// blocks in the detail slot instead of a single ticket's details.
+	let tableSelectedIds = $state<string[]>([]);
+	const tableSelectedIssues = $derived(orderedTableIssues.filter((i) => tableSelectedIds.includes(i.id)));
+	const showSelectionGrid = $derived(viewMode === 'table' && tableSelectedIds.length > 1);
 
 	// --- Zen focus review ---
 	function openZenReview(ids?: string[], startIndex?: number) {
@@ -623,6 +630,7 @@
 		projectColor = project.color;
 		issueStore.initialLoaded = true;
 		selectedId = null;
+		tableSelectedIds = [];
 		ops.editingIssue = null;
 		ops.isCreating = false;
 		projectTransition = 'wipe-in';
@@ -936,7 +944,14 @@
 	</div>
 	{:else if viewMode === 'table'}
 		<div class="table-layout" class:wipe-out={projectTransition === 'wipe-out'} class:wipe-in={projectTransition === 'wipe-in'}>
-			{#if ops.panelOpen}
+			{#if showSelectionGrid}
+				<SelectionGrid
+					issues={tableSelectedIssues}
+					onselect={(issue) => { tableSelectedIds = []; ops.openEditPanel(issue); }}
+					ondeselect={(id) => tableSelectedIds = tableSelectedIds.filter((x) => x !== id)}
+					onclear={() => tableSelectedIds = []}
+				/>
+			{:else if ops.panelOpen}
 				{@render detailPanel()}
 			{/if}
 			<TableView
@@ -944,7 +959,9 @@
 				columnConfig={settings.tableColumns}
 				sort={settings.tableSort}
 				{selectedId}
+				selectedIds={tableSelectedIds}
 				onselect={(issue) => ops.openEditPanel(issue)}
+				onselectionchange={(ids) => tableSelectedIds = ids}
 				oncreate={ops.openCreatePanel}
 				oncolumnschange={(cols) => settings.tableColumns = cols}
 				onsortchange={(s) => settings.tableSort = s}
@@ -1250,6 +1267,13 @@
 
 	/* Wider detail panel in table view — more room than the 420px kanban panel */
 	.table-layout :global(.panel) {
+		flex: 0 0 clamp(480px, 40%, 760px);
+		min-width: 480px;
+		max-width: 760px;
+	}
+
+	/* Multi-select grid occupies the same side slot as the detail panel */
+	.table-layout :global(.selection-grid) {
 		flex: 0 0 clamp(480px, 40%, 760px);
 		min-width: 480px;
 		max-width: 760px;

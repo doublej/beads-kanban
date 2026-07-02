@@ -21,7 +21,9 @@
 		columnConfig: TableColumnConfig[];
 		sort: TableSortState | null;
 		selectedId: string | null;
+		selectedIds: string[];
 		onselect: (issue: Issue) => void;
+		onselectionchange: (ids: string[]) => void;
 		oncolumnschange: (cols: TableColumnConfig[]) => void;
 		onsortchange: (sort: TableSortState | null) => void;
 		onbulkupdate: (ids: string[], updates: Partial<Issue>) => void;
@@ -34,7 +36,9 @@
 		columnConfig,
 		sort,
 		selectedId,
+		selectedIds,
 		onselect,
+		onselectionchange,
 		oncolumnschange,
 		onsortchange,
 		onbulkupdate,
@@ -50,14 +54,15 @@
 	const rows = $derived(issues);
 
 	// --- Multi-select for bulk actions (shift-click range, ctrl/cmd-click toggle) ---
-	let selectedIds = $state<Set<string>>(new Set());
+	// Selection is controlled by the parent so a sibling grid can share it.
+	const selectedSet = $derived(new Set(selectedIds));
 	let anchorId: string | null = null;
 
 	// Drop selections that scroll out of the current filtered/sorted view.
 	$effect(() => {
 		const present = new Set(issues.map((i) => i.id));
-		if ([...selectedIds].some((id) => !present.has(id))) {
-			selectedIds = new Set([...selectedIds].filter((id) => present.has(id)));
+		if (selectedIds.some((id) => !present.has(id))) {
+			onselectionchange(selectedIds.filter((id) => present.has(id)));
 		}
 	});
 
@@ -65,13 +70,13 @@
 		if (e.shiftKey) {
 			const anchorIdx = anchorId ? rows.findIndex((r) => r.id === anchorId) : -1;
 			if (anchorIdx === -1) {
-				selectedIds = new Set([issue.id]);
+				onselectionchange([issue.id]);
 				anchorId = issue.id;
 			} else {
 				const [lo, hi] = anchorIdx <= index ? [anchorIdx, index] : [index, anchorIdx];
-				const next = new Set<string>();
-				for (let k = lo; k <= hi; k++) next.add(rows[k].id);
-				selectedIds = next;
+				const next: string[] = [];
+				for (let k = lo; k <= hi; k++) next.push(rows[k].id);
+				onselectionchange(next);
 			}
 			return;
 		}
@@ -79,32 +84,32 @@
 			const next = new Set(selectedIds);
 			if (next.has(issue.id)) next.delete(issue.id);
 			else next.add(issue.id);
-			selectedIds = next;
+			onselectionchange([...next]);
 			anchorId = issue.id;
 			return;
 		}
-		selectedIds = new Set();
+		onselectionchange([]);
 		anchorId = issue.id;
 		onselect(issue);
 	}
 
 	function clearSelection() {
-		selectedIds = new Set();
+		onselectionchange([]);
 		anchorId = null;
 	}
 	function applyBulkStatus(e: Event) {
 		const el = e.currentTarget as HTMLSelectElement;
-		if (el.value) onbulkupdate([...selectedIds], { status: el.value as Issue['status'] });
+		if (el.value) onbulkupdate(selectedIds, { status: el.value as Issue['status'] });
 		el.value = '';
 	}
 	function applyBulkPriority(e: Event) {
 		const el = e.currentTarget as HTMLSelectElement;
-		if (el.value !== '') onbulkupdate([...selectedIds], { priority: Number(el.value) as Issue['priority'] });
+		if (el.value !== '') onbulkupdate(selectedIds, { priority: Number(el.value) as Issue['priority'] });
 		el.value = '';
 	}
 	function bulkDelete() {
-		if (selectedIds.size === 0) return;
-		onbulkdelete([...selectedIds]);
+		if (selectedIds.length === 0) return;
+		onbulkdelete(selectedIds);
 		clearSelection();
 	}
 
@@ -113,7 +118,7 @@
 	let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function selectedInOrder(): Issue[] {
-		return rows.filter((r) => selectedIds.has(r.id));
+		return rows.filter((r) => selectedSet.has(r.id));
 	}
 
 	function flashCopied(kind: 'ids' | 'details') {
@@ -327,7 +332,7 @@
 				<div
 					class="tr"
 					class:selected={issue.id === selectedId}
-					class:bulk-selected={selectedIds.has(issue.id)}
+					class:bulk-selected={selectedSet.has(issue.id)}
 					class:closed={issue.status === 'closed'}
 					role="button"
 					tabindex="0"
@@ -391,9 +396,9 @@
 		{/if}
 	</div>
 
-	{#if selectedIds.size > 0}
+	{#if selectedIds.length > 0}
 		<div class="bulk-bar">
-			<span class="bulk-count">{selectedIds.size} selected</span>
+			<span class="bulk-count">{selectedIds.length} selected</span>
 			<div class="bulk-actions">
 				<select class="bulk-select" onchange={applyBulkStatus} aria-label="Set status for selected">
 					<option value="">Set status…</option>
