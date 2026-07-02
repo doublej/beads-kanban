@@ -62,14 +62,19 @@ async function loadAtlas(fromPaths: string[]): Promise<Map<string, AtlasEntry>> 
 	}
 }
 
+function clean(v: string | undefined): string | undefined {
+	if (!v || v === 'unknown' || v === '__HAS_README__') return undefined;
+	return v;
+}
+
 function metaFrom(entry: AtlasEntry | undefined): ProjectMeta | undefined {
 	if (!entry) return undefined;
 	const meta: ProjectMeta = {};
-	if (entry.description) meta.description = entry.description;
-	if (entry.type) meta.type = entry.type;
-	if (entry.framework) meta.framework = entry.framework;
-	if (entry.git) meta.git = entry.git;
-	if (entry.gitBranch) meta.gitBranch = entry.gitBranch;
+	if (clean(entry.description)) meta.description = entry.description;
+	if (clean(entry.type)) meta.type = entry.type;
+	if (clean(entry.framework)) meta.framework = entry.framework;
+	if (clean(entry.git)) meta.git = entry.git;
+	if (clean(entry.gitBranch)) meta.gitBranch = entry.gitBranch;
 	return Object.keys(meta).length ? meta : undefined;
 }
 
