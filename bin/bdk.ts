@@ -18,7 +18,7 @@
 declare const Bun: unknown | undefined
 
 import { resolve, join, dirname } from 'path'
-import { existsSync, writeFileSync, lstatSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync, lstatSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync } from 'fs'
 import { spawn, execSync, spawnSync } from 'child_process'
 import { createInterface } from 'readline'
 import { createServer, createConnection } from 'net'
@@ -28,6 +28,35 @@ const MIN_BD_VERSION = '1.0.0'
 const AGENT_PORT = 9347
 const APP_DIR = dirname(new URL('.', import.meta.url).pathname)
 const CACHE_DIR = join(homedir(), '.cache', 'beads-kanban')
+/** Tracks the most-recently-started board so `bdk open` can reuse it instead of spawning another. */
+const ACTIVE_SERVER_FILE = join(CACHE_DIR, 'active-server.json')
+
+interface ActiveServer { cwd: string; port: number; pid: number }
+
+function writeActiveServer(cwd: string, port: number): void {
+	try {
+		if (!existsSync(CACHE_DIR)) mkdirSync(CACHE_DIR, { recursive: true })
+		const record: ActiveServer = { cwd, port, pid: process.pid }
+		writeFileSync(ACTIVE_SERVER_FILE, JSON.stringify(record), 'utf-8')
+	} catch { /* best-effort — reuse is an optimization, not required */ }
+}
+
+function readActiveServer(): ActiveServer | null {
+	if (!existsSync(ACTIVE_SERVER_FILE)) return null
+	try {
+		const r = JSON.parse(readFileSync(ACTIVE_SERVER_FILE, 'utf-8'))
+		if (typeof r?.cwd === 'string' && typeof r?.port === 'number' && typeof r?.pid === 'number') return r
+	} catch { /* stale/corrupt — treat as none */ }
+	return null
+}
+
+function clearActiveServer(): void {
+	// Only clear if the record belongs to this process; a newer board may have overwritten it.
+	const r = readActiveServer()
+	if (r && r.pid === process.pid && existsSync(ACTIVE_SERVER_FILE)) {
+		try { unlinkSync(ACTIVE_SERVER_FILE) } catch { /* ignore */ }
+	}
+}
 
 /** Env to pass to every `bd` spawn. Enables bd 1.0 JSON envelope so output stays self-describing. */
 function bdEnv(): NodeJS.ProcessEnv {
@@ -405,6 +434,7 @@ async function startServer(target: string, opts: { openPath?: string } = {}): Pr
 	}
 
 	const port = await findFreePort()
+	writeActiveServer(target, port)
 	const launcher = typeof Bun !== 'undefined' ? 'bunx' : 'npx'
 	const child = spawn(launcher, ['vite', 'dev', '--host', '--port', String(port)], {
 		cwd: APP_DIR,
@@ -430,6 +460,7 @@ async function startServer(target: string, opts: { openPath?: string } = {}): Pr
 			child.kill(sig)
 		}
 		reapOnShutdown(process.pid)
+		clearActiveServer()
 	}
 
 	child.on('exit', (code) => {
@@ -467,6 +498,56 @@ async function runZen(args: string[]): Promise<void> {
 	await startServer(target, { openPath })
 }
 
+// --- open subcommand (bdk:// URL scheme handler) ---
+
+/** Extract the issue id from a `bdk://<id>` URL or a bare id. Tolerates slashes, query, and hash. */
+function parseIssueRef(arg: string): string {
+	let s = arg.trim().replace(/^bdk:\/\//i, '')
+	s = s.split(/[?#]/)[0]            // drop query/hash
+	s = s.replace(/^\/+|\/+$/g, '')   // drop leading/trailing slashes
+	try { s = decodeURIComponent(s) } catch { /* leave as-is if not encoded */ }
+	return s
+}
+
+function readTargetCwd(): string {
+	const stored = join(APP_DIR, '.beads-cwd')
+	if (existsSync(stored)) {
+		try {
+			const cwd = readFileSync(stored, 'utf-8').trim()
+			if (cwd && existsSync(cwd)) return cwd
+		} catch { /* fall through */ }
+	}
+	return resolve(process.cwd())
+}
+
+async function runOpen(arg: string | undefined): Promise<void> {
+	if (!arg || arg === '-h' || arg === '--help') {
+		console.log(`Usage: bdk open <bdk://id | id>
+
+  Focus the board on an issue. Reuses a running board if one is up,
+  otherwise starts one against the last-targeted project.
+    bdk open bdk://pm-1
+    bdk open pm-1`)
+		if (!arg) process.exitCode = 2
+		return
+	}
+	const id = parseIssueRef(arg)
+	if (!id) fail(`Could not parse an issue id from: ${arg}`)
+	const openPath = `/?issue=${encodeURIComponent(id)}`
+
+	// Reuse a live board if one is running.
+	const active = readActiveServer()
+	if (active && isPidAlive(active.pid) && await isPortInUse(active.port)) {
+		const url = `https://localhost:${active.port}${openPath}`
+		console.log(`Opening ${url}`)
+		openBrowser(url)
+		return
+	}
+
+	// No live board — start one against the last-targeted project.
+	await startServer(readTargetCwd(), { openPath })
+}
+
 // --- dispatch ---
 
 function printHelp(): void {
@@ -474,6 +555,7 @@ function printHelp(): void {
 
 Usage:
   bdk [path]            Start the board against [path] (default: current directory)
+  bdk open <bdk://id>   Focus an issue (reuses a running board; handles the bdk:// scheme)
   bdk zen <ids>         Open distraction-free focus review for the given issue ids
   bdk reap [opts]       Reap orphan 'dolt sql-server' processes (see 'bdk reap --help')
   bdk help              Show this help
@@ -481,6 +563,7 @@ Usage:
 Examples:
   bdk                   Start against the current directory
   bdk ~/code/myproject  Start against another project
+  bdk open bdk://pm-1   Open the board focused on issue pm-1
   bdk zen pm-1,pm-2     Review issues pm-1 and pm-2`)
 }
 
@@ -489,6 +572,9 @@ async function main() {
 	switch (cmd) {
 		case 'reap':
 			process.exit(await runReap(rest))
+		case 'open':
+			await runOpen(rest[0])
+			return
 		case 'zen':
 			await runZen(rest)
 			return
@@ -498,6 +584,11 @@ async function main() {
 			printHelp()
 			return
 		default:
+			// A bdk:// URL (from the macOS scheme handler) → treat as `open`.
+			if (cmd?.startsWith('bdk://')) {
+				await runOpen(cmd)
+				return
+			}
 			// No subcommand → cmd is an optional [path] (defaults to cwd).
 			await startServer(resolve(cmd ?? process.cwd()))
 	}
