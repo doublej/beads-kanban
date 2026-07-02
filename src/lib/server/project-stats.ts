@@ -18,9 +18,15 @@ function stripSlash(p: string): string {
 
 interface AtlasEntry {
 	path: string;
+	name?: string;
+	relativePath?: string;
 	description?: string;
 	type?: string;
 	framework?: string;
+	runner?: string;
+	devCommand?: string;
+	deploy?: Array<{ platform?: string; url?: string }>;
+	archived?: boolean;
 	git?: string;
 	gitBranch?: string;
 	modifiedAt?: string;
@@ -70,9 +76,17 @@ function clean(v: string | undefined): string | undefined {
 function metaFrom(entry: AtlasEntry | undefined): ProjectMeta | undefined {
 	if (!entry) return undefined;
 	const meta: ProjectMeta = {};
+	if (clean(entry.name)) meta.title = entry.name;
+	if (clean(entry.relativePath)) meta.relativePath = entry.relativePath;
 	if (clean(entry.description)) meta.description = entry.description;
 	if (clean(entry.type)) meta.type = entry.type;
 	if (clean(entry.framework)) meta.framework = entry.framework;
+	if (clean(entry.runner)) meta.runner = entry.runner;
+	const platforms = (entry.deploy ?? [])
+		.map((d) => clean(d?.platform))
+		.filter((p): p is string => Boolean(p));
+	if (platforms.length) meta.deploy = [...new Set(platforms)];
+	if (entry.archived) meta.archived = true;
 	if (clean(entry.git)) meta.git = entry.git;
 	if (clean(entry.gitBranch)) meta.gitBranch = entry.gitBranch;
 	return Object.keys(meta).length ? meta : undefined;

@@ -183,9 +183,14 @@ export interface ProjectStats {
 
 /** Project metadata sourced from the atlas index (.atlas-cache.json). */
 export interface ProjectMeta {
+	title?: string; // curated atlas name — canonical project title
+	relativePath?: string; // e.g. "multi-stack/cobalt"
 	description?: string;
 	type?: string; // e.g. node, rust, python
 	framework?: string; // e.g. sveltekit, tauri
+	runner?: string; // e.g. uv, bun, npm, pnpm
+	deploy?: string[]; // deploy platforms, e.g. ['vercel', 'docker']
+	archived?: boolean;
 	git?: string; // 'clean' | 'dirty'
 	gitBranch?: string;
 }

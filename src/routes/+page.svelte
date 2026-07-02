@@ -579,7 +579,7 @@
 			const current = projects.find((p: Project) => p.path === cwd);
 			if (current) {
 				projectColor = current.color;
-				projectName = current.name || name;
+				projectName = current.meta?.title || current.name || name;
 			}
 		}
 	}
@@ -616,7 +616,7 @@
 		const issuesPayload = await issuesRes.json();
 		const issuesData = issuesPayload?.ok ? issuesPayload.data : { issues: [] };
 		issueStore.setIssues(issuesData.issues || []);
-		projectName = project.name;
+		projectName = project.meta?.title || project.name;
 		projectColor = project.color;
 		issueStore.initialLoaded = true;
 		selectedId = null;
