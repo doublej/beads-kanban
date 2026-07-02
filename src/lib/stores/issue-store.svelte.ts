@@ -2,6 +2,14 @@ import type { Issue, LoadingStatus } from '$lib/types';
 import { fetchMutations } from '$lib/mutationStore.svelte';
 import { appendProjectParam } from '$lib/project';
 
+/**
+ * Backstop poll interval. bd's Dolt backend flushes .beads/issues.jsonl on a delayed,
+ * coalesced cadence (several seconds), so the server's fs.watch — which drives
+ * external-write events — lags well behind the actual change. Polling refreshIssues()
+ * keeps the board live regardless of that cadence. Matches the pre-SSE poll rate.
+ */
+const POLL_INTERVAL_MS = 2000;
+
 export interface IssueStoreCallbacks {
 	onNewIssue: (issue: Issue) => void;
 	onStatusChange: (issue: Issue, oldStatus: string) => void;
@@ -34,6 +42,7 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 	});
 	let initialLoaded = $state(false);
 	let sseSource = $state<EventSource | null>(null);
+	let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 	function mergeWithPendingUpdates(sseIssues: Issue[]): Issue[] {
 		const now = Date.now();
@@ -188,6 +197,12 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 		// Initial snapshot fires on open; subsequent refreshes triggered by events.
 		void refreshIssues();
 
+		// Backstop poll (de-duped via snapshotHash, so no UI churn when nothing changed):
+		// SSE events fire instantly for in-app writes but lag several seconds for external
+		// (agent/CLI) writes because they hinge on bd's delayed issues.jsonl export.
+		if (pollTimer) clearInterval(pollTimer);
+		pollTimer = setInterval(() => void refreshIssues(), POLL_INTERVAL_MS);
+
 		eventSource.onmessage = (event) => {
 			let msg: { type?: string; name?: string };
 			try { msg = JSON.parse(event.data); } catch { return; }
@@ -295,6 +310,10 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 	}
 
 	function closeSse() {
+		if (pollTimer) {
+			clearInterval(pollTimer);
+			pollTimer = null;
+		}
 		if (sseSource) {
 			sseSource.close();
 			sseSource = null;

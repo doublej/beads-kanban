@@ -501,8 +501,8 @@
 
 	// --- Lifecycle effects ---
 	$effect(() => {
-		const source = untrack(() => issueStore.connectSSE());
-		return () => source.close();
+		untrack(() => issueStore.connectSSE());
+		return () => issueStore.closeSse();
 	});
 
 	$effect(() => {
