@@ -119,9 +119,10 @@
 	}
 
 	.toolbar-badge {
-		min-width: 1rem;
-		height: 1rem;
+		min-width: 1.25rem;
+		height: 1.25rem;
 		padding: 0 0.25rem;
+		margin-right: -0.375rem;
 		background: var(--text-tertiary);
 		border-radius: var(--radius-full);
 		color: var(--bg-primary);
