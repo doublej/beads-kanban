@@ -1,4 +1,5 @@
 // Type definitions for WebSocket agent sessions
+import type { QueueItem } from '$lib/server/agent/queue-types';
 
 export type NotificationType = 'comment' | 'dependency' | 'attachment' | 'status' | 'priority' | 'assignee' | 'label';
 
@@ -171,7 +172,7 @@ export type ServerMessage =
 	| { type: 'error'; error: string }
 	| { type: 'interrupted' }
 	| { type: 'active_sessions'; cwd: string | null; sessions: ActiveRemoteSession[] }
-	| { type: 'queue_state'; items: unknown[] };
+	| { type: 'queue_state'; items: QueueItem[] };
 
 export type Pane = AgentSession;
 
