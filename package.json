@@ -29,8 +29,7 @@
     "vite": "^5.0.0"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.1.62",
-    "@anthropic-ai/sdk": "^0.73.0",
+    "@anthropic-ai/claude-agent-sdk": "0.1.77",
     "@types/js-yaml": "^4.0.9",
     "@xyflow/svelte": "^1.6.1",
     "better-sqlite3": "^12.5.0",
