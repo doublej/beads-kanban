@@ -53,7 +53,13 @@ export function createWebSocketHandlers(config: WebSocketConfig) {
     },
 
     async message(ws: ServerWebSocket<WSData>, raw: string | Buffer) {
-      const msg = JSON.parse(raw.toString()) as ClientMessage;
+      let msg: ClientMessage;
+      try {
+        msg = JSON.parse(raw.toString()) as ClientMessage;
+      } catch (err) {
+        log.warn("[ws] Ignoring malformed message frame:", err);
+        return;
+      }
 
       if (msg.type === "set_project") {
         clientCwdByWs.set(ws, msg.cwd);
