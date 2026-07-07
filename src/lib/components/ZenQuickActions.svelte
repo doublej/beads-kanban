@@ -25,10 +25,19 @@
 	let swipe = $state({ x: 0, y: 0 });
 	let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
+	// Recent gesture positions as unitless dial factors (1 = petal radius).
+	// Rendered as a fading comet trail that mirrors the finger path 1:1.
+	let trail = $state<{ id: number; cx: number; cy: number }[]>([]);
+	let trailId = 0;
+	const TRAIL_LENGTH = 12;
+
 	const magnitude = $derived(Math.hypot(swipe.x, swipe.y));
 	/** 0..1 fill of the hub ring — how close the gesture is to committing. */
 	const progress = $derived(Math.min(magnitude / COMMIT_AT, 1));
+	/** Release past this point commits — the comet has visually reached the petal. */
+	const armed = $derived(progress >= 1);
 	const swipeAngle = $derived(Math.atan2(swipe.y, swipe.x));
+	const head = $derived(trail.at(-1) ?? null);
 	const activeTint = $derived(
 		highlighted !== null ? triageActions[highlighted].color : 'var(--zen-accent)'
 	);
@@ -46,6 +55,13 @@
 		e.preventDefault();
 		e.stopImmediatePropagation();
 		swipe = { x: swipe.x - e.deltaX, y: swipe.y - e.deltaY };
+		// COMMIT_AT of finger travel maps to exactly one petal radius on screen,
+		// so the comet reaching the petal *is* the commit threshold.
+		const travel = Math.min(magnitude, COMMIT_AT * 1.06) / COMMIT_AT;
+		trail = [
+			...trail.slice(-(TRAIL_LENGTH - 1)),
+			{ id: trailId++, cx: Math.cos(swipeAngle) * travel, cy: Math.sin(swipeAngle) * travel }
+		];
 		if (magnitude >= HIGHLIGHT_AT) {
 			highlighted = findTriageSector(swipe.x, swipe.y);
 		}
@@ -55,6 +71,7 @@
 				commit(highlighted);
 			} else {
 				swipe = { x: 0, y: 0 };
+				trail = [];
 			}
 		}, 160);
 	}
@@ -99,7 +116,11 @@
 	aria-label="Quick triage"
 	transition:fade={{ duration: reduced ? 0 : 160 }}
 >
-	<div class="dial" in:scale={{ start: 0.96, duration: reduced ? 0 : 240, easing: cubicOut }}>
+	<div
+		class="dial"
+		class:armed
+		in:scale={{ start: 0.96, duration: reduced ? 0 : 240, easing: cubicOut }}
+	>
 		{#each triageActions as action, i (action.value)}
 			<span
 				class="spoke"
@@ -142,17 +163,24 @@
 					style:stroke={activeTint}
 				/>
 			</svg>
-			{#if magnitude > 6}
-				<span
-					class="hub-needle"
-					style:color={activeTint}
-					style:transform="translate(-50%, -50%) translate({Math.cos(swipeAngle) * progress * 56}px, {Math.sin(swipeAngle) * progress * 56}px)"
-				></span>
-			{/if}
 			<span class="hub-eyebrow">Triage</span>
 			<span class="hub-id mono">{issueId}</span>
 			<span class="hub-hint">swipe · 1–5 · esc</span>
 		</div>
+
+		{#if head}
+			<div class="swipe-layer" style:color={activeTint} aria-hidden="true">
+				{#each trail as p, i (p.id)}
+					<span
+						class="trail-dot"
+						style:--tx={p.cx}
+						style:--ty={p.cy}
+						style:opacity={((i + 1) / trail.length) * 0.4}
+					></span>
+				{/each}
+				<span class="swipe-dot" class:armed style:--tx={head.cx} style:--ty={head.cy}></span>
+			</div>
+		{/if}
 	</div>
 </div>
 
@@ -236,18 +264,6 @@
 		stroke-linecap: round;
 		transition: stroke-dashoffset 90ms linear, stroke 160ms ease;
 	}
-	.hub-needle {
-		position: absolute;
-		left: 50%;
-		top: 50%;
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-		background: currentColor;
-		box-shadow: 0 0 12px 1px currentColor;
-		pointer-events: none;
-		transition: transform 70ms linear;
-	}
 	.hub-eyebrow {
 		font-family: var(--font-mono);
 		font-size: 10px;
@@ -271,6 +287,41 @@
 		color: var(--text-muted);
 	}
 
+	/* Swipe comet ---------------------------------------------------------- */
+	/* Mirrors the trackpad gesture 1:1: the head dot travels from the hub
+	   toward a petal as the fingers move; the trail is the finger's path. */
+	.swipe-layer {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		z-index: 2;
+	}
+	.trail-dot,
+	.swipe-dot {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		border-radius: 50%;
+		background: currentColor;
+		transform: translate(-50%, -50%)
+			translate(calc(var(--tx) * var(--radius)), calc(var(--ty) * var(--radius)));
+	}
+	.trail-dot {
+		width: 6px;
+		height: 6px;
+	}
+	.swipe-dot {
+		width: 12px;
+		height: 12px;
+		box-shadow: 0 0 14px 2px currentColor;
+		transition: transform 60ms linear, width 120ms ease, height 120ms ease, box-shadow 120ms ease;
+	}
+	.swipe-dot.armed {
+		width: 17px;
+		height: 17px;
+		box-shadow: 0 0 26px 6px currentColor;
+	}
+
 	/* Petals -------------------------------------------------------------- */
 	.petal {
 		position: absolute;
@@ -289,6 +340,7 @@
 		background: transparent;
 		color: var(--text-secondary);
 		cursor: pointer;
+		z-index: 3;
 		animation: petal-in 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 		transition:
 			transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -350,6 +402,12 @@
 	}
 	.petal.active .petal-key {
 		opacity: 1;
+	}
+	/* Comet reached the petal — releasing now commits. */
+	.dial.armed .petal.active {
+		border-color: color-mix(in srgb, var(--tint) 75%, transparent);
+		background: color-mix(in srgb, var(--tint) 14%, transparent);
+		box-shadow: 0 10px 52px color-mix(in srgb, var(--tint) 32%, transparent);
 	}
 
 	:global(.app.light) .quick {
