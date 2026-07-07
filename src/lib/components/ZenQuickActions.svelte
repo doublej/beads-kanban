@@ -25,11 +25,12 @@
 	let swipe = $state({ x: 0, y: 0 });
 	let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
-	// Recent gesture positions as unitless dial factors (1 = petal radius).
-	// Rendered as a fading comet trail that mirrors the finger path 1:1.
+	// Full path of the current gesture as unitless dial factors (1 = petal
+	// radius), seeded at the hub center. Drawn as a continuous line so each
+	// swipe reads as center → direction; a settled gesture clears it and the
+	// next one starts from scratch.
 	let trail = $state<{ id: number; cx: number; cy: number }[]>([]);
 	let trailId = 0;
-	const TRAIL_LENGTH = 12;
 
 	const magnitude = $derived(Math.hypot(swipe.x, swipe.y));
 	/** 0..1 fill of the hub ring — how close the gesture is to committing. */
@@ -58,10 +59,13 @@
 		// COMMIT_AT of finger travel maps to exactly one petal radius on screen,
 		// so the comet reaching the petal *is* the commit threshold.
 		const travel = Math.min(magnitude, COMMIT_AT * 1.06) / COMMIT_AT;
+		if (!trail.length) trail = [{ id: trailId++, cx: 0, cy: 0 }];
 		trail = [
-			...trail.slice(-(TRAIL_LENGTH - 1)),
+			...trail,
 			{ id: trailId++, cx: Math.cos(swipeAngle) * travel, cy: Math.sin(swipeAngle) * travel }
 		];
+		// Wiggle guard: keep the origin + the recent path if a gesture runs long.
+		if (trail.length > 240) trail = [trail[0], ...trail.slice(-200)];
 		if (magnitude >= HIGHLIGHT_AT) {
 			highlighted = findTriageSector(swipe.x, swipe.y);
 		}
@@ -170,14 +174,13 @@
 
 		{#if head}
 			<div class="swipe-layer" style:color={activeTint} aria-hidden="true">
-				{#each trail as p, i (p.id)}
-					<span
-						class="trail-dot"
-						style:--tx={p.cx}
-						style:--ty={p.cy}
-						style:opacity={((i + 1) / trail.length) * 0.4}
-					></span>
-				{/each}
+				<!-- 1 viewBox unit = one petal radius, so points are the dial factors. -->
+				<svg class="swipe-path" viewBox="-1.1 -1.1 2.2 2.2">
+					<polyline
+						points={trail.map((p) => `${p.cx.toFixed(3)},${p.cy.toFixed(3)}`).join(' ')}
+						vector-effect="non-scaling-stroke"
+					/>
+				</svg>
 				<span class="swipe-dot" class:armed style:--tx={head.cx} style:--ty={head.cy}></span>
 			</div>
 		{/if}
@@ -296,7 +299,23 @@
 		pointer-events: none;
 		z-index: 2;
 	}
-	.trail-dot,
+	.swipe-path {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: calc(var(--radius) * 2.2);
+		height: calc(var(--radius) * 2.2);
+		transform: translate(-50%, -50%);
+		overflow: visible;
+	}
+	.swipe-path polyline {
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.5px;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		opacity: 0.45;
+	}
 	.swipe-dot {
 		position: absolute;
 		left: 50%;
@@ -305,12 +324,6 @@
 		background: currentColor;
 		transform: translate(-50%, -50%)
 			translate(calc(var(--tx) * var(--radius)), calc(var(--ty) * var(--radius)));
-	}
-	.trail-dot {
-		width: 6px;
-		height: 6px;
-	}
-	.swipe-dot {
 		width: 12px;
 		height: 12px;
 		box-shadow: 0 0 14px 2px currentColor;
