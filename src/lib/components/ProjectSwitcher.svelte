@@ -18,6 +18,16 @@
 	}: Props = $props();
 
 	let selectedIndex = $state(0);
+	let listEl: HTMLDivElement | null = null;
+
+	// Scroll selected item into view when navigating
+	$effect(() => {
+		const idx = selectedIndex;
+		if (listEl && show) {
+			const item = listEl.children[idx] as HTMLElement | undefined;
+			item?.scrollIntoView({ block: 'nearest' });
+		}
+	});
 
 	// Most-recent beads activity for a project, falling back to last access.
 	function activityAt(p: Project): number {
@@ -103,7 +113,7 @@
 			<kbd class="header-hint">Tab</kbd>
 		</div>
 
-		<div class="projects-list">
+		<div class="projects-list" bind:this={listEl}>
 			{#each sortedProjects() as project, i}
 				{@const isCurrent = project.path === currentPath}
 				{@const isSelected = i === selectedIndex}
