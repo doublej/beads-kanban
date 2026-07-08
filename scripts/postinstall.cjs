@@ -26,7 +26,7 @@ if (nodeMajor < 18) {
 }
 
 // Check bd CLI
-checkCommand('bd', 'Beads CLI', 'Install with: brew install bd (https://github.com/steveyegge/beads)');
+checkCommand('bd', 'Beads CLI', 'Install with: brew install beads (https://github.com/gastownhall/beads)');
 
 // Check native build tools for better-sqlite3
 const buildTools = {

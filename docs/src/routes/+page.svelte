@@ -2,7 +2,7 @@
 	import { base } from '$app/paths';
 
 	let copied = $state(false);
-	const cloneCommand = 'beads-kanban /path/to/your/project';
+	const cloneCommand = 'npx github:doublej/beads-kanban /path/to/project';
 
 	function copyCommand() {
 		navigator.clipboard.writeText(cloneCommand);
@@ -211,7 +211,7 @@
 	<section class="hero animate-in" style="animation-delay: 200ms;">
 		<h1>Kanban board for <span class="nowrap">Beads issue tracking</span></h1>
 		<p class="lead">
-			A SvelteKit web app that wraps the <a href="https://github.com/steveyegge/beads" target="_blank" rel="noopener">Beads</a> CLI
+			A SvelteKit web app that wraps the <a href="https://github.com/gastownhall/beads" target="_blank" rel="noopener">Beads</a> CLI
 			with a drag-and-drop Kanban interface. Manage issues visually while keeping <code>.beads/</code> as the source of truth.
 		</p>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -293,7 +293,7 @@
 				</button>
 			</div>
 			<p class="install-note">
-				Requires <a href="https://bun.sh" target="_blank" rel="noopener">Bun</a> and the <a href="https://github.com/steveyegge/beads" target="_blank" rel="noopener">bd CLI</a>
+				Requires Node 18+ or <a href="https://bun.sh" target="_blank" rel="noopener">Bun</a> and the <a href="https://github.com/gastownhall/beads" target="_blank" rel="noopener">Beads CLI</a>
 			</p>
 		</div>
 	</section>
@@ -400,28 +400,28 @@
 					<span class="step-num">1</span>
 					<div class="step-content">
 						<strong>Install prerequisites</strong>
-						<p>Install <a href="https://bun.sh" target="_blank" rel="noopener">Bun</a> and the <a href="https://github.com/steveyegge/beads" target="_blank" rel="noopener">Beads CLI</a> (<code>bd</code> v1.0.0+).</p>
+						<p>Install Node 18+ or <a href="https://bun.sh" target="_blank" rel="noopener">Bun</a>, then install the <a href="https://github.com/gastownhall/beads" target="_blank" rel="noopener">Beads CLI</a> with <code>brew install beads</code>.</p>
 					</div>
 				</li>
 				<li>
 					<span class="step-num">2</span>
 					<div class="step-content">
-						<strong>Clone and install</strong>
-						<p>Run <code>git clone https://github.com/doublej/beads-kanban && cd beads-kanban && bun install</code>.</p>
+						<strong>Run once</strong>
+						<p>Run <code>npx github:doublej/beads-kanban /path/to/project</code>. The launcher checks <code>bd</code>, initializes <code>.beads/</code> if you approve, and starts the board.</p>
 					</div>
 				</li>
 				<li>
 					<span class="step-num">3</span>
 					<div class="step-content">
-						<strong>Add the shell function</strong>
-						<p>Add this to your <code>~/.zshrc</code>: <code>bdk() &#123; bun /path/to/beads-kanban/bin/bdk.ts "$@"; &#125;</code></p>
+						<strong>Install the shortcut</strong>
+						<p>Run <code>npm install -g github:doublej/beads-kanban</code> to get the shorter <code>bdk</code> command.</p>
 					</div>
 				</li>
 				<li>
 					<span class="step-num">4</span>
 					<div class="step-content">
-						<strong>Launch</strong>
-						<p>Run <code>bdk /path/to/your/project</code>. It handles <code>.beads/</code> init automatically if needed.</p>
+						<strong>Launch daily</strong>
+						<p>Run <code>bdk</code> inside a Beads project or <code>bdk /path/to/project</code> from anywhere.</p>
 					</div>
 				</li>
 			</ol>
@@ -447,7 +447,7 @@
 	</section>
 
 	<footer class="animate-in" style="animation-delay: 1000ms;">
-		<p>Built on <a href="https://github.com/steveyegge/beads" target="_blank" rel="noopener">Beads</a> by Steve Yegge</p>
+		<p>Built on <a href="https://github.com/gastownhall/beads" target="_blank" rel="noopener">Beads</a></p>
 		<p><a href="https://github.com/doublej/beads-kanban" target="_blank" rel="noopener">GitHub</a></p>
 	</footer>
 </main>

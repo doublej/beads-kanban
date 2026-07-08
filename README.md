@@ -1,90 +1,156 @@
- # beads-kanban
+# beads-kanban
 
-Kanban board UI for the Beads issue tracker. Reads directly from `.beads` SQLite for fast queries and uses the `bd` CLI for writes. Optional embedded Claude Agent SDK server powers autonomous agent panes.
+Local Kanban UI for [Beads](https://github.com/gastownhall/beads) issue tracking. It starts a SvelteKit board for any project with `.beads/`, reads through `bd sql --json`, and writes through the `bd` CLI so Beads stays the source of truth.
 
-## Requirements
-- **Runtime**: Node 18+ or Bun 1.0+
-- **Beads CLI**: `bd` v1.0.0+ ([install](https://github.com/steveyegge/beads))
-- **Optional**: `uv` + `beads-mcp` for agent MCP tools
+## Quick Start
 
-## Installation
-
-### From npm/git
 ```bash
-npm install github:doublej/beads-kanban
-# or
-bun install github:doublej/beads-kanban
+# 1. Install Beads once
+brew install beads
+# or: curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh | bash
+
+# 2. Start a board for a project
+npx github:doublej/beads-kanban /path/to/project
 ```
 
-### From source
+Use the short command after a global install:
+
+```bash
+npm install -g github:doublej/beads-kanban
+bdk /path/to/project
+```
+
+The launcher validates `bd >= 1.0.0`, offers to run `bd init` when the target has no `.beads/`, runs `bd doctor --fix --yes` after init, chooses a free local Vite port, starts the optional agent WebSocket server, and opens deep links when requested.
+
+## Requirements
+
+- Node 18+ or Bun 1.0+
+- Beads CLI `bd` v1.0.0+
+- macOS or Linux for the normal install flow
+- Optional: `ANTHROPIC_API_KEY` for agent panes
+
+Verify the basics:
+
+```bash
+bd --version
+node --version
+bdk --version
+```
+
+## Install From Source
+
 ```bash
 git clone https://github.com/doublej/beads-kanban
 cd beads-kanban
-bun install  # or npm install
+bun install
+bun run build:cli
+./bin/bdk /path/to/project
 ```
 
-### Usage
+If you prefer npm:
+
 ```bash
-npx beads-kanban /path/to/project
-# or with Bun
-bunx beads-kanban /path/to/project
+npm install
+npm run build:cli
+./bin/bdk /path/to/project
 ```
 
-The CLI handles `bd` version checks, `.beads/` init, `bd doctor --fix`, and starting the dev server.
+## Daily Usage
 
-## Notifications (optional)
-Two notification modes are available:
+```bash
+bdk                         # start against the current directory
+bdk ~/code/my-project       # start against another project
+bdk open bdk://proj-123     # focus an issue on the running board
+bdk zen proj-123,proj-456   # open focus review for selected issues
+bdk reap                    # clean stale dolt sql-server processes from old sessions
+```
 
-- **Browser push**: Web Push notifications via the service worker. VAPID keys are auto-generated on first use and stored in `.beads/beads-app.db`. Enable in the Notification Settings panel.
-- **MCP (Consult User)**: Desktop notifications through the Consult User MCP server when available.
+If the CLI finds no `.beads/` in the target project, it asks before initializing Beads. All issue edits still go through `bd`, so CLI, agents, and the board share the same data.
 
-No setup is required — both modes work out of the box.
+## Optional Setup
 
-## Agent server (optional)
+### Agent Panes
 
-### Setup
-1. Get an API key from [Anthropic Console](https://console.anthropic.com/)
-2. Create `.env` file:
-   ```bash
-   cp .env.example .env
-   # Edit .env and set ANTHROPIC_API_KEY=sk-ant-api03-...
-   ```
-3. Run: `bun run dev:agent` (WebSocket on port 9347)
+Create `.env` in this repo when you want embedded agent sessions:
 
-Agent dependencies are included in the root install. The `.env` file takes precedence over user-level `~/.claude/` auth, ensuring project-specific API usage.
+```bash
+cp .env.example .env
+# edit .env and set ANTHROPIC_API_KEY=...
+```
+
+Then launch with `bdk /path/to/project`. The CLI starts the agent server on port `9347` when it is available.
+
+### Notifications
+
+- Browser push notifications use the service worker. VAPID keys are generated on first use and stored in `.beads/beads-app.db`.
+- Consult User MCP desktop notifications are used automatically when the MCP server is available.
+
+### `bdk://` Links On macOS
+
+```bash
+scheme/install.sh
+open 'bdk://some-issue-id'
+```
+
+This registers a tiny URL handler that forwards links to `bdk open`. See [scheme/README.md](scheme/README.md) for uninstall and terminal hyperlink notes.
 
 ## Configuration
-- `.beads-cwd`: absolute path to the active Beads project (local-only; keep it untracked)
-- `BEADS_KANBAN_CWD_FILE`: override the location of the `.beads-cwd` file
-- `BEADS_MCP_PATH`: override beads MCP path for the agent server
-- `AGENT_PORT`: agent server port (default 9347)
-- `BD_DB`: optional override for Beads DB path (used as fallback)
-- `VAPID_SUBJECT`: optional mailto: address for push notification VAPID keys (default: `mailto:admin@beadskanban.local`)
-- `BEADS_KANBAN_AUTO_REAP`: scoped reaping is **on by default**. On Ctrl-C, `bd dolt stop` (clean) is attempted on every dolt server spawned by this session's `bd sql` reads — SIGTERM fallback if that fails. The dev server also runs a 10-minute periodic reap over the same scope. Set `BEADS_KANBAN_AUTO_REAP=0` to disable both (e.g. when sharing a dolt server across terminals).
 
-## Reaping orphan dolt servers
+- `.beads-cwd`: local file containing the active Beads project path
+- `BEADS_KANBAN_CWD_FILE`: override the `.beads-cwd` location
+- `BEADS_MCP_PATH`: override the Beads MCP path for the agent server
+- `AGENT_PORT`: agent server port, default `9347`
+- `BD_DB`: optional fallback override for Beads DB path
+- `VAPID_SUBJECT`: VAPID subject for push notifications
+- `BEADS_KANBAN_AUTO_REAP=0`: disable session-scoped dolt server cleanup
+- `BEADS_KANBAN_BD_TIMEOUT_MS`: override Beads push/pull timeout
 
-Each `bd sql` invocation spawns a per-project `dolt sql-server` that survives the parent. After a day of switching between projects, these can accumulate and exhaust memory.
+## Troubleshooting
 
-Beads-kanban tracks the cwds it touches at `~/.cache/beads-kanban/touched-cwds-<pid>.json` and offers a `reap` subcommand to clean up:
+### `bd` Not Found
+
+Install Beads, then restart your shell:
 
 ```bash
-beads-kanban reap                      # default --touched: reap orphans from dead sessions
-beads-kanban reap --all                # reap any orphan dolt sql-server with /.beads/dolt in cwd
-beads-kanban reap --scan-cwd <dir>     # reap only servers whose cwd is inside <dir>
+brew install beads
+# or
+curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh | bash
 ```
 
-The reaper only kills processes where the command contains `dolt sql-server` and the cwd is inside an explicitly-supplied directory. SIGTERM only — failures are reported, not escalated.
+### Native Module Install Fails
 
-## Known upstream bugs (with mitigations)
-- [#3370](https://github.com/steveyegge/beads/issues/3370) — `bd dolt push` hangs forever when the remote is unreachable. Mitigation: `pushDolt()` / `pullDolt()` in `src/lib/bd.ts` enforce a 15 s timeout (override via `BEADS_KANBAN_BD_TIMEOUT_MS`).
-- [#3392](https://github.com/steveyegge/beads/issues/3392) — auto-start can race against a stale dolt-server lock. Mitigation: `bd dolt stop` is preferred over SIGTERM in the reaper, which removes the lock cleanly; fallback path still SIGTERMs.
-- [#3449](https://github.com/steveyegge/beads/issues/3449) — bootstrap can leave the server pointing at pre-bootstrap state. Mitigation: kanban runs `bd doctor --fix --json` once per cwd per session and surfaces noteworthy findings via the toast queue.
+`better-sqlite3` may need local build tools.
 
-## Docs site
-`cd docs && bun install && bun run dev`
+```bash
+xcode-select --install          # macOS
+sudo apt install build-essential # Debian/Ubuntu
+```
 
-## Architecture at a glance
-- Reads: `src/lib/db.ts` reads SQLite in `.beads`
-- Writes: API routes call the `bd` CLI (`src/lib/bd.ts`)
-- Agent: `src/lib/server/agent` runs Claude Agent SDK and custom beads MCP wrappers
+### Local Server Opens On A Different Port
+
+That is expected. `bdk` starts at port `5185` and moves upward until it finds a free port.
+
+### Stale Dolt Servers Use Memory
+
+```bash
+bdk reap
+bdk reap --scan-cwd ~/code/my-project
+```
+
+Use `bdk reap --all` only when you want to clean every orphan `dolt sql-server` whose cwd contains `/.beads/dolt`.
+
+## Development
+
+```bash
+bun run dev
+bun run check
+bun run build
+bun run build:cli
+```
+
+Architecture:
+
+- UI: [src/routes/+page.svelte](src/routes/+page.svelte)
+- Reads: [src/lib/db.ts](src/lib/db.ts) via `bd sql --json`
+- Writes: API routes under [src/routes/api](src/routes/api) shell out to `bd`
+- Agent server: [src/lib/server/agent](src/lib/server/agent)

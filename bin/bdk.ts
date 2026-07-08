@@ -82,6 +82,14 @@ function fail(msg: string): never {
 	process.exit(1)
 }
 
+function readPackageVersion(): string {
+	try {
+		const pkg = JSON.parse(readFileSync(join(APP_DIR, 'package.json'), 'utf-8'))
+		if (typeof pkg?.version === 'string') return pkg.version
+	} catch { /* package metadata is optional at runtime */ }
+	return 'unknown'
+}
+
 async function confirm(question: string): Promise<boolean> {
 	const rl = createInterface({ input: process.stdin, output: process.stdout })
 	return new Promise((res) => {
@@ -387,10 +395,10 @@ async function preflight(target: string): Promise<void> {
 		const output = execSync('bd --version', { encoding: 'utf-8', env: bdEnv() }).trim()
 		const bdVersion = output.match(/(\d+\.\d+\.\d+)/)?.[1]
 		if (!bdVersion || !versionAtLeast(bdVersion, MIN_BD_VERSION)) {
-			fail(`bd ${bdVersion ?? 'unknown'} is too old (need >= ${MIN_BD_VERSION}). Upgrade with: brew upgrade bd`)
+			fail(`bd ${bdVersion ?? 'unknown'} is too old (need >= ${MIN_BD_VERSION}). Upgrade with: brew upgrade beads`)
 		}
 	} catch {
-		fail('bd CLI not found. Install with: brew install bd')
+		fail('bd CLI not found. Install with: brew install beads')
 	}
 
 	// Initialize beads if needed
@@ -558,6 +566,7 @@ Usage:
   bdk open <bdk://id>   Focus an issue (reuses a running board; handles the bdk:// scheme)
   bdk zen <ids>         Open distraction-free focus review for the given issue ids
   bdk reap [opts]       Reap orphan 'dolt sql-server' processes (see 'bdk reap --help')
+  bdk --version         Show the installed beads-kanban version
   bdk help              Show this help
 
 Examples:
@@ -582,6 +591,11 @@ async function main() {
 		case '-h':
 		case '--help':
 			printHelp()
+			return
+		case 'version':
+		case '-v':
+		case '--version':
+			console.log(readPackageVersion())
 			return
 		default:
 			// A bdk:// URL (from the macOS scheme handler) → treat as `open`.

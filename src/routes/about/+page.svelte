@@ -10,13 +10,13 @@
 </script>
 
 <svelte:head>
-	<title>About - StrandKanban</title>
+	<title>About - beads-kanban</title>
 </svelte:head>
 
 <div class="page" class:light={!isDarkMode}>
 	<header class="header">
 		<a href="/" class="logo">
-			<h1>strandkanban</h1>
+			<h1>beads-kanban</h1>
 		</a>
 		<nav>
 			<a href="/">Board</a>
@@ -26,13 +26,13 @@
 	</header>
 
 	<main class="content">
-		<h2>About StrandKanban</h2>
+		<h2>About beads-kanban</h2>
 
 		<section>
-			<h3>What is StrandKanban?</h3>
+			<h3>What is beads-kanban?</h3>
 			<p>
-				StrandKanban is a local-first kanban board designed for AI-assisted development workflows.
-				It integrates directly with the <strong>beads</strong> issue tracking system, providing a visual
+				beads-kanban is a local-first kanban board designed for AI-assisted development workflows.
+				It integrates directly with the <strong>Beads</strong> issue tracking system, providing a visual
 				interface to manage tasks tracked in your local repository.
 			</p>
 		</section>
@@ -40,7 +40,7 @@
 		<section>
 			<h3>How is this different from Vibekanban?</h3>
 			<p>
-				While both are kanban-style interfaces, StrandKanban has key differences:
+				While both are kanban-style interfaces, beads-kanban has key differences:
 			</p>
 			<ul>
 				<li><strong>Local-first:</strong> All data lives in your repository via beads, not in a cloud database</li>
@@ -66,8 +66,8 @@
 		<section>
 			<h3>Technology</h3>
 			<p>
-				Built with SvelteKit 5, using the new runes reactivity system. The backend integrates with
-				beads via shell commands, making it easy to extend and customize.
+				Built with SvelteKit 2 and Svelte 5 runes. The backend integrates with
+				Beads via shell commands, keeping the CLI as the write path.
 			</p>
 		</section>
 	</main>

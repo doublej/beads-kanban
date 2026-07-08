@@ -1,6 +1,15 @@
 #!/usr/bin/env sh
 # Detects Bun vs Node and runs compiled CLI
-DIR="$(cd "$(dirname "$0")" && pwd)"
+SOURCE="$0"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  case "$SOURCE" in
+    /*) ;;
+    *) SOURCE="$DIR/$SOURCE" ;;
+  esac
+done
+DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 if command -v bun >/dev/null 2>&1; then
   exec bun "$DIR/bdk.js" "$@"
 else
