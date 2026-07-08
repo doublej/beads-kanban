@@ -28,6 +28,7 @@
 		onsortchange: (sort: TableSortState | null) => void;
 		onbulkupdate: (ids: string[], updates: Partial<Issue>) => void;
 		onbulkdelete: (ids: string[]) => void;
+		onupdate: (id: string, updates: Partial<Issue>) => void;
 		oncreate?: () => void;
 	}
 
@@ -43,6 +44,7 @@
 		onsortchange,
 		onbulkupdate,
 		onbulkdelete,
+		onupdate,
 		oncreate
 	}: Props = $props();
 
@@ -249,6 +251,120 @@
 		dragOverKey = null;
 	}
 
+	// --- Inline cell editing ---
+	type EditableColumn = 'title' | 'status' | 'priority' | 'type' | 'assignee';
+	const EDITABLE_COLUMNS: Set<TableColumnKey> = new Set(['title', 'status', 'priority', 'type', 'assignee']);
+	const TYPE_OPTS = ['task', 'bug', 'feature', 'epic', 'chore'];
+
+	let editCell = $state<{ issueId: string; column: EditableColumn } | null>(null);
+	let editValue = $state<string>('');
+
+	function isEditing(issueId: string, column: TableColumnKey): boolean {
+		return editCell?.issueId === issueId && editCell?.column === column;
+	}
+
+	function startEdit(issue: Issue, column: EditableColumn) {
+		// Get current value based on column
+		let value: string;
+		switch (column) {
+			case 'title':
+				value = issue.title;
+				break;
+			case 'status':
+				value = issue.status;
+				break;
+			case 'priority':
+				value = String(issue.priority);
+				break;
+			case 'type':
+				value = issue.issue_type;
+				break;
+			case 'assignee':
+				value = issue.assignee ?? '';
+				break;
+		}
+		editCell = { issueId: issue.id, column };
+		editValue = value;
+	}
+
+	function cancelEdit() {
+		editCell = null;
+		editValue = '';
+	}
+
+	function commitEdit() {
+		if (!editCell) return;
+		const issue = issues.find((i) => i.id === editCell!.issueId);
+		if (!issue) {
+			cancelEdit();
+			return;
+		}
+
+		let updates: Partial<Issue> = {};
+		const col = editCell.column;
+
+		switch (col) {
+			case 'title':
+				if (editValue.trim() && editValue !== issue.title) {
+					updates.title = editValue.trim();
+				}
+				break;
+			case 'status':
+				if (editValue !== issue.status) {
+					updates.status = editValue as Issue['status'];
+				}
+				break;
+			case 'priority':
+				const newPriority = Number(editValue) as Issue['priority'];
+				if (newPriority !== issue.priority) {
+					updates.priority = newPriority;
+				}
+				break;
+			case 'type':
+				if (editValue !== issue.issue_type) {
+					updates.issue_type = editValue;
+				}
+				break;
+			case 'assignee':
+				const newAssignee = editValue.trim() || undefined;
+				if (newAssignee !== issue.assignee) {
+					updates.assignee = newAssignee;
+				}
+				break;
+		}
+
+		if (Object.keys(updates).length > 0) {
+			onupdate(editCell.issueId, updates);
+		}
+
+		cancelEdit();
+	}
+
+	function onCellDblClick(e: MouseEvent, issue: Issue, column: TableColumnKey) {
+		if (!EDITABLE_COLUMNS.has(column)) return;
+		e.stopPropagation();
+		startEdit(issue, column as EditableColumn);
+	}
+
+	function onEditKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			e.preventDefault();
+			e.stopPropagation();
+			cancelEdit();
+		} else if (e.key === 'Enter' && !e.shiftKey) {
+			e.preventDefault();
+			e.stopPropagation();
+			commitEdit();
+		}
+	}
+
+	function onEditBlur() {
+		// Small delay to allow click on dropdown options to register
+		setTimeout(() => {
+			if (editCell) commitEdit();
+		}, 150);
+	}
+
 	function onRowKey(e: KeyboardEvent, issue: Issue) {
 		if (e.key === 'Enter' || e.key === ' ') {
 			e.preventDefault();
@@ -344,21 +460,76 @@
 				>
 					{#each visibleCols as c (c.key)}
 						{@const def = TABLE_COLUMN_MAP[c.key]}
-						<div class="td" style="width: {widthOf(c.key)}px;" class:num={def.align === 'right'}>
+						{@const editable = EDITABLE_COLUMNS.has(c.key)}
+						{@const editing = isEditing(issue.id, c.key)}
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div
+							class="td"
+							style="width: {widthOf(c.key)}px;"
+							class:num={def.align === 'right'}
+							class:editable
+							class:editing
+							ondblclick={(e) => editable && onCellDblClick(e, issue, c.key)}
+						>
 							{#if c.key === 'seq'}
 								<span class="mono muted" title={issue.id}>#{issue.seq}</span>
 							{:else if c.key === 'title'}
-								<span class="cell-title">{issue.title}</span>
+								{#if editing}
+									<input
+										type="text"
+										class="edit-input"
+										bind:value={editValue}
+										onkeydown={onEditKeydown}
+										onblur={onEditBlur}
+										autofocus
+									/>
+								{:else}
+									<span class="cell-title">{issue.title}</span>
+								{/if}
 							{:else if c.key === 'status'}
-								{@const col = getIssueColumn(issue)}
-								<span class="pill" style="--c: {col.accent};"><span class="dot"></span>{col.label}</span>
+								{#if editing}
+									<select class="edit-select" bind:value={editValue} onkeydown={onEditKeydown} onblur={onEditBlur} autofocus>
+										{#each statusColumns as col (col.status)}
+											<option value={col.status}>{col.label}</option>
+										{/each}
+									</select>
+								{:else}
+									{@const col = getIssueColumn(issue)}
+									<span class="pill" style="--c: {col.accent};"><span class="dot"></span>{col.label}</span>
+								{/if}
 							{:else if c.key === 'priority'}
-								{@const p = getPriorityConfig(issue.priority)}
-								<span class="pill" style="--c: {p.color};"><span class="dot"></span>{p.label}</span>
+								{#if editing}
+									<select class="edit-select" bind:value={editValue} onkeydown={onEditKeydown} onblur={onEditBlur} autofocus>
+										{#each PRIORITY_OPTS as p (p.value)}
+											<option value={p.value}>{p.label}</option>
+										{/each}
+									</select>
+								{:else}
+									{@const p = getPriorityConfig(issue.priority)}
+									<span class="pill" style="--c: {p.color};"><span class="dot"></span>{p.label}</span>
+								{/if}
 							{:else if c.key === 'type'}
-								<span class="type"><Icon name={getTypeIcon(issue.issue_type)} size={12} />{issue.issue_type}</span>
+								{#if editing}
+									<select class="edit-select" bind:value={editValue} onkeydown={onEditKeydown} onblur={onEditBlur} autofocus>
+										{#each TYPE_OPTS as t (t)}
+											<option value={t}>{t}</option>
+										{/each}
+									</select>
+								{:else}
+									<span class="type"><Icon name={getTypeIcon(issue.issue_type)} size={12} />{issue.issue_type}</span>
+								{/if}
 							{:else if c.key === 'assignee'}
-								{#if issue.assignee}
+								{#if editing}
+									<input
+										type="text"
+										class="edit-input"
+										bind:value={editValue}
+										onkeydown={onEditKeydown}
+										onblur={onEditBlur}
+										placeholder="Unassigned"
+										autofocus
+									/>
+								{:else if issue.assignee}
 									<span class="assignee" class:agent={isAgentAssignee(issue.assignee)}>{issue.assignee}</span>
 								{:else}
 									<span class="muted">—</span>
@@ -773,6 +944,36 @@
 	}
 	.td.num {
 		justify-content: flex-end;
+	}
+	.td.editable {
+		cursor: default;
+	}
+	.td.editable:hover:not(.editing) {
+		background: var(--bg-elevated);
+	}
+	.td.editing {
+		padding: 0.25rem 0.375rem;
+	}
+
+	.edit-input,
+	.edit-select {
+		width: 100%;
+		height: 1.75rem;
+		padding: 0 0.5rem;
+		background: var(--surface-panel);
+		border: 1px solid var(--accent-primary);
+		border-radius: var(--radius-xs);
+		color: var(--text-primary);
+		font-family: inherit;
+		font-size: 0.8125rem;
+		outline: none;
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 20%, transparent);
+	}
+	.edit-input::placeholder {
+		color: var(--text-muted);
+	}
+	.edit-select {
+		cursor: pointer;
 	}
 
 	.cell-title {

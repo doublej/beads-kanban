@@ -982,6 +982,7 @@
 				onsortchange={(s) => settings.tableSort = s}
 				onbulkupdate={bulkUpdateIssues}
 				onbulkdelete={bulkDeleteIssues}
+				onupdate={(id, updates) => ops.updateIssue(id, updates)}
 			/>
 		</div>
 	{:else if viewMode === 'flow'}
