@@ -1,6 +1,6 @@
 {
   "name": "beads-kanban",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Kanban board UI for the Beads issue tracker with drag-and-drop and agent integration",
   "type": "module",
   "files": [
