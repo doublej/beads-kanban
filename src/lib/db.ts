@@ -4,14 +4,27 @@
  * Min bd version: see MIN_BD_VERSION in bd.ts.
  */
 import { spawnSync } from 'child_process';
-import { join, resolve } from 'path';
+import { basename, join, resolve } from 'path';
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import type { Issue, Dependency, MutationEntry, Attachment, Comment, AgentModel, AgentEffort } from './types';
 import { getMimetype } from './attachments';
 import { recordTouchedCwd } from './touched-cwds';
 import { bdEnv, unwrapBdJson } from './bd';
 
-const CONFIG_FILE = join(process.cwd(), '.beads-cwd');
+const CWD_FILE = process.env.BEADS_KANBAN_CWD_FILE || join(process.cwd(), '.beads-cwd');
+
+/** Resolve BD_DB env var to project root. If path ends with `.beads`, strip it. */
+function resolveBdDbFallback(): string | null {
+	const raw = process.env.BD_DB;
+	if (!raw) return null;
+	const resolved = resolve(raw);
+	if (!existsSync(resolved)) return null;
+	if (basename(resolved) === '.beads') {
+		const parent = resolve(resolved, '..');
+		return existsSync(parent) ? parent : null;
+	}
+	return resolved;
+}
 
 const doctorRanForCwd = new Set<string>();
 
@@ -23,15 +36,17 @@ export function markDoctorRan(cwd: string): boolean {
 }
 
 export function getStoredCwd(): string {
-	if (existsSync(CONFIG_FILE)) {
-		const stored = readFileSync(CONFIG_FILE, 'utf-8').trim();
+	if (existsSync(CWD_FILE)) {
+		const stored = readFileSync(CWD_FILE, 'utf-8').trim();
 		if (stored && existsSync(stored)) return stored;
 	}
+	const bdDb = resolveBdDbFallback();
+	if (bdDb) return bdDb;
 	return process.cwd();
 }
 
 export function setStoredCwd(path: string): void {
-	writeFileSync(CONFIG_FILE, path, 'utf-8');
+	writeFileSync(CWD_FILE, path, 'utf-8');
 }
 
 /** Resolve the project cwd from a request URL's ?project= param, falling back to getStoredCwd(). */
