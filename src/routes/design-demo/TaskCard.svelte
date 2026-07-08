@@ -39,7 +39,7 @@
 	class:has-fiber={!!fiber}
 	class:is-closed={issue.status === 'closed'}
 	style="--fiber: {fiberColor};"
-	onclick={() => onopen?.(issue.id)}
+	onclick={() => onopen?.(issue.key)}
 >
 	{#if fiber}<span class="fiber"></span>{/if}
 

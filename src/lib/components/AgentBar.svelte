@@ -30,7 +30,7 @@
 		agentEnabled: boolean;
 		isDarkMode: boolean;
 		agentToolsExpanded: boolean;
-		currentProjectPath: string;
+		activeProjectPath: string;
 		agentFirstMessage: string;
 		combinedSystemPrompt: string;
 		agentSystemPrompt: string;
@@ -87,7 +87,7 @@
 		agentEnabled,
 		isDarkMode,
 		agentToolsExpanded,
-		currentProjectPath,
+		activeProjectPath,
 		agentFirstMessage,
 		combinedSystemPrompt,
 		agentSystemPrompt,
@@ -120,7 +120,7 @@
 	}: Props = $props();
 
 	const nonManagerPaneCount = $derived(
-		[...wsPanes.values()].filter(p => !isManagerSession(p.name) && (p.projectCwd ?? p.cwd) === currentProjectPath).length
+		[...wsPanes.values()].filter(p => !isManagerSession(p.name) && (p.projectCwd ?? p.cwd) === activeProjectPath).length
 	);
 
 	// Report the collapsed bar's footprint so the layout can reserve matching space.
@@ -169,7 +169,7 @@
 		sessionSearchQuery = '';
 		loadingSdkSessions = true;
 		showSessionPicker = true;
-		sdkSessions = await onfetchsdksessions(currentProjectPath);
+		sdkSessions = await onfetchsdksessions(activeProjectPath);
 		loadingSdkSessions = false;
 	}
 
@@ -181,7 +181,7 @@
 		if (persistedId) {
 			resumePrompt = { name, sessionId: persistedId };
 		} else {
-			onaddpane(name, currentProjectPath, agentFirstMessage, combinedSystemPrompt);
+			onaddpane(name, activeProjectPath, agentFirstMessage, combinedSystemPrompt);
 			expandedPanes.add(name);
 			expandedPanes = new Set(expandedPanes);
 		}
@@ -191,7 +191,7 @@
 
 	function handleResume() {
 		if (!resumePrompt) return;
-		onaddpane(resumePrompt.name, currentProjectPath, agentFirstMessage, agentSystemPrompt, resumePrompt.sessionId);
+		onaddpane(resumePrompt.name, activeProjectPath, agentFirstMessage, agentSystemPrompt, resumePrompt.sessionId);
 		expandedPanes.add(resumePrompt.name);
 		expandedPanes = new Set(expandedPanes);
 		resumePrompt = null;
@@ -199,7 +199,7 @@
 
 	function handleFreshStart() {
 		if (!resumePrompt) return;
-		onaddpane(resumePrompt.name, currentProjectPath, agentFirstMessage, agentSystemPrompt);
+		onaddpane(resumePrompt.name, activeProjectPath, agentFirstMessage, agentSystemPrompt);
 		expandedPanes.add(resumePrompt.name);
 		expandedPanes = new Set(expandedPanes);
 		resumePrompt = null;
@@ -217,7 +217,7 @@
 	function handleSessionSelect(session: SdkSessionInfo) {
 		const name = session.agentName || session.sessionId.slice(0, 8);
 		const ticketId = extractTicketIdFromName(name);
-		onaddpane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, session.sessionId, ticketId);
+		onaddpane(name, activeProjectPath, agentFirstMessage, agentSystemPrompt, session.sessionId, ticketId);
 		expandedPanes.add(name);
 		expandedPanes = new Set(expandedPanes);
 		showSessionPicker = false;
@@ -354,7 +354,7 @@
 					<span class="manager-toggle-label">Manager</span>
 				</button>
 			{/if}
-			{#each [...wsPanes.values()].filter(p => !isManagerSession(p.name) && (p.projectCwd ?? p.cwd) === currentProjectPath) as pane}
+			{#each [...wsPanes.values()].filter(p => !isManagerSession(p.name) && (p.projectCwd ?? p.cwd) === activeProjectPath) as pane}
 				{@const unread = getUnreadCount(pane.name)}
 				{@const isExpanded = expandedPanes.has(pane.name)}
 				<div class="agent-tab-wrapper" class:active={isExpanded}>
@@ -418,7 +418,7 @@
 		onCyclePaneSize={oncyclePaneSize}
 		onRemovePane={onremovepane}
 		onMinimizePane={(name) => { expandedPanes.delete(name); expandedPanes = new Set(expandedPanes); }}
-		onSendMessage={(name, msg) => onsendtopane(name, msg, currentProjectPath)}
+		onSendMessage={(name, msg) => onsendtopane(name, msg, activeProjectPath)}
 		onMouseMove={onhandleMouseMove}
 		onMouseUp={onhandleMouseUp}
 		onEndSession={onendSession}
@@ -429,7 +429,7 @@
 			if (sessionId) {
 				onremovepane(name);
 				const ticketId = pane?.ticketId ?? extractTicketIdFromName(name);
-				onaddpane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, sessionId, ticketId);
+				onaddpane(name, activeProjectPath, agentFirstMessage, agentSystemPrompt, sessionId, ticketId);
 				expandedPanes.add(name);
 				expandedPanes = new Set(expandedPanes);
 			} else {
@@ -437,12 +437,12 @@
 			}
 		}}
 		onCompactSession={oncompactSession}
-		onFetchSessions={() => onfetchsdksessions(currentProjectPath)}
+		onFetchSessions={() => onfetchsdksessions(activeProjectPath)}
 		onResumeSession={(name, sessionId) => {
 			const pane = wsPanes.get(name);
 			onremovepane(name);
 			const ticketId = pane?.ticketId ?? extractTicketIdFromName(name);
-			onaddpane(name, currentProjectPath, agentFirstMessage, agentSystemPrompt, sessionId, ticketId);
+			onaddpane(name, activeProjectPath, agentFirstMessage, agentSystemPrompt, sessionId, ticketId);
 			expandedPanes.add(name);
 			expandedPanes = new Set(expandedPanes);
 		}}

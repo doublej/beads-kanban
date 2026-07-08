@@ -54,7 +54,7 @@
 
 	// Drop selections that scroll out of the current filtered/sorted view.
 	$effect(() => {
-		const present = new Set(issues.map((i) => i.id));
+		const present = new Set(issues.map((i) => i.key));
 		if ([...selectedIds].some((id) => !present.has(id))) {
 			selectedIds = new Set([...selectedIds].filter((id) => present.has(id)));
 		}
@@ -62,28 +62,28 @@
 
 	function onRowClick(e: MouseEvent, issue: Issue, index: number) {
 		if (e.shiftKey) {
-			const anchorIdx = anchorId ? rows.findIndex((r) => r.id === anchorId) : -1;
+			const anchorIdx = anchorId ? rows.findIndex((r) => r.key === anchorId) : -1;
 			if (anchorIdx === -1) {
-				selectedIds = new Set([issue.id]);
-				anchorId = issue.id;
+				selectedIds = new Set([issue.key]);
+				anchorId = issue.key;
 			} else {
 				const [lo, hi] = anchorIdx <= index ? [anchorIdx, index] : [index, anchorIdx];
 				const next = new Set<string>();
-				for (let k = lo; k <= hi; k++) next.add(rows[k].id);
+				for (let k = lo; k <= hi; k++) next.add(rows[k].key);
 				selectedIds = next;
 			}
 			return;
 		}
 		if (e.metaKey || e.ctrlKey) {
 			const next = new Set(selectedIds);
-			if (next.has(issue.id)) next.delete(issue.id);
-			else next.add(issue.id);
+			if (next.has(issue.key)) next.delete(issue.key);
+			else next.add(issue.key);
 			selectedIds = next;
-			anchorId = issue.id;
+			anchorId = issue.key;
 			return;
 		}
 		selectedIds = new Set();
-		anchorId = issue.id;
+		anchorId = issue.key;
 		onselect(issue);
 	}
 
@@ -284,11 +284,11 @@
 				{#if oncreate}<button class="create-btn" onclick={oncreate}><Icon name="plus" size={13} /> New issue</button>{/if}
 			</div>
 		{:else}
-			{#each rows as issue, i (issue.id)}
+			{#each rows as issue, i (issue.key)}
 				<div
 					class="tr"
-					class:selected={issue.id === selectedId}
-					class:bulk-selected={selectedIds.has(issue.id)}
+					class:selected={issue.key === selectedId}
+					class:bulk-selected={selectedIds.has(issue.key)}
 					class:closed={issue.status === 'closed'}
 					role="button"
 					tabindex="0"

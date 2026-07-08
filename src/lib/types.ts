@@ -12,6 +12,8 @@ export type AgentEffort = '' | 'low' | 'medium' | 'high';
 
 export interface Issue {
 	id: string;
+	key: string;
+	projectPath: string;
 	seq: number;
 	title: string;
 	description: string;
@@ -51,6 +53,10 @@ export interface Issue {
 	_showDesign?: boolean;
 	_showAcceptance?: boolean;
 	_showNotes?: boolean;
+}
+
+export function issueKey(projectPath: string, id: string): string {
+	return `${projectPath}:${id}`;
 }
 
 export interface Comment {

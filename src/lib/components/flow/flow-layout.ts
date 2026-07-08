@@ -1,5 +1,5 @@
 import { MarkerType, type Node, type Edge } from '@xyflow/svelte';
-import type { Issue } from '$lib/types';
+import { issueKey, type Issue } from '$lib/types';
 import { columns, getPriorityConfig } from '$lib/utils';
 import type { FlowLayout, GroupDim } from './flow-context';
 
@@ -30,21 +30,22 @@ interface OrderedGroup {
 
 /** Build the topology (edges) once — independent of the chosen layout. */
 function buildEdges(list: Issue[]): { directed: { source: string; target: string }[]; edges: Edge[] } {
-	const idSet = new Set(list.map((i) => i.id));
+	const keyByProjectAndId = new Map(list.map((i) => [issueKey(i.projectPath, i.id), i.key]));
 	const directed: { source: string; target: string }[] = [];
 	const related: { source: string; target: string; type: string }[] = [];
 	const relatedSeen = new Set<string>();
 
 	for (const issue of list) {
 		for (const dep of issue.dependencies ?? []) {
-			if (!idSet.has(dep.id) || dep.id === issue.id) continue;
+			const depKey = keyByProjectAndId.get(issueKey(issue.projectPath, dep.id));
+			if (!depKey || dep.id === issue.id) continue;
 			if (dep.dependency_type === 'blocks') {
-				directed.push({ source: dep.id, target: issue.id });
+				directed.push({ source: depKey, target: issue.key });
 			} else {
-				const key = [issue.id, dep.id].sort().join('~') + ':' + dep.dependency_type;
+				const key = [issue.key, depKey].sort().join('~') + ':' + dep.dependency_type;
 				if (relatedSeen.has(key)) continue;
 				relatedSeen.add(key);
-				related.push({ source: dep.id, target: issue.id, type: dep.dependency_type });
+				related.push({ source: depKey, target: issue.key, type: dep.dependency_type });
 			}
 		}
 	}
@@ -103,7 +104,7 @@ function computeLayers(ids: Set<string>, edges: { source: string; target: string
 
 /** Dependency layout: longest-path layered LR graph with isolated nodes below. */
 function depsNodes(list: Issue[], directed: { source: string; target: string }[]): Node[] {
-	const seqOf = new Map(list.map((i) => [i.id, i.seq]));
+	const seqOf = new Map(list.map((i) => [i.key, i.seq]));
 	const connected = new Set<string>();
 	for (const e of directed) {
 		connected.add(e.source);
@@ -128,21 +129,21 @@ function depsNodes(list: Issue[], directed: { source: string; target: string }[]
 		colIds.forEach((id, row) => pos.set(id, { x: l * X_GAP, y: row * Y_GAP }));
 	}
 
-	const isolated = list.filter((i) => !connected.has(i.id)).sort((a, b) => a.seq - b.seq);
+	const isolated = list.filter((i) => !connected.has(i.key)).sort((a, b) => a.seq - b.seq);
 	const perRow = Math.max(4, maxLayer + 1);
 	const isoTop = connected.size ? maxRows * Y_GAP + ISO_GAP : 0;
 	isolated.forEach((iss, idx) => {
-		pos.set(iss.id, {
+		pos.set(iss.key, {
 			x: (idx % perRow) * X_GAP,
 			y: isoTop + Math.floor(idx / perRow) * Y_GAP
 		});
 	});
 
 	return list.map((issue) => ({
-		id: issue.id,
+		id: issue.key,
 		type: 'ticket',
-		position: pos.get(issue.id) ?? { x: 0, y: 0 },
-		data: { issueId: issue.id }
+		position: pos.get(issue.key) ?? { x: 0, y: 0 },
+		data: { issueId: issue.key }
 	}));
 }
 
@@ -211,7 +212,7 @@ function dimGroups(list: Issue[], dim: GroupDim): OrderedGroup[] {
 		key,
 		label,
 		color,
-		ids: (map.get(key) ?? []).slice().sort(byPriorityThenSeq).map((i) => i.id)
+		ids: (map.get(key) ?? []).slice().sort(byPriorityThenSeq).map((i) => i.key)
 	});
 
 	// Fixed-order dimensions.
@@ -280,7 +281,7 @@ function ageGroups(list: Issue[]): OrderedGroup[] {
 		key: b.key,
 		label: b.label,
 		color: b.color,
-		ids: (map.get(b.key) ?? []).slice().sort(byCreatedDesc).map((i) => i.id)
+		ids: (map.get(b.key) ?? []).slice().sort(byCreatedDesc).map((i) => i.key)
 	}));
 }
 

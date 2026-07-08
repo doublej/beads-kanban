@@ -6,7 +6,7 @@
 import { spawnSync } from 'child_process';
 import { basename, join, resolve } from 'path';
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
-import type { Issue, Dependency, MutationEntry, Attachment, Comment, AgentModel, AgentEffort } from './types';
+import { issueKey, type Issue, type Dependency, type MutationEntry, type Attachment, type Comment, type AgentModel, type AgentEffort } from './types';
 import { getMimetype } from './attachments';
 import { recordTouchedCwd } from './touched-cwds';
 import { bdEnv, unwrapBdJson } from './bd';
@@ -261,13 +261,16 @@ function mapExportIssue(
 	seqMap: Map<string, number>,
 	depsMap: Map<string, DepView[]>,
 	dependentsMap: Map<string, DepView[]>,
-	attachmentsMap: Map<string, Attachment[]>
+	attachmentsMap: Map<string, Attachment[]>,
+	projectPath: string
 ): Issue {
 	const meta = parseMetadata(r.metadata);
 	const dependencies = depsMap.get(r.id) ?? [];
 	const dependents = dependentsMap.get(r.id) ?? [];
 	return {
 		id: r.id,
+		key: issueKey(projectPath, r.id),
+		projectPath,
 		seq: seqMap.get(r.id) ?? 0,
 		title: r.title,
 		description: r.description ?? '',
@@ -299,6 +302,7 @@ function mapExportIssue(
 export function getAllIssues(cwd?: string): Issue[] {
 	const rows = bdExport(cwd).filter((r) => r.status !== 'tombstone');
 	const byId = new Map(rows.map((r) => [r.id, r]));
+	const projectPath = cwd ?? getStoredCwd();
 
 	// seq mirrors `ROW_NUMBER() OVER (ORDER BY created_at)`: the oldest issue is 1.
 	const seqMap = new Map<string, number>();
@@ -323,7 +327,52 @@ export function getAllIssues(cwd?: string): Issue[] {
 
 	return rows
 		.sort((a, b) => b.priority - a.priority || cmp(b.created_at, a.created_at))
-		.map((r) => mapExportIssue(r, seqMap, depsMap, dependentsMap, attachmentsMap));
+		.map((r) => mapExportIssue(r, seqMap, depsMap, dependentsMap, attachmentsMap, projectPath));
+}
+
+/**
+ * Load issues from multiple project directories, annotating each with projectPath.
+ * result is deduplicated by project path only; same-id issues from different projects
+ * remain distinct because they belong to different dbs.
+ * @param projects — array of absolute project root paths
+ */
+export function getAllIssuesMulti(projects: string[]): Issue[] {
+	const seen = new Set<string>();
+	const result: Issue[] = [];
+
+	for (const project of projects) {
+		if (!project || seen.has(project)) continue;
+		seen.add(project);
+
+		const rows = bdExport(project).filter((r) => r.status !== 'tombstone');
+		const byId = new Map(rows.map((r) => [r.id, r]));
+
+		const seqMap = new Map<string, number>();
+		[...rows]
+			.sort((a, b) => cmp(a.created_at, b.created_at) || cmp(a.id, b.id))
+			.forEach((r, i) => seqMap.set(r.id, i + 1));
+
+		const depsMap = new Map<string, DepView[]>();
+		const dependentsMap = new Map<string, DepView[]>();
+		for (const r of rows) {
+			for (const d of r.dependencies ?? []) {
+				const target = byId.get(d.depends_on_id);
+				if (target) pushInto(depsMap, d.issue_id, { id: d.depends_on_id, title: target.title, status: target.status, dependency_type: d.type });
+				const source = byId.get(d.issue_id);
+				if (source) pushInto(dependentsMap, d.depends_on_id, { id: d.issue_id, title: source.title, status: source.status, dependency_type: d.type });
+			}
+		}
+
+		const attachmentsMap = getAllAttachments(project);
+
+		result.push(
+			...rows
+				.sort((a, b) => b.priority - a.priority || cmp(b.created_at, a.created_at))
+				.map((r) => mapExportIssue(r, seqMap, depsMap, dependentsMap, attachmentsMap, project))
+		);
+	}
+
+	return result;
 }
 
 export function getIssueById(id: string, cwd?: string): Issue | null {

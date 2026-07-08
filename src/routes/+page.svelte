@@ -56,6 +56,7 @@
 	import { getManagerVisible, getManagerSessionName, isManagerSession } from '$lib/stores/manager.svelte';
 	import { startManager, switchManagerProject, setServerProject } from '$lib/stores/ws-connection.svelte';
 	import { getQueueItems, getQueuedTicketIds, fetchInitialQueue } from '$lib/stores/queue.svelte';
+	import { kanban, toggleProject, setActiveProject, loadProjects as loadKanbanProjects } from '$lib/stores/kanban.svelte';
 
 	// --- UI State (page-only) ---
 	let bdVersion = $state<{ version: string; compatible: boolean } | null>(null);
@@ -93,7 +94,6 @@
 	let showSettings = $state(false);
 	let showWizard = $state(browser && !localStorage.getItem('beads-wizard-complete'));
 	let showPrompts = $state(false);
-	let projectName = $state('');
 	let teleports = $state<{id: string; from: {x: number; y: number; w: number; h: number}; to: {x: number; y: number; w: number; h: number}; startTime: number}[]>([]);
 	let placeholders = $state<{id: string; targetColumn: string; height: number}[]>([]);
 	let cardRefs = $state<Map<string, HTMLElement>>(new Map());
@@ -107,10 +107,10 @@
 	let lastAppliedDefaultView = $state<ViewMode | null>(null);
 	let lastAppliedDefaultSort = $state<SortBy | null>(null);
 	let showMutationLog = $state(false);
-	let projects = $state<Project[]>([]);
+	let projects = $derived(kanban.projects);
+	let trackedProjects = $derived(kanban.trackedProjects);
+	let activeProject = $derived(kanban.activeProject);
 	let showProjectSwitcher = $state(false);
-	let currentProjectPath = $state('');
-	let projectColor = $state('#6366f1');
 	let projectTransition = $state<'idle' | 'wipe-out' | 'wipe-in'>('idle');
 	let collapsedColumns = $derived(settings.collapsedColumns);
 	let currentRecipeId = $state<string | null>(null);
@@ -123,7 +123,6 @@
 		const urlProject = new URL(window.location.href).searchParams.get('project');
 		if (urlProject) {
 			setCurrentProject(urlProject);
-			currentProjectPath = urlProject;
 		}
 	}
 
@@ -131,7 +130,7 @@
 	let queueColumnCollapsed = $state(false);
 	let runningAgents = $derived.by(() => {
 		const sessions = Array.from(getSessions().values());
-		return sessions.filter(s => s.ticketId && !s.ended && (s.projectCwd ?? s.cwd) === currentProjectPath);
+		return sessions.filter(s => s.ticketId && !(s as typeof s & { ended?: boolean }).ended && (s.projectCwd ?? s.cwd) === (activeProject?.path || ''));
 	});
 	let worktreeTicketIds = $derived.by(() => {
 		const ids = new Set<string>();
@@ -214,7 +213,8 @@
 		issueStore,
 		getIssues: () => issues,
 		getWsPanes: () => wsPanes,
-		getCurrentProjectPath: () => currentProjectPath,
+		getCurrentProjectPath: () => activeProject?.path || '',
+		setActiveProjectPath: (path) => setActiveProjectByPath(path),
 		getSelectedId: () => selectedId,
 		setSelectedId: (id) => { selectedId = id; },
 		getExpandedPanes: () => expandedPanes,
@@ -223,7 +223,7 @@
 
 	let serverQueue = $derived(getQueueItems());
 	let queuedTicketIds = $derived(getQueuedTicketIds());
-	let scopedServerQueue = $derived(serverQueue.filter(item => item.cwd === currentProjectPath));
+	let scopedServerQueue = $derived(serverQueue.filter(item => item.cwd === (activeProject?.path || '')));
 	let totalQueueCount = $derived(scopedServerQueue.length + runningAgents.length);
 	let mappedAgentQueue = $derived(scopedServerQueue.map(item => ({
 		ticketId: item.ticketId,
@@ -240,7 +240,7 @@
 		setActiveColumnIndex: (idx) => { activeColumnIndex = idx; },
 		closePanel: ops.closePanel,
 		onQueueDrop: (issueId) => {
-			const issue = issues.find(i => i.id === issueId);
+			const issue = issues.find(i => i.key === issueId);
 			if (issue) ops.startAgentForIssue(issue);
 		},
 		onQueueItemDropToColumn: (ticketId) => {
@@ -269,8 +269,9 @@
 	let wsConnected = $state(false);
 	let wsPanes = $state<Map<string, Pane>>(new Map());
 	let managerSession = $derived.by(() => {
-		if (!currentProjectPath) return null;
-		const sessionName = getManagerSessionName(currentProjectPath);
+		const activeProjectPath = activeProject?.path || '';
+		if (!activeProjectPath) return null;
+		const sessionName = getManagerSessionName(activeProjectPath);
 		return wsPanes.get(sessionName) ?? null;
 	});
 	let lastPanesJson = '';
@@ -308,7 +309,7 @@
 
 	// --- Zen focus review ---
 	function openZenReview(ids?: string[], startIndex?: number) {
-		const list = ids && ids.length ? ids : filteredIssues.map((i) => i.id);
+		const list = ids && ids.length ? ids : filteredIssues.map((i) => i.key);
 		if (!list.length) return;
 		zenIds = list;
 		const seeded = startIndex ?? (selectedId ? list.indexOf(selectedId) : -1);
@@ -320,7 +321,10 @@
 	// The param is consumed (stripped) so a refresh/close doesn't force it back.
 	function consumeZenParam(raw: string) {
 		const wanted = raw.split(',').map((s) => s.trim()).filter(Boolean);
-		const valid = wanted.filter((id) => issues.some((i) => i.id === id));
+		const valid = wanted
+			.map((id) => issues.find((issue) => issue.key === id) ?? issues.find((issue) => issue.id === id && issue.projectPath === (activeProject?.path || '')))
+			.filter((issue): issue is Issue => !!issue)
+			.map((issue) => issue.key);
 		const list = valid.length ? valid : wanted;
 		if (list.length) openZenReview(list, 0);
 		if (browser) {
@@ -393,6 +397,11 @@
 		ops.sortMenuOpen = null;
 	}
 
+	function updateCreateForm(key: string, value: unknown) {
+		if (!(key in ops.createForm)) return;
+		ops.createForm[key as keyof typeof ops.createForm] = value as never;
+	}
+
 	async function startAgentServer() {
 		try {
 			await fetch('/api/agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'start' }) });
@@ -455,7 +464,7 @@
 	// --- Per-project view state: hydrate on project change, persist on edit ---
 	$effect(() => {
 		if (!browser) return;
-		const path = currentProjectPath;
+		const path = activeProject?.path || '';
 		if (!path) return;
 		untrack(() => {
 			try {
@@ -474,7 +483,7 @@
 	$effect(() => {
 		if (!browser) return;
 		const state = captureCurrentViewState();
-		const path = currentProjectPath;
+		const path = activeProject?.path || '';
 		// Only persist once the active project's state has been hydrated,
 		// so we never overwrite it with defaults during a project switch.
 		if (!path || path !== hydratedProject) return;
@@ -500,17 +509,72 @@
 	});
 
 	// --- Lifecycle effects ---
-	$effect(() => {
-		const source = untrack(() => issueStore.connectSSE());
-		return () => source.close();
-	});
+	async function loadTrackedIssues() {
+		if (trackedProjects.length === 0) {
+			issueStore.setIssues([]);
+			issueStore.initialLoaded = true;
+			return;
+		}
+		const res = await fetch(`/api/issues?projects=${encodeURIComponent(trackedProjects.map(p => p.path).join(','))}`);
+		const payload = await res.json();
+		const data = payload?.ok ? payload.data : { issues: [] };
+		if (data?.bdVersion) bdVersion = data.bdVersion;
+		issueStore.setIssues(data.issues || []);
+		issueStore.initialLoaded = true;
+	}
+
+	function setActiveProjectByPath(path: string) {
+		const project = trackedProjects.find(p => p.path === path) || projects.find(p => p.path === path) || null;
+		if (project) activateProject(project);
+	}
+
+	function activateProject(project: Project) {
+		setActiveProject(project);
+		setCurrentProject(project.path);
+	}
+
+	async function selectProject(project: Project) {
+		if (trackedProjects.some(p => p.path === project.path)) {
+			activateProject(project);
+			return;
+		}
+		await handleToggleProject(project);
+	}
 
 	$effect(() => {
 		if (!browser) return;
-		fetch(appendProjectParam('/api/issues')).then(r => r.json()).then(payload => {
-			const data = payload?.ok ? payload.data : null;
-			if (data?.bdVersion) bdVersion = data.bdVersion;
-		}).catch(() => {});
+		const paths = trackedProjects.map(project => project.path);
+		if (paths.length === 0) {
+			if (typeof issueStore.closeSse === 'function') issueStore.closeSse();
+			issueStore.setIssues([]);
+			return;
+		}
+		const trackedPaths = new Set(paths);
+		void loadTrackedIssues();
+		const sources = trackedProjects.map(project => {
+			const source = new EventSource(`/api/events/stream?project=${encodeURIComponent(project.path)}`);
+			source.onmessage = (event) => {
+				let msg: { type?: string; metadata?: { cwd?: string } };
+				try { msg = JSON.parse(event.data); } catch { return; }
+				const cwd = msg.metadata?.cwd;
+				if (cwd && !trackedPaths.has(cwd)) return;
+				void loadTrackedIssues();
+			};
+			source.onerror = () => {
+				source.close();
+				setTimeout(() => {
+					if (trackedPaths.size > 0) {
+						const replacement = new EventSource(`/api/events/stream?project=${encodeURIComponent(project.path)}`);
+						replacement.onmessage = source.onmessage;
+						replacement.onerror = source.onerror;
+						const idx = sources.indexOf(source);
+						if (idx !== -1) sources[idx] = replacement;
+					}
+				}, 3000);
+			};
+			return source;
+		});
+		return () => sources.forEach(source => source.close());
 	});
 
 	$effect(() => {
@@ -523,9 +587,10 @@
 	$effect(() => {
 		if (!browser) return;
 		if (!wsConnected) return;
-		if (!currentProjectPath) return;
-		setServerProject(currentProjectPath);
-		fetchInitialQueue(9347, currentProjectPath);
+		const activeProjectPath = activeProject?.path || '';
+		if (!activeProjectPath) return;
+		setServerProject(activeProjectPath);
+		fetchInitialQueue(9347, activeProjectPath);
 	});
 
 	let initialUrlChecked = false;
@@ -540,47 +605,12 @@
 	});
 
 	async function initProject(urlProject: string | null) {
-		let cwd: string;
-		let name: string;
-
-		if (urlProject) {
-			// URL specifies the project — switch server default to match
-			const res = await fetch('/api/cwd', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ path: urlProject })
-			});
-			const payload = await res.json();
-			const data = payload?.ok ? payload.data : {};
-			cwd = data.cwd || urlProject;
-			name = data.name || cwd.split('/').pop() || 'project';
-		} else {
-			// No URL param — get current from server
-			const res = await fetch('/api/cwd');
-			const payload = await res.json();
-			const data = payload?.ok ? payload.data : {};
-			cwd = data.cwd;
-			name = data.name || cwd.split('/').pop() || 'project';
-			setCurrentProject(cwd);
-		}
-
-		projectName = name;
-		currentProjectPath = cwd;
-
-		const projRes = await fetch('/api/projects', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ path: cwd, name })
-		});
-		const projPayload = await projRes.json();
-		const projData = projPayload?.ok ? projPayload.data : {};
-		if (projData.projects) {
-			projects = projData.projects;
-			const current = projects.find((p: Project) => p.path === cwd);
-			if (current) {
-				projectColor = current.color;
-				projectName = current.name || name;
-			}
+		await loadKanbanProjects();
+		if (projects.length) {
+			const current = (urlProject ? projects.find((p: Project) => p.path === urlProject) : null) || activeProject || projects[0] || null;
+			if (current && !trackedProjects.some(p => p.path === current.path)) await toggleProject(current);
+			if (current) activateProject(current);
+			await loadTrackedIssues();
 		}
 	}
 
@@ -590,46 +620,36 @@
 		initProject(urlProject);
 	});
 
-	async function switchProject(project: Project) {
-		if (project.path === currentProjectPath) return;
+	async function handleToggleProject(project: Project) {
 		const WIPE_DURATION = 350;
 		projectTransition = 'wipe-out';
 		issueStore.closeSse();
-
-		// Update frontend project context BEFORE API calls so appendProjectParam works
-		setCurrentProject(project.path);
-		currentProjectPath = project.path;
+		const wasTracked = trackedProjects.some(p => p.path === project.path);
+		await toggleProject(project);
+		if (!wasTracked) activateProject(project);
 
 		// Switch manager to new project (if visible, it will auto-resume or start new session)
-		switchManagerProject(project.path);
+		if (activeProject) switchManagerProject(activeProject.path);
 
 		// Flip backend fence to new project immediately so broadcasts filter correctly.
-		setServerProject(project.path);
-		fetchInitialQueue(9347, project.path);
+		if (activeProject) {
+			setServerProject(activeProject.path);
+			fetchInitialQueue(9347, activeProject.path);
+		}
 
-		const [cwdRes] = await Promise.all([
-			fetch('/api/cwd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: project.path }) }),
-			new Promise(r => setTimeout(r, WIPE_DURATION))
-		]);
-		if (!cwdRes.ok) { projectTransition = 'idle'; return; }
-		const issuesRes = await fetch(appendProjectParam('/api/issues'));
-		const issuesPayload = await issuesRes.json();
-		const issuesData = issuesPayload?.ok ? issuesPayload.data : { issues: [] };
-		issueStore.setIssues(issuesData.issues || []);
-		projectName = project.name;
-		projectColor = project.color;
+		await Promise.all([loadTrackedIssues(), new Promise(r => setTimeout(r, WIPE_DURATION))]);
 		issueStore.initialLoaded = true;
 		selectedId = null;
 		ops.editingIssue = null;
 		ops.isCreating = false;
 		projectTransition = 'wipe-in';
-		issueStore.connectSSE();
 
 		// Update URL to include project param
 		const url = new URL(window.location.href);
-		url.searchParams.set('project', project.path);
+		if (activeProject) url.searchParams.set('project', activeProject.path);
+		else url.searchParams.delete('project');
 		url.searchParams.delete('issue');
-		svelteKitPushState(url.pathname + url.search, { project: project.path });
+		svelteKitPushState(url.pathname + url.search, { project: activeProject?.path });
 
 		await new Promise(r => setTimeout(r, WIPE_DURATION));
 		projectTransition = 'idle';
@@ -638,9 +658,9 @@
 	function handlePopState(e: PopStateEvent) {
 		const url = new URL(window.location.href);
 		const urlProject = url.searchParams.get('project');
-		if (urlProject && urlProject !== currentProjectPath) {
+		if (urlProject && urlProject !== (activeProject?.path || '')) {
 			const project = projects.find(p => p.path === urlProject);
-			if (project) switchProject(project);
+			if (project) handleToggleProject(project);
 			return;
 		}
 		ops.handlePopState(e);
@@ -733,15 +753,16 @@
 
 <svelte:window onkeydown={handleKeydown} onkeyup={handleKeyup} onpopstate={handlePopState} onclick={ops.closeContextMenu} onmousemove={ops.handleMouseMove} onmouseup={ops.handleMouseUp} onblur={handleWindowBlur} />
 
-<div class="app scheme-{colorScheme}" class:light={!isDarkMode} class:panel-open={ops.panelOpen} class:show-hotkeys={showHotkeys || settings.alwaysShowHotkeys} class:has-chat-bar={wsConnected && showActivityBar} style="--project-color: {projectColor}; --chat-bar-space: {chatBarReserve}px">
+<div class="app scheme-{colorScheme}" class:light={!isDarkMode} class:panel-open={ops.panelOpen} class:show-hotkeys={showHotkeys || settings.alwaysShowHotkeys} class:has-chat-bar={wsConnected && showActivityBar} style="--project-color: {activeProject?.color || '#6366f1'}; --chat-bar-space: {chatBarReserve}px">
 
 {#if ops.contextMenu}
+	{@const menu = ops.contextMenu}
 	<ContextMenu
-		x={ops.contextMenu.x}
-		y={ops.contextMenu.y}
-		issue={ops.contextMenu.issue}
-		onSetPriority={(p) => ops.setIssuePriority(ops.contextMenu.issue.id, p)}
-		onStartRopeDrag={(e) => ops.startRopeDrag(e, ops.contextMenu.issue.id)}
+		x={menu.x}
+		y={menu.y}
+		issue={menu.issue}
+		onSetPriority={(p) => ops.setIssuePriority(menu.issue.key, p as Issue['priority'])}
+		onStartRopeDrag={(e) => ops.startRopeDrag(e, menu.issue.key)}
 		onClose={ops.closeContextMenu}
 	/>
 {/if}
@@ -761,23 +782,25 @@
 
 <ProjectSwitcher
 	bind:show={showProjectSwitcher}
-	{projects}
-	currentPath={currentProjectPath}
-	onselect={switchProject}
-	onclose={() => showProjectSwitcher = false}
-/>
+		{projects}
+		{trackedProjects}
+		activePath={activeProject?.path || ''}
+		onselect={selectProject}
+		onactivate={activateProject}
+		onclose={() => showProjectSwitcher = false}
+	/>
 
-<MutationLog
-	show={showMutationLog}
-	onclose={() => showMutationLog = false}
-	onticketclick={(id) => {
-		const issue = issues.find(i => i.id === id);
-		if (issue) ops.openEditPanel(issue);
-	}}
-/>
+	<MutationLog
+		show={showMutationLog}
+		onclose={() => showMutationLog = false}
+		onticketclick={(id) => {
+			const issue = issues.find(i => i.id === id && i.projectPath === (activeProject?.path || ''));
+			if (issue) ops.openEditPanel(issue);
+		}}
+	/>
 
 <KeyboardHelp bind:show={showKeyboardHelp} />
-<SetupWizard bind:show={showWizard} {isDarkMode} {projectName} ontoggleTheme={toggleTheme} oncomplete={() => {}} />
+<SetupWizard bind:show={showWizard} {isDarkMode} projectName={activeProject?.name || ''} ontoggleTheme={toggleTheme} oncomplete={() => {}} />
 <SettingsPane
 	bind:show={showSettings}
 	bind:showPrompts
@@ -806,7 +829,7 @@
 		ontogglefilters={() => settings.sidebarCollapsed = !settings.sidebarCollapsed}
 		bind:viewMode
 		{isDarkMode}
-		{projectName}
+		projectName={activeProject?.name || ''}
 		totalIssues={issues.length}
 		agentPaneCount={wsPanes.size}
 		showAgentPanes={showActivityBar}
@@ -935,10 +958,10 @@
 		</main>
 		</div>
 		{#if getManagerVisible() && managerSession}
-			{#key currentProjectPath}
+			{#key activeProject?.path || ''}
 				<ManagerPane
 					session={managerSession}
-					onSendMessage={(name, msg) => sendToPane(name, msg, currentProjectPath)}
+					onSendMessage={(name, msg) => sendToPane(name, msg, activeProject?.path || '')}
 					onInterrupt={interrupt}
 					disabled={!wsConnected}
 				/>
@@ -1004,7 +1027,7 @@
 	agentEnabled={settings.agentEnabled}
 	{isDarkMode}
 	agentToolsExpanded={settings.agentToolsExpanded}
-	{currentProjectPath}
+	activeProjectPath={activeProject?.path || ''}
 	agentFirstMessage={settings.agentFirstMessage}
 	combinedSystemPrompt={settings.combinedSystemPrompt}
 	agentSystemPrompt={settings.agentSystemPrompt}
@@ -1027,7 +1050,7 @@
 	oninterrupt={interrupt}
 	managerEnabled={settings.managerEnabled}
 	{managerSession}
-	onstartmanager={() => startManager(currentProjectPath)}
+	onstartmanager={() => startManager(activeProject?.path || '')}
 	onstartDrag={startDrag}
 	onstartResize={startResize}
 	oncyclePaneSize={cyclePaneSize}
@@ -1091,7 +1114,7 @@
 		onpaneltouchstart={cardDrag.handlePanelTouchStart}
 		onpaneltouchmove={cardDrag.handlePanelTouchMove}
 		onpaneltouchend={cardDrag.handlePanelTouchEnd}
-		updatecreateform={(key, value) => ops.createForm[key] = value}
+		updatecreateform={updateCreateForm}
 		updatenewlabel={(value) => ops.newLabelInput = value}
 		ondismissclosedwarning={() => ops.issueClosedExternally = false}
 		updatenewcomment={(value) => ops.newComment = value}

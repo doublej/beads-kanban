@@ -35,7 +35,7 @@
 		const cur = editingIssue.labels || [];
 		const add = cur.filter(l => !originalLabels.includes(l));
 		const rm = originalLabels.filter(l => !cur.includes(l));
-		onsave(editingIssue.id, { ...editingIssue, addLabels: add, removeLabels: rm } as any);
+		onsave(editingIssue.key, { ...editingIssue, addLabels: add, removeLabels: rm } as any);
 		onclose();
 	}
 </script>
@@ -57,7 +57,7 @@
 	</footer>
 {:else if editingIssue}
 	<footer class="footer">
-		<button class="btn-danger" onclick={() => ondelete?.(editingIssue.id)}><Icon name="trash" size={13} />Delete</button>
+		<button class="btn-danger" onclick={() => ondelete?.(editingIssue.key)}><Icon name="trash" size={13} />Delete</button>
 		<div class="footer-actions">
 			{#if agentEnabled && onstartagent && editingIssue.status !== 'closed'}
 				<button class="btn-agent" onclick={() => onstartagent(editingIssue)} title="Start agent to work on this issue">

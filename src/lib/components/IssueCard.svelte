@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Issue } from '$lib/types';
 	import { getPriorityConfig, isAgentAssignee as checkAgentAssignee } from '$lib/utils';
+	import { kanban } from '$lib/stores/kanban.svelte';
 	import IssueCardBadges from './IssueCardBadges.svelte';
 	import IssueCardMeta from './IssueCardMeta.svelte';
 
@@ -45,6 +46,7 @@
 	}: Props = $props();
 
 	const priorityConfig = $derived(getPriorityConfig(issue.priority));
+	const projectColor = $derived(kanban.trackedProjects.find(p => p.path === issue.projectPath)?.color || '#6366f1');
 
 	const isAgentAssignee = $derived(checkAgentAssignee(issue.assignee));
 </script>
@@ -61,15 +63,15 @@
 	class:filter-dimmed={filterDimmed}
 	class:flying-hidden={flyingHidden}
 	class:shrinking-source={shrinkingSource}
-	style="--priority-color: {priorityConfig.color}"
+	style="--priority-color: {priorityConfig.color}; --project-accent: {projectColor}"
 	draggable="true"
 	ondragstart={ondragstart}
 	ondragend={ondragend}
 	onclick={onclick}
 	onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') onclick(); }}
 	oncontextmenu={oncontextmenu}
-	use:registerCard={issue.id}
-	data-card-id={issue.id}
+	use:registerCard={issue.key}
+	data-card-id={issue.key}
 >
 	<div class="card-content">
 		<IssueCardBadges {issue} {hasOpenBlockers} {showImpact} {isAgentAssignee} {inWorktree} {oncopyid} />
@@ -89,6 +91,7 @@
 		margin: 2px 4px;
 		background: var(--surface-card);
 		border: 1px solid var(--border-subtle);
+		border-left: 3px solid var(--project-accent);
 		border-radius: var(--radius-sm);
 		cursor: pointer;
 		transition:

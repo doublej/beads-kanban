@@ -1,17 +1,8 @@
 import { browser } from '$app/environment';
 import { pushState as svelteKitPushState } from '$app/navigation';
 import { fetchMutations } from '$lib/mutationStore.svelte';
-import { appendProjectParam } from '$lib/project';
-import type { Issue, Comment, Attachment } from '$lib/types';
+import { issueKey, type Issue, type Comment, type Attachment } from '$lib/types';
 import { getIssueColumn, columns, getColumnMoveUpdates } from '$lib/utils';
-import {
-	loadComments as loadCommentsApi,
-	loadAttachmentsApi,
-	uploadAttachmentApi,
-	deleteAttachmentApi,
-	setIssueStateApi,
-	promoteWispApi
-} from '$lib/api';
 import { formatTicketDelivery as formatTicketDeliveryFn } from '$lib/agent/ticket-delivery';
 import type { TicketDeliveryData } from '$lib/agent/ticket-delivery';
 import { toastQueue } from '$lib/notifications/toast-queue.svelte';
@@ -33,6 +24,7 @@ export interface PageOpsContext {
 	getIssues: () => Issue[];
 	getWsPanes: () => Map<string, Pane>;
 	getCurrentProjectPath: () => string;
+	setActiveProjectPath?: (path: string) => void;
 	getSelectedId: () => string | null;
 	setSelectedId: (id: string | null) => void;
 	getExpandedPanes: () => Set<string>;
@@ -76,8 +68,22 @@ export function createPageOps(ctx: PageOpsContext) {
 
 	// --- Helpers ---
 
+	function getIssueByKey(key: string): Issue | undefined {
+		return ctx.getIssues().find((issue) => issue.key === key);
+	}
+
+	function getIssueByIdentity(idOrKey: string): Issue | undefined {
+		return getIssueByKey(idOrKey)
+			?? ctx.getIssues().find((issue) => issue.id === idOrKey && issue.projectPath === ctx.getCurrentProjectPath());
+	}
+
 	function getIssueTitle(id: string): string {
-		return ctx.getIssues().find(i => i.id === id)?.title ?? id;
+		return ctx.getIssues().find((issue) => issue.id === id && issue.projectPath === ctx.getCurrentProjectPath())?.title ?? id;
+	}
+
+	function appendProjectPath(url: string, path: string): string {
+		const separator = url.includes('?') ? '&' : '?';
+		return `${url}${separator}project=${encodeURIComponent(path)}`;
 	}
 
 	function getEffectiveModel(issue: Issue): string | undefined {
@@ -174,19 +180,20 @@ export function createPageOps(ctx: PageOpsContext) {
 		}
 		isCreating = false;
 		createForm = { title: '', description: '', priority: 2, issue_type: 'task', deps: [] };
+		if (issue.projectPath) ctx.setActiveProjectPath?.(issue.projectPath);
 		editingIssue = { ...issue, labels: issue.labels ? [...issue.labels] : [] };
 		originalLabels = issue.labels ? [...issue.labels] : [];
 		const col = getIssueColumn(issue);
 		const idx = columns.findIndex(c => c.key === col.key);
 		panelColumnIndex = idx >= 0 ? idx : 0;
-		ctx.setSelectedId(issue.id);
+		ctx.setSelectedId(issue.key);
 		comments = [];
-		loadComments(issue.id);
-		loadAttachments(issue.id);
+		loadComments(issue.key);
+		loadAttachments(issue.key);
 		if (browser && pushState) {
 			const url = new URL(window.location.href);
-			url.searchParams.set('issue', issue.id);
-			svelteKitPushState(url, { issue: issue.id });
+			url.searchParams.set('issue', issue.key);
+			svelteKitPushState(url, { issue: issue.key });
 		}
 	}
 
@@ -225,7 +232,7 @@ export function createPageOps(ctx: PageOpsContext) {
 	}
 
 	function openIssueById(id: string, pushState = true) {
-		const issue = ctx.getIssues().find(i => i.id === id);
+		const issue = getIssueByIdentity(id);
 		if (issue) {
 			openEditPanel(issue, pushState);
 			return;
@@ -274,7 +281,11 @@ export function createPageOps(ctx: PageOpsContext) {
 		// Optimistic: replace any existing label for this dimension with the new value.
 		const others = (editingIssue.labels || []).filter(l => !l.startsWith(`${dimension}:`));
 		editingIssue.labels = [...others, `${dimension}:${value}`];
-		await setIssueStateApi(id, dimension, value, reason);
+		await fetch(appendProjectPath(`/api/issues/${id}/state`, editingIssue.projectPath), {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ dimension, value, reason })
+		});
 	}
 
 	/** Promote the open wisp to a permanent bead (bd promote). */
@@ -282,14 +293,24 @@ export function createPageOps(ctx: PageOpsContext) {
 		if (!editingIssue || !editingIssue.ephemeral) return;
 		const id = editingIssue.id;
 		editingIssue.ephemeral = undefined; // optimistic
-		await promoteWispApi(id, reason);
+		await fetch(appendProjectPath(`/api/issues/${id}/promote`, editingIssue.projectPath), {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ reason })
+		});
 	}
 
 	// --- Comments ---
 
 	async function loadComments(issueId: string) {
 		loadingComments = true;
-		const res = await fetch(appendProjectParam(`/api/issues/${issueId}/comments`));
+		const issue = getIssueByKey(issueId) || (editingIssue?.key === issueId ? editingIssue : null);
+		if (!issue) {
+			comments = [];
+			loadingComments = false;
+			return;
+		}
+		const res = await fetch(appendProjectPath(`/api/issues/${issue.id}/comments`, issue.projectPath));
 		const payload = await res.json();
 		comments = payload?.ok ? (payload.data?.comments ?? []) : [];
 		loadingComments = false;
@@ -298,7 +319,7 @@ export function createPageOps(ctx: PageOpsContext) {
 	async function addComment() {
 		if (!editingIssue || !newComment.trim()) return;
 		const commentText = newComment.trim();
-		await fetch(appendProjectParam(`/api/issues/${editingIssue.id}/comments`), {
+		await fetch(appendProjectPath(`/api/issues/${editingIssue.id}/comments`, editingIssue.projectPath), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ text: commentText })
@@ -310,7 +331,7 @@ export function createPageOps(ctx: PageOpsContext) {
 			{ ticketTitle: editingIssue.title, sender: 'user' }
 		);
 		newComment = '';
-		await loadComments(editingIssue.id);
+		await loadComments(editingIssue.key);
 		fetchMutations();
 	}
 
@@ -318,13 +339,28 @@ export function createPageOps(ctx: PageOpsContext) {
 
 	async function loadAttachments(issueId: string) {
 		loadingAttachments = true;
-		attachments = await loadAttachmentsApi(issueId);
+		const issue = getIssueByKey(issueId) || (editingIssue?.key === issueId ? editingIssue : null);
+		if (!issue) {
+			attachments = [];
+			loadingAttachments = false;
+			return;
+		}
+		const res = await fetch(appendProjectPath(`/api/issues/${issue.id}/attachments`, issue.projectPath));
+		const payload = await res.json();
+		attachments = payload?.ok ? (payload.data?.attachments ?? []) : [];
 		loadingAttachments = false;
 	}
 
 	async function handleUploadAttachment(file: File) {
 		if (!editingIssue) return;
-		const attachment = await uploadAttachmentApi(editingIssue.id, file);
+		const formData = new FormData();
+		formData.append('file', file);
+		const res = await fetch(appendProjectPath(`/api/issues/${editingIssue.id}/attachments`, editingIssue.projectPath), {
+			method: 'POST',
+			body: formData
+		});
+		const payload = await res.json();
+		const attachment = payload?.ok ? (payload.data?.attachment ?? null) : null;
 		if (attachment) {
 			attachments = [...attachments, attachment];
 			notifyTicket(editingIssue.id, `Attachment added: ${file.name}`, 'attachment', { ticketTitle: editingIssue.title, sender: 'user' });
@@ -333,7 +369,9 @@ export function createPageOps(ctx: PageOpsContext) {
 
 	async function handleDeleteAttachment(filename: string) {
 		if (!editingIssue) return;
-		await deleteAttachmentApi(editingIssue.id, filename);
+		await fetch(appendProjectPath(`/api/issues/${editingIssue.id}/attachments/${encodeURIComponent(filename)}`, editingIssue.projectPath), {
+			method: 'DELETE'
+		});
 		attachments = attachments.filter(a => a.filename !== filename);
 		notifyTicket(editingIssue.id, `Attachment removed: ${filename}`, 'attachment', { ticketTitle: editingIssue.title, sender: 'user' });
 	}
@@ -362,12 +400,14 @@ export function createPageOps(ctx: PageOpsContext) {
 			const maxSeq = ctx.getIssues().reduce((max, i) => Math.max(max, i.seq ?? 0), 0);
 			const newIssue: Issue = {
 				id: newId,
+				key: issueKey(cwd, newId),
 				seq: maxSeq + 1,
 				title: savedForm.title,
 				description: savedForm.description || '',
 				status: 'open',
 				priority: (savedForm.priority || 2) as Issue["priority"],
-				issue_type: savedForm.issue_type || 'task'
+				issue_type: savedForm.issue_type || 'task',
+				projectPath: cwd
 			};
 			const briefing = formatTicketDelivery(agentName, { issue: newIssue });
 			launchOrConflict(newId, agentName, cwd, newIssue, briefing);
@@ -380,7 +420,7 @@ export function createPageOps(ctx: PageOpsContext) {
 
 	async function deleteIssue(id: string) {
 		const deleted = await ctx.issueStore.deleteIssue(id);
-		if (deleted && editingIssue?.id === id) editingIssue = null;
+		if (deleted && editingIssue?.key === id) editingIssue = null;
 	}
 
 	// --- Agent operations ---
@@ -403,10 +443,16 @@ export function createPageOps(ctx: PageOpsContext) {
 	async function startAgentForIssue(issue: Issue) {
 		const agentName = `${issue.id}-agent`;
 		const cwd = ctx.getCurrentProjectPath();
-		const [issueComments, issueAttachments] = await Promise.all([
-			loadCommentsApi(issue.id),
-			loadAttachmentsApi(issue.id)
+		const [commentsRes, attachmentsRes] = await Promise.all([
+			fetch(appendProjectPath(`/api/issues/${issue.id}/comments`, issue.projectPath)),
+			fetch(appendProjectPath(`/api/issues/${issue.id}/attachments`, issue.projectPath))
 		]);
+		const [commentsPayload, attachmentsPayload] = await Promise.all([
+			commentsRes.json(),
+			attachmentsRes.json()
+		]);
+		const issueComments = commentsPayload?.ok ? (commentsPayload.data?.comments ?? []) : [];
+		const issueAttachments = attachmentsPayload?.ok ? (attachmentsPayload.data?.attachments ?? []) : [];
 		const briefing = formatTicketDelivery(agentName, { issue, comments: issueComments, attachments: issueAttachments });
 
 		if (launchOrConflict(issue.id, agentName, cwd, issue, briefing)) {
@@ -475,9 +521,10 @@ export function createPageOps(ctx: PageOpsContext) {
 	}
 
 	function openTicketFromPane(ticketId: string) {
-		const issue = ctx.getIssues().find(i => i.id === ticketId);
+		const issue = ctx.getIssues().find((i) => i.id === ticketId && i.projectPath === ctx.getCurrentProjectPath());
 		if (issue) {
 			editingIssue = issue;
+			ctx.setSelectedId(issue.key);
 			isCreating = false;
 		}
 	}
@@ -519,7 +566,7 @@ export function createPageOps(ctx: PageOpsContext) {
 			ropeDrag = { ...ropeDrag, currentX: e.clientX, currentY: e.clientY };
 			const elements = document.elementsFromPoint(e.clientX, e.clientY);
 			const card = elements.find(el => el.classList.contains('card')) as HTMLElement | null;
-			const targetId = card?.querySelector('.card-id')?.textContent?.trim() || null;
+			const targetId = card?.dataset.cardId || null;
 			if (targetId && targetId !== ropeDrag.fromId) {
 				ropeDrag = { ...ropeDrag, targetId };
 			} else {
@@ -554,10 +601,16 @@ export function createPageOps(ctx: PageOpsContext) {
 	async function confirmDependency(depType: string) {
 		if (!pendingDep) return;
 		const { fromId, toId } = pendingDep;
-		const { createDependencyApi } = await import('$lib/api');
-		await createDependencyApi(fromId, toId, depType);
-		notifyTicket(fromId, `Dependency added: ${depType} → ${toId}`, 'dependency', { ticketTitle: getIssueTitle(fromId), sender: 'user' });
-		notifyTicket(toId, `Dependency added: ${fromId} ${depType} this`, 'dependency', { ticketTitle: getIssueTitle(toId), sender: 'user' });
+		const fromIssue = getIssueByKey(fromId);
+		const toIssue = getIssueByKey(toId);
+		if (!fromIssue) return;
+		await fetch(appendProjectPath(`/api/issues/${fromIssue.id}/deps`, fromIssue.projectPath), {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ depends_on: toIssue?.id ?? toId, dep_type: depType })
+		});
+		notifyTicket(fromIssue.id, `Dependency added: ${depType} → ${toIssue?.id ?? toId}`, 'dependency', { ticketTitle: getIssueTitle(fromIssue.id), sender: 'user' });
+		if (toIssue) notifyTicket(toIssue.id, `Dependency added: ${fromIssue.id} ${depType} this`, 'dependency', { ticketTitle: getIssueTitle(toIssue.id), sender: 'user' });
 		closeContextMenu();
 	}
 
@@ -566,26 +619,32 @@ export function createPageOps(ctx: PageOpsContext) {
 	}
 
 	async function createDependency(fromId: string, toId: string) {
-		const res = await fetch(appendProjectParam(`/api/issues/${fromId}/deps`), {
+		const fromIssue = getIssueByKey(fromId);
+		const toIssue = getIssueByKey(toId);
+		if (!fromIssue) return;
+		const res = await fetch(appendProjectPath(`/api/issues/${fromIssue.id}/deps`, fromIssue.projectPath), {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ depends_on: toId, dep_type: 'blocks' })
+			body: JSON.stringify({ depends_on: toIssue?.id ?? toId, dep_type: 'blocks' })
 		});
 		const payload = await res.json();
 		if (!res.ok || !payload?.ok) {
 			console.error('Failed to create dependency:', payload?.error?.message);
 			return;
 		}
-		notifyTicket(fromId, `Dependency added: blocks → ${toId}`, 'dependency', { ticketTitle: getIssueTitle(fromId), sender: 'user' });
-		notifyTicket(toId, `Dependency added: ${fromId} blocks this`, 'dependency', { ticketTitle: getIssueTitle(toId), sender: 'user' });
+		notifyTicket(fromIssue.id, `Dependency added: blocks → ${toIssue?.id ?? toId}`, 'dependency', { ticketTitle: getIssueTitle(fromIssue.id), sender: 'user' });
+		if (toIssue) notifyTicket(toIssue.id, `Dependency added: ${fromIssue.id} blocks this`, 'dependency', { ticketTitle: getIssueTitle(toIssue.id), sender: 'user' });
 		closeContextMenu();
 	}
 
 	async function removeDependency(issueId: string, dependsOnId: string) {
-		const res = await fetch(appendProjectParam(`/api/issues/${issueId}/deps`), {
+		const issue = getIssueByKey(issueId) || (editingIssue?.key === issueId ? editingIssue : null);
+		const dependsOnIssue = getIssueByKey(dependsOnId);
+		if (!issue) return;
+		const res = await fetch(appendProjectPath(`/api/issues/${issue.id}/deps`, issue.projectPath), {
 			method: 'DELETE',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ depends_on: dependsOnId })
+			body: JSON.stringify({ depends_on: dependsOnIssue?.id ?? dependsOnId })
 		});
 		const payload = await res.json();
 		if (!res.ok || !payload?.ok) {
@@ -594,14 +653,14 @@ export function createPageOps(ctx: PageOpsContext) {
 		}
 		if (editingIssue) {
 			if (editingIssue.dependencies) {
-				editingIssue.dependencies = editingIssue.dependencies.filter(d => d.id !== dependsOnId);
+				editingIssue.dependencies = editingIssue.dependencies.filter(d => d.id !== (dependsOnIssue?.id ?? dependsOnId));
 			}
 			if (editingIssue.dependents) {
-				editingIssue.dependents = editingIssue.dependents.filter(d => d.id !== issueId);
+				editingIssue.dependents = editingIssue.dependents.filter(d => d.id !== issue.id);
 			}
 		}
-		notifyTicket(issueId, `Dependency removed: → ${dependsOnId}`, 'dependency', { ticketTitle: getIssueTitle(issueId), sender: 'user' });
-		notifyTicket(dependsOnId, `Dependency removed: ${issueId} no longer blocks`, 'dependency', { ticketTitle: getIssueTitle(dependsOnId), sender: 'user' });
+		notifyTicket(issue.id, `Dependency removed: → ${dependsOnIssue?.id ?? dependsOnId}`, 'dependency', { ticketTitle: getIssueTitle(issue.id), sender: 'user' });
+		if (dependsOnIssue) notifyTicket(dependsOnIssue.id, `Dependency removed: ${issue.id} no longer blocks`, 'dependency', { ticketTitle: getIssueTitle(dependsOnIssue.id), sender: 'user' });
 	}
 
 	return {

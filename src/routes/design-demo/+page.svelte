@@ -10,7 +10,7 @@
 	let openId = $state<string | null>(null);
 	let newOpen = $state(false);
 
-	const openIssue = $derived(openId ? demoIssues.find((i) => i.id === openId) ?? null : null);
+	const openIssue = $derived(openId ? demoIssues.find((i) => i.key === openId) ?? null : null);
 
 	function openIssueById(id: string) { newOpen = false; openId = id; }
 	function closeAll() { openId = null; newOpen = false; }
@@ -63,13 +63,13 @@
 					<span class="col-count mono">{issues.length}</span>
 				</header>
 				<div class="col-body">
-					{#each issues as issue (issue.id)}
+					{#each issues as issue (issue.key)}
 						<TaskCard
 							{issue}
 							pinned={pinnedIds.has(issue.id)}
 							worktree={worktreeIds.has(issue.id)}
 							impact={impactScores[issue.id] ?? 0}
-							selected={openId === issue.id}
+							selected={openId === issue.key}
 							onopen={openIssueById}
 						/>
 					{/each}
@@ -85,7 +85,7 @@
 	<NewIssuePane open={newOpen} onclose={closeAll} />
 
 	{#if openIssue}
-		{#key openIssue.id}
+		{#key openIssue.key}
 			<DetailPanel issue={openIssue} onclose={closeAll} />
 		{/key}
 	{/if}

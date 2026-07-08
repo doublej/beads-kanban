@@ -26,7 +26,7 @@
 
 	let { issues, selectedId = null, isDark = true, onselect }: Props = $props();
 
-	const issueMap = $derived(new Map(issues.map((i) => [i.id, i])));
+	const issueMap = $derived(new Map(issues.map((i) => [i.key, i])));
 
 	setContext<FlowContext>(FLOW_CTX, {
 		getIssue: (id) => issueMap.get(id),
@@ -45,7 +45,7 @@
 		const topo = issues
 			.map(
 				(i) =>
-					`${i.id}#${(i.dependencies ?? [])
+					`${i.key}#${(i.dependencies ?? [])
 						.map((d) => `${d.id}:${d.dependency_type}`)
 						.sort()
 						.join(',')}`
@@ -55,8 +55,8 @@
 		if (layout === 'deps') return `deps|${topo}`;
 		const field =
 			layout === 'timeline'
-				? issues.map((i) => `${i.id}:${i.created_at ?? ''}`).sort().join(',')
-				: issues.map((i) => `${i.id}:${clusterField(i)}`).sort().join(',');
+				? issues.map((i) => `${i.key}:${i.created_at ?? ''}`).sort().join(',')
+				: issues.map((i) => `${i.key}:${clusterField(i)}`).sort().join(',');
 		return `${layout}:${groupDim}|${topo}|${field}`;
 	});
 

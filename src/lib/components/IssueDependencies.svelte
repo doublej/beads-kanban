@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Issue, Dependency } from '$lib/types';
+	import { issueKey, type Issue, type Dependency } from '$lib/types';
 	import { getDepTypeConfig } from '$lib/utils';
 	import Icon from './Icon.svelte';
 
@@ -32,7 +32,7 @@
 					<span class="rel-status" class:open={rel.status === 'open'} class:in-progress={rel.status === 'in_progress'} class:closed={rel.status === 'closed'}></span>
 					<span class="rel-id">{rel.id}</span>
 					<span class="rel-title">{rel.title}</span>
-					<button class="rel-x" onclick={() => rel.direction === 'blocked-by' ? onremovedep(editingIssue.id, rel.id) : onremovedep(rel.id, editingIssue.id)}>×</button>
+					<button class="rel-x" onclick={() => rel.direction === 'blocked-by' ? onremovedep(editingIssue.key, rel.id) : onremovedep(issueKey(editingIssue.projectPath, rel.id), editingIssue.id)}>×</button>
 				</div>
 			{/each}
 		</div>

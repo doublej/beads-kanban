@@ -135,24 +135,24 @@
 			{#each allColumnIssues as issue, idx}
 				{@const isBlocked = hasOpenBlockers(issue)}
 				{@const matchesFilter = issueMatchesFilters(issue)}
-				{@const isFlying = flyingCards.has(issue.id)}
-				{@const isShrinking = shrinkingSourceIds.has(issue.id)}
+				{@const isFlying = flyingCards.has(issue.key)}
+				{@const isShrinking = shrinkingSourceIds.has(issue.key)}
 				{@const shouldHide = hasActiveFilters && !isFilterPreviewing && !matchesFilter}
 				{#if !shouldHide}
 					<IssueCard
 						{issue}
-						selected={selectedId === issue.id}
-						dragging={draggedId === issue.id}
-						animating={animatingIds.has(issue.id)}
+						selected={selectedId === issue.key}
+						dragging={draggedId === issue.key}
+						animating={animatingIds.has(issue.key)}
 						hasOpenBlockers={isBlocked}
-						editing={editingIssue?.id === issue.id}
+						editing={editingIssue?.key === issue.key}
 						filterDimmed={hasActiveFilters && isFilterPreviewing && !matchesFilter}
 						flyingHidden={isFlying}
 						shrinkingSource={isShrinking}
 						inWorktree={worktreeTicketIds?.has(issue.id) ?? false}
 						{registerCard}
 						onclick={() => oncardclick(issue)}
-						ondragstart={(e) => oncarddragstart(e, issue.id)}
+						ondragstart={(e) => oncarddragstart(e, issue.key)}
 						ondragend={oncarddragend}
 						oncontextmenu={(e) => oncardcontextmenu(e, issue)}
 						oncopyid={(id) => oncopyid(id, id)}

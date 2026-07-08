@@ -1,6 +1,6 @@
-import type { Issue, LoadingStatus } from '$lib/types';
+import { issueKey, type Issue, type LoadingStatus } from '$lib/types';
 import { fetchMutations } from '$lib/mutationStore.svelte';
-import { appendProjectParam } from '$lib/project';
+import { appendProjectParam, getCurrentProject } from '$lib/project';
 
 export interface IssueStoreCallbacks {
 	onNewIssue: (issue: Issue) => void;
@@ -35,14 +35,18 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 	let initialLoaded = $state(false);
 	let sseSource = $state<EventSource | null>(null);
 
+	function getIssueByKey(key: string): Issue | undefined {
+		return issues.find((issue) => issue.key === key);
+	}
+
 	function mergeWithPendingUpdates(sseIssues: Issue[]): Issue[] {
 		const now = Date.now();
 		const PENDING_TIMEOUT = 10000;
 
-		const filtered = sseIssues.filter(issue => !pendingDeletes.has(issue.id));
+		const filtered = sseIssues.filter(issue => !pendingDeletes.has(issue.key));
 
 		// Clean up confirmed deletes
-		const sseIds = new Set(sseIssues.map(i => i.id));
+		const sseIds = new Set(sseIssues.map(i => i.key));
 		const originalSize = pendingDeletes.size;
 		for (const id of pendingDeletes) {
 			if (!sseIds.has(id)) pendingDeletes.delete(id);
@@ -52,7 +56,7 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 		}
 
 		return filtered.map(issue => {
-			const pending = pendingUpdates.get(issue.id);
+			const pending = pendingUpdates.get(issue.key);
 			if (!pending) return issue;
 
 			const record = issue as unknown as Record<string, unknown>;
@@ -61,7 +65,7 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 			);
 
 			if (isConfirmed || now - pending.timestamp > PENDING_TIMEOUT) {
-				pendingUpdates.delete(issue.id);
+				pendingUpdates.delete(issue.key);
 				pendingUpdates = new Map(pendingUpdates);
 				return issue;
 			}
@@ -74,11 +78,11 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 		const statusChanges: { id: string; newStatus: string }[] = [];
 
 		for (const issue of data.issues) {
-			const oldIssue = oldIssuesMap.get(issue.id);
+			const oldIssue = oldIssuesMap.get(issue.key);
 			if (!oldIssue) {
 				callbacks.onNewIssue(issue);
 			} else if (oldIssue.status !== issue.status) {
-				statusChanges.push({ id: issue.id, newStatus: issue.status });
+				statusChanges.push({ id: issue.key, newStatus: issue.status });
 				callbacks.onStatusChange(issue, oldIssue.status);
 			}
 		}
@@ -110,7 +114,7 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 		setTimeout(() => {
 			for (const { id, fromPos, toPos } of measurements) {
 				if (toPos && fromPos) {
-					const issue = issues.find(i => i.id === id);
+					const issue = issues.find(i => i.key === id);
 					callbacks.addFlyingCard(id, fromPos, toPos, issue!);
 					callbacks.addTeleport(id, fromPos, toPos);
 				}
@@ -129,7 +133,7 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 		const editing = callbacks.getEditingIssue();
 		if (!editing || callbacks.getIsCreating()) return;
 
-		const updated = data.issues.find((i: Issue) => i.id === editing.id);
+		const updated = data.issues.find((i: Issue) => i.key === editing.key);
 		if (updated && updated.status === 'closed' && editing.status !== 'closed') {
 			callbacks.onEditingIssueClosedExternally();
 		}
@@ -139,7 +143,13 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 	let lastSnapshotHash = '';
 
 	function snapshotHash(items: Issue[]): string {
-		return items.map((i) => `${i.id}:${i.updated_at ?? ''}:${i.status}`).join('|');
+		return items.map((i) => `${i.key}:${i.updated_at ?? ''}:${i.status}`).join('|');
+	}
+
+	function appendIssueProjectParam(url: string, issue?: Issue | null): string {
+		const path = issue?.projectPath || getCurrentProject();
+		const separator = url.includes('?') ? '&' : '?';
+		return `${url}${separator}project=${encodeURIComponent(path)}`;
 	}
 
 	async function refreshIssues() {
@@ -172,7 +182,7 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 			}
 			if (!hasChanges) return;
 
-			const oldIssuesMap = new Map(issues.map((i) => [i.id, i]));
+			const oldIssuesMap = new Map(issues.map((i) => [i.key, i]));
 			checkEditingIssueClosed(data);
 			handleStatusChanges(data, oldIssuesMap);
 		} catch (e) {
@@ -213,7 +223,7 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 	}
 
 	async function updateIssue(id: string, updates: Partial<Issue>) {
-		const original = issues.find(i => i.id === id);
+		const original = getIssueByKey(id);
 		const title = original?.title ?? id;
 
 		// Track pending update
@@ -221,14 +231,14 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 		pendingUpdates = new Map(pendingUpdates);
 
 		// Optimistic update
-		const idx = issues.findIndex(i => i.id === id);
+		const idx = issues.findIndex(i => i.key === id);
 		if (idx !== -1) {
 			const updated = { ...issues[idx], ...updates, updated_at: new Date().toISOString() };
 			issues = [...issues.slice(0, idx), updated, ...issues.slice(idx + 1)];
 		}
 		addAnimatingId(id);
 
-		await fetch(appendProjectParam(`/api/issues/${id}`), {
+		await fetch(appendIssueProjectParam(`/api/issues/${original?.id ?? id}`, original), {
 			method: 'PATCH',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(updates)
@@ -250,12 +260,13 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 
 	async function deleteIssue(id: string): Promise<boolean> {
 		if (!confirm('Delete this issue permanently?')) return false;
+		const original = getIssueByKey(id);
 		addAnimatingId(id);
 		pendingDeletes.add(id);
 		pendingDeletes = new Set(pendingDeletes);
-		issues = issues.filter(i => i.id !== id);
+		issues = issues.filter(i => i.key !== id);
 
-		await fetch(appendProjectParam(`/api/issues/${id}`), { method: 'DELETE' });
+		await fetch(appendIssueProjectParam(`/api/issues/${original?.id ?? id}`, original), { method: 'DELETE' });
 		fetchMutations();
 		return true;
 	}
@@ -268,6 +279,7 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 		const maxSeq = issues.reduce((max, i) => Math.max(max, i.seq ?? 0), 0);
 		const tempIssue: Issue = {
 			id: tempId,
+			key: issueKey(getCurrentProject(), tempId),
 			seq: maxSeq + 1,
 			title: form.title,
 			description: form.description,
@@ -277,6 +289,7 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 			labels: [],
 			dependencies: [],
 			dependents: [],
+			projectPath: getCurrentProject(),
 			created_at: new Date().toISOString(),
 			updated_at: new Date().toISOString()
 		};

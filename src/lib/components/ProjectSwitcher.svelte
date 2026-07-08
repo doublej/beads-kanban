@@ -4,18 +4,24 @@
 	interface Props {
 		show: boolean;
 		projects: Project[];
-		currentPath: string;
+		trackedProjects: Project[];
+		activePath: string;
 		onselect: (project: Project) => void;
+		onactivate: (project: Project) => void;
 		onclose: () => void;
 	}
 
 	let {
 		show = $bindable(),
 		projects,
-		currentPath,
+		trackedProjects,
+		activePath,
 		onselect,
+		onactivate,
 		onclose
 	}: Props = $props();
+
+	const trackedPaths = $derived(new Set(trackedProjects.map(project => project.path)));
 
 	let selectedIndex = $state(0);
 
@@ -24,8 +30,8 @@
 		const sorted = [...projects].sort((a, b) =>
 			new Date(b.lastAccess).getTime() - new Date(a.lastAccess).getTime()
 		);
-		// Move current project to front
-		const currentIdx = sorted.findIndex(p => p.path === currentPath);
+		// Move active project to front
+		const currentIdx = sorted.findIndex(p => p.path === activePath);
 		if (currentIdx > 0) {
 			const current = sorted.splice(currentIdx, 1)[0];
 			sorted.unshift(current);
@@ -52,7 +58,7 @@
 		} else if (e.key === 'Enter' || e.key === 'Tab') {
 			e.preventDefault();
 			const project = sortedProjects()[selectedIndex];
-			if (project && project.path !== currentPath) {
+			if (project) {
 				onselect(project);
 			}
 			onclose();
@@ -64,9 +70,13 @@
 
 	function selectProject(project: Project, idx: number) {
 		selectedIndex = idx;
-		if (project.path !== currentPath) {
-			onselect(project);
-		}
+		onselect(project);
+		onclose();
+	}
+
+	function activateProject(project: Project, event: MouseEvent) {
+		event.stopPropagation();
+		onactivate(project);
 		onclose();
 	}
 </script>
@@ -90,11 +100,13 @@
 
 		<div class="projects-list">
 			{#each sortedProjects() as project, i}
-				{@const isCurrent = project.path === currentPath}
+				{@const isTracked = trackedPaths.has(project.path)}
+				{@const isActive = project.path === activePath}
 				{@const isSelected = i === selectedIndex}
 				<div
 					class="project-item"
-					class:current={isCurrent}
+					class:current={isActive}
+					class:tracked={isTracked}
 					class:selected={isSelected}
 					style="--project-color: {project.color};"
 					onclick={() => selectProject(project, i)}
@@ -108,8 +120,12 @@
 						<span class="project-name">{project.name}</span>
 						<span class="project-path">{project.path}</span>
 					</div>
-					{#if isCurrent}
-						<span class="current-badge">current</span>
+					{#if isActive}
+						<span class="current-badge">active</span>
+					{:else if isTracked}
+						<button class="current-badge" type="button" onclick={(e) => activateProject(project, e)}>make active</button>
+					{:else}
+						<span class="current-badge">add</span>
 					{/if}
 				</div>
 			{/each}

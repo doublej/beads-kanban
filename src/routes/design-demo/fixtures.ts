@@ -6,6 +6,7 @@ const ago = (mins: number) => new Date(now - mins * 60_000).toISOString();
 export const demoIssues: Issue[] = [
 	{
 		id: 'bk-0142',
+		key: 'demo:bk-0142',
 		seq: 142,
 		title: 'Login button silently fails after 2FA timeout',
 		description:
@@ -13,6 +14,7 @@ export const demoIssues: Issue[] = [
 		status: 'in_progress',
 		priority: 0,
 		issue_type: 'bug',
+		projectPath: '',
 		created_at: ago(60 * 24 * 3),
 		updated_at: ago(45),
 		assignee: 'agent-claude-1',
@@ -45,6 +47,7 @@ export const demoIssues: Issue[] = [
 	},
 	{
 		id: 'bk-0138',
+		key: 'demo:bk-0138',
 		seq: 138,
 		title: 'Cannot save draft when offline',
 		description:
@@ -52,6 +55,7 @@ export const demoIssues: Issue[] = [
 		status: 'blocked',
 		priority: 1,
 		issue_type: 'bug',
+		projectPath: '',
 		created_at: ago(60 * 24 * 5),
 		updated_at: ago(60 * 24),
 		assignee: 'jurre',
@@ -66,12 +70,14 @@ export const demoIssues: Issue[] = [
 	},
 	{
 		id: 'bk-0145',
+		key: 'demo:bk-0145',
 		seq: 145,
 		title: 'Add CSV export to reports',
 		description: 'Users have asked for a flat CSV export of the reports view, mirroring the visible columns.',
 		status: 'open',
 		priority: 2,
 		issue_type: 'feature',
+		projectPath: '',
 		created_at: ago(60 * 12),
 		updated_at: ago(60 * 12),
 		labels: ['reports'],
@@ -79,6 +85,7 @@ export const demoIssues: Issue[] = [
 	},
 	{
 		id: 'bk-0150',
+		key: 'demo:bk-0150',
 		seq: 150,
 		title: 'Refactor the column accent system',
 		description:
@@ -86,6 +93,7 @@ export const demoIssues: Issue[] = [
 		status: 'hooked',
 		priority: 2,
 		issue_type: 'chore',
+		projectPath: '',
 		created_at: ago(60 * 24 * 2),
 		updated_at: ago(60 * 6),
 		assignee: 'agent-claude-2',
@@ -95,12 +103,14 @@ export const demoIssues: Issue[] = [
 	},
 	{
 		id: 'bk-0124',
+		key: 'demo:bk-0124',
 		seq: 124,
 		title: 'Onboarding flow checkpoint',
 		description: 'Three-step onboarding for new workspaces. Track sub-tasks here.',
 		status: 'open',
 		priority: 1,
 		issue_type: 'epic',
+		projectPath: '',
 		created_at: ago(60 * 24 * 7),
 		updated_at: ago(60 * 24),
 		labels: ['onboarding', 'q2-goal'],
@@ -109,12 +119,14 @@ export const demoIssues: Issue[] = [
 	},
 	{
 		id: 'bk-0102',
+		key: 'demo:bk-0102',
 		seq: 102,
 		title: 'Avatar uploads return 500 for large PNGs',
 		description: 'Fixed in 1.4.2. Patched the multipart parser to handle files >5 MB and added a backpressure test.',
 		status: 'closed',
 		priority: 1,
 		issue_type: 'bug',
+		projectPath: '',
 		created_at: ago(60 * 24 * 14),
 		updated_at: ago(60 * 24 * 2),
 		closed_at: ago(60 * 24 * 2),

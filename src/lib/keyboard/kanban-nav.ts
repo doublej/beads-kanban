@@ -33,7 +33,7 @@ function getCardGrid(filteredIssues: Issue[]): Issue[][] {
 function findCardPosition(filteredIssues: Issue[], id: string): { col: number; row: number } | null {
 	const grid = getCardGrid(filteredIssues);
 	for (let col = 0; col < grid.length; col++) {
-		const row = grid[col].findIndex(i => i.id === id);
+		const row = grid[col].findIndex(i => i.key === id);
 		if (row !== -1) return { col, row };
 	}
 	return null;
@@ -44,7 +44,7 @@ function getCardAt(filteredIssues: Issue[], col: number, row: number): string | 
 	if (col < 0 || col >= grid.length) return null;
 	const column = grid[col];
 	if (row < 0 || row >= column.length) return null;
-	return column[row]?.id ?? null;
+	return column[row]?.key ?? null;
 }
 
 function isInputElement(target: EventTarget | null): boolean {
@@ -149,7 +149,7 @@ function handleColumnJump(e: KeyboardEvent, ctx: KeyboardNavContext): boolean {
 	const targetColumn = columns[colIndex];
 	const columnIssues = filtered.filter(i => getIssueColumn(i).key === targetColumn.key);
 	if (columnIssues.length > 0) {
-		ctx.setSelectedId(columnIssues[0].id);
+		ctx.setSelectedId(columnIssues[0].key);
 	}
 	e.preventDefault();
 	return true;
@@ -162,7 +162,7 @@ function handleCardNavigation(e: KeyboardEvent, ctx: KeyboardNavContext): boolea
 	const selectedId = ctx.getSelectedId();
 
 	if (!selectedId && filtered.length > 0 && NAV_KEYS.includes(e.key)) {
-		ctx.setSelectedId(filtered[0].id);
+		ctx.setSelectedId(filtered[0].key);
 		e.preventDefault();
 		return true;
 	}
@@ -182,7 +182,7 @@ function handleCardNavigation(e: KeyboardEvent, ctx: KeyboardNavContext): boolea
 	} else if (e.key === 'ArrowRight' || e.key === 'l') {
 		newId = findFirstInDirection(filtered, pos, 1);
 	} else if (e.key === 'Enter' || e.key === 'o') {
-		const issue = filtered.find(i => i.id === selectedId);
+		const issue = filtered.find(i => i.key === selectedId);
 		if (issue) ctx.openEditPanel(issue);
 		e.preventDefault();
 		return true;
@@ -209,7 +209,7 @@ function findFirstInDirection(
 	const end = direction === -1 ? -1 : grid.length;
 	for (let c = start; c !== end; c += direction) {
 		if (grid[c].length > 0) {
-			return grid[c][Math.min(pos.row, grid[c].length - 1)].id;
+			return grid[c][Math.min(pos.row, grid[c].length - 1)].key;
 		}
 	}
 	return null;
@@ -229,7 +229,7 @@ function handleListNavigation(e: KeyboardEvent, ctx: KeyboardNavContext): boolea
 	const panelOpen = ctx.getPanelOpen();
 
 	const reveal = (issue: Issue) => {
-		ctx.setSelectedId(issue.id);
+		ctx.setSelectedId(issue.key);
 		if (panelOpen) ctx.openEditPanel(issue, false);
 	};
 
@@ -240,7 +240,7 @@ function handleListNavigation(e: KeyboardEvent, ctx: KeyboardNavContext): boolea
 		return true;
 	}
 
-	const idx = list.findIndex(i => i.id === selectedId);
+	const idx = list.findIndex(i => i.key === selectedId);
 
 	if (e.key === 'Enter' || e.key === 'o') {
 		ctx.openEditPanel(idx !== -1 ? list[idx] : list[0]);

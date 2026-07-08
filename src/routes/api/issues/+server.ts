@@ -8,6 +8,21 @@ import { ok, wrap, ApiError } from '$lib/server/response';
 import { parseBody, CreateIssueSchema } from '$lib/server/schemas';
 
 export const GET: RequestHandler = wrap(async ({ url }) => {
+	const projectsParam = url.searchParams.get('projects');
+	if (projectsParam) {
+		const projects = projectsParam
+			.split(',')
+			.map((project) => project.trim())
+			.filter(Boolean);
+
+		if (projects.length === 0) {
+			throw new ApiError('projects required', 400, 'VALIDATION');
+		}
+
+		const { getAllIssuesMulti } = await import('$lib/db');
+		return ok({ issues: getAllIssuesMulti(projects) });
+	}
+
 	const cwd = requireProjectCwd(url);
 	return ok({ issues: getAllIssues(cwd) });
 });

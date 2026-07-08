@@ -20,7 +20,7 @@
 	const total = $derived(ids.length);
 	const safeIndex = $derived(Math.min(Math.max(index, 0), Math.max(total - 1, 0)));
 	const currentId = $derived(ids[safeIndex]);
-	const current = $derived(issues.find((i) => i.id === currentId) ?? null);
+	const current = $derived(issues.find((i) => i.key === currentId) ?? null);
 	const column = $derived(current ? getIssueColumn(current) : null);
 	const priority = $derived(current ? getPriorityConfig(current.priority) : null);
 	const atStart = $derived(safeIndex <= 0);

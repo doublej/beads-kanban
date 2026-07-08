@@ -35,13 +35,13 @@ export function createCardDrag(ctx: CardDragContext) {
 		target.classList.add('dragging');
 	}
 
-	function handleDragEnd(e: DragEvent) {
+	function handleDragEnd(e?: DragEvent) {
 		draggedId = null;
 		draggedOverColumn = null;
 		dropIndicatorIndex = null;
 		dropTargetColumn = null;
-		const target = e.target as HTMLElement;
-		target.classList.remove('dragging');
+		const target = e?.target as HTMLElement | undefined;
+		target?.classList.remove('dragging');
 	}
 
 	function handleDragOver(e: DragEvent, columnKey: string) {
@@ -112,7 +112,7 @@ export function createCardDrag(ctx: CardDragContext) {
 				return;
 			}
 
-			const issue = ctx.getIssues().find(i => i.id === draggedId);
+			const issue = ctx.getIssues().find(i => i.key === draggedId);
 			if (issue && columnKey === 'closed' && hasOpenBlockers(issue)) {
 				draggedId = null;
 				draggedOverColumn = null;
