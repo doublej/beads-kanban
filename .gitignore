@@ -23,6 +23,9 @@ bin/bdk.js.map
 # Manager agent memory
 CLAUDE-MANAGER.md
 
+# RepoMap tag cache
+.repomap.tags.cache.v1/
+
 # Beads database — keep only README + .gitignore tracked
 .beads/*
 !.beads/.gitignore
