@@ -23,6 +23,9 @@ bin/bdk.js.map
 # Manager agent memory
 CLAUDE-MANAGER.md
 
+# Local workflow demo notes
+WORKFLOW_DEMO.md
+
 # RepoMap tag cache
 .repomap.tags.cache.v1/
 
