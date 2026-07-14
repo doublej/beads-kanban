@@ -11,7 +11,7 @@ while [ -L "$SOURCE" ]; do
 done
 DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 if command -v bun >/dev/null 2>&1; then
-  exec bun "$DIR/bdk.js" "$@"
+  exec bun "$DIR/strand.js" "$@"
 else
-  exec node "$DIR/bdk.js" "$@"
+  exec node "$DIR/strand.js" "$@"
 fi

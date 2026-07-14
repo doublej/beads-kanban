@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 /**
- * CLI entry point for bdk (strandkanban).
+ * CLI entry point for strand (strandkanban).
  * Validates target directory, checks bd CLI, writes .beads-cwd, starts dev server.
  *
  * Subcommands:
- *   bdk [path]            Start the dev server against [path] (default: cwd).
- *   bdk zen <ids>         Start the server and open focus review for the given ids.
- *   bdk reap [opts]       Reap orphan `dolt sql-server` processes.
- *   bdk help              Show usage.
+ *   strand [path]            Start the dev server against [path] (default: cwd).
+ *   strand zen <ids>         Start the server and open focus review for the given ids.
+ *   strand reap [opts]       Reap orphan `dolt sql-server` processes.
+ *   strand help              Show usage.
  *
  * Reaper helpers below are duplicated from src/lib/{touched-cwds,dolt-reaper}.ts so
  * the CLI stays compilable as a single file via `tsc -p bin/tsconfig.json` (no bundler).
@@ -28,7 +28,7 @@ const MIN_BD_VERSION = '1.0.0'
 const AGENT_PORT = 9347
 const APP_DIR = dirname(new URL('.', import.meta.url).pathname)
 const CACHE_DIR = join(homedir(), '.cache', 'strandkanban')
-/** Tracks the most-recently-started board so `bdk open` can reuse it instead of spawning another. */
+/** Tracks the most-recently-started board so `strand open` can reuse it instead of spawning another. */
 const ACTIVE_SERVER_FILE = join(CACHE_DIR, 'active-server.json')
 
 interface ActiveServer { cwd: string; port: number; pid: number }
@@ -264,7 +264,7 @@ function reapScanCwd(dir: string): { killed: DoltOrphan[]; failed: { orphan: Dol
 }
 
 function printReapHelp(): void {
-	console.log(`Usage: bdk reap [--touched|--all|--scan-cwd <dir>]
+	console.log(`Usage: strand reap [--touched|--all|--scan-cwd <dir>]
 
   --touched          Default. Reap dolt servers from cache files of dead strandkanban sessions.
   --all              Reap any orphan dolt sql-server whose cwd contains /.beads/dolt. Use with care.
@@ -489,28 +489,28 @@ function parseIds(args: string[]): string[] {
 
 async function runZen(args: string[]): Promise<void> {
 	if (args.includes('-h') || args.includes('--help')) {
-		console.log(`Usage: bdk zen <id[,id ...]>
+		console.log(`Usage: strand zen <id[,id ...]>
 
   Starts the board against the current directory and opens distraction-free
   focus review for the given issue ids. Ids may be comma- or space-separated:
-    bdk zen pm-1,pm-2
-    bdk zen pm-1 pm-2 pm-3`)
+    strand zen pm-1,pm-2
+    strand zen pm-1 pm-2 pm-3`)
 		return
 	}
 	const ids = parseIds(args)
 	if (ids.length === 0) {
-		fail('zen requires at least one issue id. Usage: bdk zen <id[,id ...]>')
+		fail('zen requires at least one issue id. Usage: strand zen <id[,id ...]>')
 	}
 	const target = resolve(process.cwd())
 	const openPath = `/?zen=${ids.map(encodeURIComponent).join(',')}`
 	await startServer(target, { openPath })
 }
 
-// --- open subcommand (bdk:// URL scheme handler) ---
+// --- open subcommand (strand:// URL scheme handler) ---
 
-/** Extract the issue id from a `bdk://<id>` URL or a bare id. Tolerates slashes, query, and hash. */
+/** Extract the issue id from a `strand://<id>` URL or a bare id. Tolerates slashes, query, and hash. */
 function parseIssueRef(arg: string): string {
-	let s = arg.trim().replace(/^bdk:\/\//i, '')
+	let s = arg.trim().replace(/^strand:\/\//i, '')
 	s = s.split(/[?#]/)[0]            // drop query/hash
 	s = s.replace(/^\/+|\/+$/g, '')   // drop leading/trailing slashes
 	try { s = decodeURIComponent(s) } catch { /* leave as-is if not encoded */ }
@@ -530,12 +530,12 @@ function readTargetCwd(): string {
 
 async function runOpen(arg: string | undefined): Promise<void> {
 	if (!arg || arg === '-h' || arg === '--help') {
-		console.log(`Usage: bdk open <bdk://id | id>
+		console.log(`Usage: strand open <strand://id | id>
 
   Focus the board on an issue. Reuses a running board if one is up,
   otherwise starts one against the last-targeted project.
-    bdk open bdk://pm-1
-    bdk open pm-1`)
+    strand open strand://pm-1
+    strand open pm-1`)
 		if (!arg) process.exitCode = 2
 		return
 	}
@@ -559,21 +559,21 @@ async function runOpen(arg: string | undefined): Promise<void> {
 // --- dispatch ---
 
 function printHelp(): void {
-	console.log(`bdk — Kanban board for the Beads issue tracker
+	console.log(`strand — Kanban board for the Beads issue tracker
 
 Usage:
-  bdk [path]            Start the board against [path] (default: current directory)
-  bdk open <bdk://id>   Focus an issue (reuses a running board; handles the bdk:// scheme)
-  bdk zen <ids>         Open distraction-free focus review for the given issue ids
-  bdk reap [opts]       Reap orphan 'dolt sql-server' processes (see 'bdk reap --help')
-  bdk --version         Show the installed strandkanban version
-  bdk help              Show this help
+  strand [path]               Start the board against [path] (default: current directory)
+  strand open <strand://id>   Focus an issue (reuses a running board; handles the strand:// scheme)
+  strand zen <ids>            Open distraction-free focus review for the given issue ids
+  strand reap [opts]          Reap orphan 'dolt sql-server' processes (see 'strand reap --help')
+  strand --version            Show the installed strandkanban version
+  strand help                 Show this help
 
 Examples:
-  bdk                   Start against the current directory
-  bdk ~/code/myproject  Start against another project
-  bdk open bdk://pm-1   Open the board focused on issue pm-1
-  bdk zen pm-1,pm-2     Review issues pm-1 and pm-2`)
+  strand                      Start against the current directory
+  strand ~/code/myproject     Start against another project
+  strand open strand://pm-1   Open the board focused on issue pm-1
+  strand zen pm-1,pm-2        Review issues pm-1 and pm-2`)
 }
 
 async function main() {
@@ -598,8 +598,8 @@ async function main() {
 			console.log(readPackageVersion())
 			return
 		default:
-			// A bdk:// URL (from the macOS scheme handler) → treat as `open`.
-			if (cmd?.startsWith('bdk://')) {
+			// A strand:// URL (from the macOS scheme handler) → treat as `open`.
+			if (cmd?.startsWith('strand://')) {
 				await runOpen(cmd)
 				return
 			}

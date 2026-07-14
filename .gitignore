@@ -17,8 +17,8 @@ build/
 .env
 
 # Compiled CLI artifacts
-bin/bdk.js
-bin/bdk.js.map
+bin/strand.js
+bin/strand.js.map
 
 # Manager agent memory
 CLAUDE-MANAGER.md

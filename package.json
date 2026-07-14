@@ -16,8 +16,8 @@
     "vite.config.ts"
   ],
   "bin": {
-    "strandkanban": "./bin/bdk",
-    "bdk": "./bin/bdk"
+    "strandkanban": "./bin/strand",
+    "strand": "./bin/strand"
   },
   "scripts": {
     "dev": "vite dev --host",

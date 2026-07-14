@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Registers the `bdk://<id>` URL scheme on macOS.
+# Registers the `strand://<id>` URL scheme on macOS.
 #
 # Builds a tiny AppleScript .app whose `on open location` handler forwards the
-# clicked URL to the bdk CLI (`bdk open bdk://<id>`), which focuses the board on
+# clicked URL to the strand CLI (`strand open strand://<id>`), which focuses the board on
 # that issue — reusing a running board if one is up, else starting one.
 #
 # Usage:  scheme/install.sh            # install / re-install
@@ -11,14 +11,14 @@
 #
 set -euo pipefail
 
-APP_NAME="Beads Kanban URL"
+APP_NAME="Strandkanban URL"
 APP_PATH="$HOME/Applications/${APP_NAME}.app"
 BUNDLE_ID="com.doublej.strandkanban.url"
 
 # Repo root = parent of this script's dir.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CLI_ENTRY="$REPO_DIR/bin/bdk.ts"
+CLI_ENTRY="$REPO_DIR/bin/strand.ts"
 
 uninstall() {
 	if [[ -d "$APP_PATH" ]]; then
@@ -27,7 +27,7 @@ uninstall() {
 	fi
 	/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
 		-kill -r -domain local -domain user >/dev/null 2>&1 || true
-	echo "Unregistered bdk:// scheme."
+	echo "Unregistered strand:// scheme."
 	exit 0
 }
 
@@ -55,10 +55,10 @@ BD_DIR="${BD_BIN:+$(dirname "$BD_BIN")}"
 PATH_PREFIX="$BUN_DIR${BD_DIR:+:$BD_DIR}:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 # 1. Compile the AppleScript handler into an .app bundle.
-SCPT="$(mktemp -t bdk-scheme).applescript"
+SCPT="$(mktemp -t strand-scheme).applescript"
 cat >"$SCPT" <<APPLESCRIPT
 on open location theURL
-	set theCmd to "export PATH=" & quoted form of "$PATH_PREFIX" & "; " & quoted form of "$BUN_BIN" & " " & quoted form of "$CLI_ENTRY" & " open " & quoted form of theURL & " </dev/null >/tmp/bdk-scheme.log 2>&1 &"
+	set theCmd to "export PATH=" & quoted form of "$PATH_PREFIX" & "; " & quoted form of "$BUN_BIN" & " " & quoted form of "$CLI_ENTRY" & " open " & quoted form of theURL & " </dev/null >/tmp/strand-scheme.log 2>&1 &"
 	do shell script theCmd
 end open location
 APPLESCRIPT
@@ -68,16 +68,16 @@ mkdir -p "$(dirname "$APP_PATH")"
 osacompile -o "$APP_PATH" "$SCPT"
 rm -f "$SCPT"
 
-# 2. Register the bdk:// scheme in the app's Info.plist.
+# 2. Register the strand:// scheme in the app's Info.plist.
 PLIST="$APP_PATH/Contents/Info.plist"
 PB=/usr/libexec/PlistBuddy
 "$PB" -c "Add :CFBundleIdentifier string $BUNDLE_ID" "$PLIST" 2>/dev/null \
 	|| "$PB" -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST"
 "$PB" -c "Add :CFBundleURLTypes array" "$PLIST" 2>/dev/null || true
 "$PB" -c "Add :CFBundleURLTypes:0 dict" "$PLIST"
-"$PB" -c "Add :CFBundleURLTypes:0:CFBundleURLName string Beads Kanban" "$PLIST"
+"$PB" -c "Add :CFBundleURLTypes:0:CFBundleURLName string Strandkanban" "$PLIST"
 "$PB" -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$PLIST"
-"$PB" -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string bdk" "$PLIST"
+"$PB" -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string strand" "$PLIST"
 
 # 3. Tell LaunchServices about it.
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
@@ -85,7 +85,7 @@ PB=/usr/libexec/PlistBuddy
 
 echo
 echo "Registered. Test with:"
-echo "  open 'bdk://<some-issue-id>'"
+echo "  open 'strand://<some-issue-id>'"
 echo
 echo "First launch may show a Gatekeeper prompt — approve it once."
 echo "Uninstall: scheme/install.sh --uninstall"

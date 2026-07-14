@@ -7,6 +7,6 @@
     "skipLibCheck": true,
     "esModuleInterop": true
   },
-  "include": ["bdk.ts"],
+  "include": ["strand.ts"],
   "exclude": []
 }

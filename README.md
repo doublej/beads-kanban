@@ -26,11 +26,11 @@ brew install beads
 npx github:doublej/strandkanban /path/to/project
 ```
 
-Install globally to get the short `bdk` command:
+Install globally to get the short `strand` command:
 
 ```bash
 npm install -g github:doublej/strandkanban
-bdk /path/to/project
+strand /path/to/project
 ```
 
 The launcher handles setup for you:
@@ -52,7 +52,7 @@ The launcher handles setup for you:
 - **More views.** Switch between the board, a table, the dependency graph, and a grid overview. Open zen mode for a focused review of selected issues.
 - **Search and filters.** Filter by text, priority, type, label, time, and whether an issue is actionable.
 - **Notifications.** Get browser push and desktop notifications when issues change.
-- **Deep links.** Open `bdk://issue-id` links to jump straight to an issue on a running board.
+- **Deep links.** Open `strand://issue-id` links to jump straight to an issue on a running board.
 
 The board has five columns: Backlog, In Progress, Hooked, Blocked, and Complete. They map to the Beads statuses `open`, `in_progress`, `hooked`, `blocked`, and `closed`.
 
@@ -68,17 +68,17 @@ Verify the basics:
 ```bash
 bd --version
 node --version
-bdk --version
+strand --version
 ```
 
 ## Daily usage
 
 ```bash
-bdk                         # start against the current directory
-bdk ~/code/my-project       # start against another project
-bdk open bdk://proj-123     # focus an issue on the running board
-bdk zen proj-123,proj-456   # open focus review for selected issues
-bdk reap                    # clean stale dolt sql-server processes from old sessions
+strand                            # start against the current directory
+strand ~/code/my-project          # start against another project
+strand open strand://proj-123     # focus an issue on the running board
+strand zen proj-123,proj-456      # open focus review for selected issues
+strand reap                       # clean stale dolt sql-server processes from old sessions
 ```
 
 If the CLI finds no `.beads/` in the target project, it asks before initializing Beads.
@@ -90,7 +90,7 @@ git clone https://github.com/doublej/strandkanban
 cd strandkanban
 bun install
 bun run build:cli
-./bin/bdk /path/to/project
+./bin/strand /path/to/project
 ```
 
 If you prefer npm:
@@ -98,7 +98,7 @@ If you prefer npm:
 ```bash
 npm install
 npm run build:cli
-./bin/bdk /path/to/project
+./bin/strand /path/to/project
 ```
 
 ## Optional setup
@@ -112,21 +112,21 @@ cp .env.example .env
 # edit .env and set ANTHROPIC_API_KEY=...
 ```
 
-Then launch with `bdk /path/to/project`. The CLI starts the agent server on port `9347` when the port is available.
+Then launch with `strand /path/to/project`. The CLI starts the agent server on port `9347` when the port is available.
 
 ### Notifications
 
 - Browser push notifications use the service worker. VAPID keys are generated on first use and stored in `.beads/beads-app.db`.
 - Desktop notifications go through the Consult User MCP server when it is available.
 
-### `bdk://` links on macOS
+### `strand://` links on macOS
 
 ```bash
 scheme/install.sh
-open 'bdk://some-issue-id'
+open 'strand://some-issue-id'
 ```
 
-The script registers a small URL handler that forwards links to `bdk open`. See [scheme/README.md](scheme/README.md) for uninstall and terminal hyperlink notes.
+The script registers a small URL handler that forwards links to `strand open`. See [scheme/README.md](scheme/README.md) for uninstall and terminal hyperlink notes.
 
 ## Configuration
 
@@ -162,16 +162,16 @@ sudo apt install build-essential # Debian/Ubuntu
 
 ### The server opens on a different port
 
-`bdk` starts at port `5185` and moves upward until it finds a free port. A busy machine lands on a higher port.
+`strand` starts at port `5185` and moves upward until it finds a free port. A busy machine lands on a higher port.
 
 ### Stale dolt servers use memory
 
 ```bash
-bdk reap
-bdk reap --scan-cwd ~/code/my-project
+strand reap
+strand reap --scan-cwd ~/code/my-project
 ```
 
-Use `bdk reap --all` only when you want to clean every orphan `dolt sql-server` whose cwd contains `/.beads/dolt`.
+Use `strand reap --all` only when you want to clean every orphan `dolt sql-server` whose cwd contains `/.beads/dolt`.
 
 ## Development
 
@@ -179,7 +179,7 @@ Use `bdk reap --all` only when you want to clean every orphan `dolt sql-server` 
 bun run dev        # start the dev server
 bun run check      # type-check with svelte-check
 bun run build      # build for production
-bun run build:cli  # compile the bdk launcher
+bun run build:cli  # compile the strand launcher
 ```
 
 Architecture:

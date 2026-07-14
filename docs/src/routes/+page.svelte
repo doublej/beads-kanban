@@ -414,14 +414,14 @@
 					<span class="step-num">3</span>
 					<div class="step-content">
 						<strong>Install the shortcut</strong>
-						<p>Run <code>npm install -g github:doublej/strandkanban</code> to get the shorter <code>bdk</code> command.</p>
+						<p>Run <code>npm install -g github:doublej/strandkanban</code> to get the shorter <code>strand</code> command.</p>
 					</div>
 				</li>
 				<li>
 					<span class="step-num">4</span>
 					<div class="step-content">
 						<strong>Launch daily</strong>
-						<p>Run <code>bdk</code> inside a Beads project or <code>bdk /path/to/project</code> from anywhere.</p>
+						<p>Run <code>strand</code> inside a Beads project or <code>strand /path/to/project</code> from anywhere.</p>
 					</div>
 				</li>
 			</ol>
