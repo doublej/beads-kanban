@@ -5,7 +5,7 @@
  *
  * Subcommands:
  *   strand [path]            Start the dev server against [path] (default: cwd).
- *   strand zen <ids>         Start the server and open focus review for the given ids.
+ *   strand zen [opts] <ids>  Start the server and open focus review for the given ids.
  *   strand reap [opts]       Reap orphan `dolt sql-server` processes.
  *   strand help              Show usage.
  *
@@ -489,20 +489,34 @@ function parseIds(args: string[]): string[] {
 
 async function runZen(args: string[]): Promise<void> {
 	if (args.includes('-h') || args.includes('--help')) {
-		console.log(`Usage: strand zen <id[,id ...]>
+		console.log(`Usage: strand zen [--project <path>] <id[,id ...]>
 
-  Starts the board against the current directory and opens distraction-free
-  focus review for the given issue ids. Ids may be comma- or space-separated:
+  Starts the board and opens distraction-free focus review for the given
+  issue ids. Targets the current directory unless --project is given.
+  Ids may be comma- or space-separated:
     strand zen pm-1,pm-2
-    strand zen pm-1 pm-2 pm-3`)
+    strand zen pm-1 pm-2 pm-3
+    strand zen --project ~/code/myproject pm-1,pm-2`)
 		return
 	}
-	const ids = parseIds(args)
-	if (ids.length === 0) {
-		fail('zen requires at least one issue id. Usage: strand zen <id[,id ...]>')
+	let project: string | null = null
+	const idArgs: string[] = []
+	for (let i = 0; i < args.length; i++) {
+		if (args[i] === '--project' || args[i] === '-p') {
+			project = args[++i]
+			if (!project) fail('--project requires a directory argument')
+		} else {
+			idArgs.push(args[i])
+		}
 	}
-	const target = resolve(process.cwd())
-	const openPath = `/?zen=${ids.map(encodeURIComponent).join(',')}`
+	const ids = parseIds(idArgs)
+	if (ids.length === 0) {
+		fail('zen requires at least one issue id. Usage: strand zen [--project <path>] <id[,id ...]>')
+	}
+	const target = resolve(project ?? process.cwd())
+	const zenQuery = `zen=${ids.map(encodeURIComponent).join(',')}`
+	// Include ?project= when explicitly requested so the tab stays fenced to it.
+	const openPath = project ? `/?project=${encodeURIComponent(target)}&${zenQuery}` : `/?${zenQuery}`
 	await startServer(target, { openPath })
 }
 
@@ -564,7 +578,8 @@ function printHelp(): void {
 Usage:
   strand [path]               Start the board against [path] (default: current directory)
   strand open <strand://id>   Focus an issue (reuses a running board; handles the strand:// scheme)
-  strand zen <ids>            Open distraction-free focus review for the given issue ids
+  strand zen [opts] <ids>     Open distraction-free focus review for the given issue ids
+                              (--project <path> targets another project)
   strand reap [opts]          Reap orphan 'dolt sql-server' processes (see 'strand reap --help')
   strand --version            Show the installed strandkanban version
   strand help                 Show this help
@@ -573,7 +588,9 @@ Examples:
   strand                      Start against the current directory
   strand ~/code/myproject     Start against another project
   strand open strand://pm-1   Open the board focused on issue pm-1
-  strand zen pm-1,pm-2        Review issues pm-1 and pm-2`)
+  strand zen pm-1,pm-2        Review issues pm-1 and pm-2
+  strand zen -p ~/code/myproject pm-1,pm-2
+                              Review issues in another project`)
 }
 
 async function main() {

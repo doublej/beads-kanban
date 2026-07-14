@@ -78,6 +78,7 @@ strand                            # start against the current directory
 strand ~/code/my-project          # start against another project
 strand open strand://proj-123     # focus an issue on the running board
 strand zen proj-123,proj-456      # open focus review for selected issues
+strand zen -p ~/code/my-project proj-123   # focus review in another project
 strand reap                       # clean stale dolt sql-server processes from old sessions
 ```
 
