@@ -27,23 +27,25 @@ export const PATCH: RequestHandler = wrap(async ({ params, request, url }) => {
 	);
 	if (!updateRes.success) throw new ApiError(updateRes.error || 'Update failed');
 
-	const sideEffects: Promise<{ success: boolean; error?: string }>[] = [];
+	// Run sequentially: concurrent bd invocations on the same issue race and lose updates.
+	const sideEffects: (() => Promise<{ success: boolean; error?: string }>)[] = [];
 	if (agent_model !== undefined) {
-		sideEffects.push(agent_model
+		sideEffects.push(() => agent_model
 			? setMetadata(params.id, 'agent_model', String(agent_model), cwd)
 			: unsetMetadata(params.id, 'agent_model', cwd));
 	}
 	if (agent_effort !== undefined) {
-		sideEffects.push(agent_effort
+		sideEffects.push(() => agent_effort
 			? setMetadata(params.id, 'agent_effort', String(agent_effort), cwd)
 			: unsetMetadata(params.id, 'agent_effort', cwd));
 	}
-	for (const label of removeLabels ?? []) sideEffects.push(removeLabel(params.id, label, cwd));
-	for (const label of addLabels ?? []) sideEffects.push(addLabel(params.id, label, cwd));
+	for (const label of removeLabels ?? []) sideEffects.push(() => removeLabel(params.id, label, cwd));
+	for (const label of addLabels ?? []) sideEffects.push(() => addLabel(params.id, label, cwd));
 
-	const results = await Promise.all(sideEffects);
-	const failed = results.find((r) => !r.success);
-	if (failed) throw new ApiError(failed.error || 'Update failed');
+	for (const sideEffect of sideEffects) {
+		const result = await sideEffect();
+		if (!result.success) throw new ApiError(result.error || 'Update failed');
+	}
 
 	const afterIssue = getIssueById(params.id, cwd);
 	if (beforeIssue && afterIssue) {
