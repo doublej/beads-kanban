@@ -62,8 +62,9 @@
 	import { startManager, switchManagerProject, setServerProject } from '$lib/stores/ws-connection.svelte';
 	import { getQueueItems, getQueuedTicketIds, fetchInitialQueue } from '$lib/stores/queue.svelte';
 
+	let { data } = $props();
+
 	// --- UI State (page-only) ---
-	let bdVersion = $state<{ version: string; compatible: boolean } | null>(null);
 	let filters = $state<FilterState>(emptyFilterState());
 	let isFilterPreviewing = $state(false);
 	let selectedId = $state<string | null>(null);
@@ -114,7 +115,7 @@
 	let showMutationLog = $state(false);
 	let projects = $state<Project[]>([]);
 	let showProjectSwitcher = $state(false);
-	let currentProjectPath = $state('');
+	let currentProjectPath = $state(data.cwd ?? '');
 	let projectColor = $state('#6366f1');
 	let projectTransition = $state<'idle' | 'wipe-out' | 'wipe-in'>('idle');
 	let switchStatus = $state<string | null>(null);
@@ -124,13 +125,12 @@
 	let hydratedProject = $state<string | null>(null);
 	const PROJECT_VIEW_PREFIX = 'bdk:view:';
 
-	// --- Read project from URL before any effects fire ---
-	if (browser) {
-		const urlProject = new URL(window.location.href).searchParams.get('project');
-		if (urlProject) {
-			setCurrentProject(urlProject);
-			currentProjectPath = urlProject;
-		}
+	// --- Seed frontend project context before any effect fires ---
+	// data.cwd already reflects any ?project= param (resolveProjectCwd on the server),
+	// so appendProjectParam works on the very first client request — no CWD_MISSING
+	// 400s, no SSE-reconnect stall on cold load.
+	if (browser && data.cwd) {
+		setCurrentProject(data.cwd);
 	}
 
 	// Agent queue state
@@ -207,7 +207,7 @@
 		onEditingIssueClosedExternally: () => { ops.issueClosedExternally = true; },
 		getEditingIssue: () => ops.editingIssue,
 		getIsCreating: () => ops.isCreating
-	});
+	}, data.issues ?? []);
 
 	let issues = $derived(issueStore.issues);
 	let statusColumns = $derived(getColumnsWithCustom(issues));
@@ -528,12 +528,15 @@
 		return () => issueStore.closeSse();
 	});
 
+	// Lazily populate the activity/mutation log the first time its panel opens.
+	// Kept off the cold-start path (bd sql is O(JSONL) and unsupported in embedded mode).
+	let mutationLogFetched = false;
 	$effect(() => {
 		if (!browser) return;
-		fetch(appendProjectParam('/api/issues')).then(r => r.json()).then(payload => {
-			const data = payload?.ok ? payload.data : null;
-			if (data?.bdVersion) bdVersion = data.bdVersion;
-		}).catch(() => {});
+		if (showMutationLog && !mutationLogFetched) {
+			mutationLogFetched = true;
+			fetchMutations();
+		}
 	});
 
 	$effect(() => {
@@ -854,12 +857,6 @@
 		ondeleterecipe={deleteRecipe}
 		onrenamerecipe={renameRecipe}
 	/>
-
-	{#if bdVersion && !bdVersion.compatible}
-		<div class="version-warning">
-			bd v{bdVersion.version} detected — v1.0.0+ required for full functionality. Run <code>brew upgrade bd</code> to update.
-		</div>
-	{/if}
 
 	<div class="workspace">
 	<FilterSidebar
@@ -1206,22 +1203,6 @@
 		font-weight: 500;
 		color: var(--text-primary);
 		white-space: nowrap;
-	}
-
-	.version-warning {
-		background: rgba(245, 158, 11, 0.15);
-		border-bottom: 1px solid rgba(245, 158, 11, 0.3);
-		color: #f59e0b;
-		padding: 6px 16px;
-		font-size: 12px;
-		text-align: center;
-		font-family: var(--font-mono);
-	}
-
-	.version-warning code {
-		background: rgba(245, 158, 11, 0.2);
-		padding: 1px 5px;
-		border-radius: 3px;
 	}
 
 	.app {

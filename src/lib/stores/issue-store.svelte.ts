@@ -27,20 +27,24 @@ export interface IssueStoreCallbacks {
 	getIsCreating: () => boolean;
 }
 
-export function createIssueStore(callbacks: IssueStoreCallbacks) {
-	let issues = $state<Issue[]>([]);
+export function createIssueStore(callbacks: IssueStoreCallbacks, initialIssues: Issue[] = []) {
+	// SSR can seed the board so it paints filled on first load. When seeded, mark it
+	// ready (InitialLoader won't flash) and prime lastSnapshotHash below so the first
+	// live refresh doesn't re-animate every card.
+	const seeded = initialIssues.length > 0;
+	let issues = $state<Issue[]>(initialIssues);
 	let pendingUpdates = $state<Map<string, { updates: Partial<Issue>; timestamp: number }>>(new Map());
 	let pendingDeletes = $state<Set<string>>(new Set());
 	let animatingIds = $state<Set<string>>(new Set());
 	let loadingStatus = $state<LoadingStatus>({
-		phase: 'disconnected',
+		phase: seeded ? 'ready' : 'disconnected',
 		pollCount: 0,
 		lastUpdate: null,
-		issueCount: 0,
+		issueCount: initialIssues.length,
 		hasChanges: false,
 		errorMessage: null
 	});
-	let initialLoaded = $state(false);
+	let initialLoaded = $state(seeded);
 	let sseSource = $state<EventSource | null>(null);
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -145,11 +149,14 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 	}
 
 	let pollCount = 0;
-	let lastSnapshotHash = '';
 
 	function snapshotHash(items: Issue[]): string {
 		return items.map((i) => `${i.id}:${i.updated_at ?? ''}:${i.status}`).join('|');
 	}
+
+	// Primed from SSR-seeded issues so the first live refresh diffs against what's
+	// already on screen instead of re-animating every card.
+	let lastSnapshotHash = snapshotHash(initialIssues);
 
 	async function refreshIssues() {
 		try {
@@ -180,7 +187,6 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 			};
 			if (!initialLoaded) {
 				initialLoaded = true;
-				fetchMutations();
 			}
 			if (!hasChanges) return;
 
@@ -201,7 +207,9 @@ export function createIssueStore(callbacks: IssueStoreCallbacks) {
 		sseSource = eventSource;
 
 		// Initial snapshot fires on open; subsequent refreshes triggered by events.
-		void refreshIssues();
+		// Skip the immediate fetch when SSR already seeded the board — the backstop
+		// poll and SSE events keep it live. Net: zero client-side exports on cold load.
+		if (!initialLoaded) void refreshIssues();
 
 		// Backstop poll (de-duped via snapshotHash, so no UI churn when nothing changed):
 		// SSE events fire instantly for in-app writes but lag several seconds for external
