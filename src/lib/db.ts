@@ -73,11 +73,12 @@ const BD_SQL_TIMEOUT_MS = (() => {
 })();
 
 /**
- * Run a SELECT via `bd sql --json`. Backend-agnostic and always correct (bd manages the
- * Dolt server / SQLite and loads the JSONL), but rebuilds a throwaway database from the
- * JSONL on every call, so it is O(JSONL size). Hot read paths use `bdExport` instead;
- * this remains for the events feed and single-purpose queries. Uses spawnSync to avoid
- * shell-quoting issues.
+ * Run a SELECT via `bd sql --json`. Works against server-mode Dolt projects (bd manages
+ * the Dolt server / SQLite and loads the JSONL), but rebuilds a throwaway database from
+ * the JSONL on every call, so it is O(JSONL size). NOT supported on embedded-mode
+ * projects (bd 1.1 exits 1 with "not yet supported in embedded mode") — callers must
+ * handle that. Hot read paths use `bdExport` instead; this remains for the events feed
+ * and single-purpose queries. Uses spawnSync to avoid shell-quoting issues.
  */
 function bdSql<T>(query: string, cwd?: string): T[] {
 	const effectiveCwd = cwd ?? getStoredCwd();
@@ -405,10 +406,18 @@ function parseEventToMutation(ev: DbEvent): MutationEntry | null {
 }
 
 export function getRecentEvents(limit = 100, cwd?: string): MutationEntry[] {
-	const rows = bdSql<DbEvent>(`
-		SELECT id, issue_id, event_type, actor, old_value, new_value, comment, created_at
-		FROM events ORDER BY created_at DESC LIMIT ${Math.floor(limit)}
-	`, cwd);
+	let rows: DbEvent[];
+	try {
+		rows = bdSql<DbEvent>(`
+			SELECT id, issue_id, event_type, actor, old_value, new_value, comment, created_at
+			FROM events ORDER BY created_at DESC LIMIT ${Math.floor(limit)}
+		`, cwd);
+	} catch (err) {
+		// bd 1.1 does not support `bd sql` on embedded-mode projects — serve an empty
+		// feed there; the SSE stream (fs.watch based) still drives board refreshes.
+		if (String(err).includes('not yet supported in embedded mode')) return [];
+		throw err;
+	}
 
 	return rows.map(parseEventToMutation).filter((m): m is MutationEntry => m !== null);
 }
