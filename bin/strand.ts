@@ -24,7 +24,7 @@ import { createInterface } from 'readline'
 import { createServer, createConnection } from 'net'
 import { homedir } from 'os'
 
-const MIN_BD_VERSION = '1.0.0'
+const MIN_BD_VERSION = '1.1.0'
 const AGENT_PORT = 9347
 const APP_DIR = dirname(new URL('.', import.meta.url).pathname)
 const CACHE_DIR = join(homedir(), '.cache', 'strandkanban')
